@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Track your shipment in real-time with Speed Setu's advanced tracking system.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0B4DD9">
+  <title>Track Shipment - Speed Setu</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/tracking.css">
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <div class="navbar">
+        <div class="navbar-brand">
+          <a href="../index.html" class="brand-link">
+            <img src="../assets/images/logo1.png" alt="Speed Setu logo" class="logo" />
+            <span class="site-name">Speed Setu</span>
+          </a>
+        </div>
+        <ul class="navbar-menu">
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="tracking.html" class="active">Track Shipment</a></li>
+          <li><a href="branches.html">Branches</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+        <div class="hamburger">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <h1>Track Your Shipment</h1>
+      <p>Real-time visibility of your goods with advanced tracking technology</p>
+    </div>
+  </section>
+
+  <!-- Tracking Form Section -->
+  <section class="section">
+    <div class="container">
+      <div class="tracking-form-container">
+        <div class="tracking-form-wrapper">
+          <h2>Enter Your Tracking ID</h2>
+          <p class="form-subtitle">Provide your shipment tracking ID to get real-time updates</p>
+
+          <form id="trackingForm">
+            <div class="form-group">
+              <label for="trackingId">Tracking ID</label>
+              <input type="text" id="trackingId" name="trackingId" placeholder="e.g., SETU001" required>
+              <small class="helper-text">Example IDs: SETU001, SETU002, SETU003</small>
+            </div>
+            <button type="submit" class="btn btn--primary btn--large">Track Shipment</button>
+          </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="trackingResult" style="display: none; margin-top: var(--spacing-xl);"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="section section--light">
+    <div class="container">
+      <h2 class="text-center mb">Why Track With Speed Setu?</h2>
+
+      <div class="grid grid--3">
+        <div class="feature-box">
+          <div class="feature-box-icon">📍</div>
+          <h3>Real-Time Location</h3>
+          <p>Track your shipment's exact location with GPS accuracy. Get live updates every minute.</p>
+        </div>
+
+        <div class="feature-box">
+          <div class="feature-box-icon">⏱️</div>
+          <h3>Estimated Delivery</h3>
+          <p>Know exactly when your shipment will arrive. Accurate delivery time predictions.</p>
+        </div>
+
+        <div class="feature-box">
+          <div class="feature-box-icon">📱</div>
+          <h3>Mobile Notifications</h3>
+          <p>Receive automatic notifications at each stage of your shipment journey.</p>
+        </div>
+
+        <div class="feature-box">
+          <div class="feature-box-icon">📸</div>
+          <h3>Photo Proof of Delivery</h3>
+          <p>Get photo confirmation when your shipment is delivered to destination.</p>
+        </div>
+
+        <div class="feature-box">
+          <div class="feature-box-icon">💬</div>
+          <h3>Customer Support</h3>
+          <p>Contact our support team directly if you have any questions about your shipment.</p>
+        </div>
+
+        <div class="feature-box">
+          <div class="feature-box-icon">🔒</div>
+          <h3>Secure & Protected</h3>
+          <p>Full insurance coverage and secure handling throughout the journey.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb">How Tracking Works</h2>
+
+      <div class="steps-container">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Submit Tracking ID</h3>
+            <p>Enter your tracking ID in the form above to start tracking your shipment.</p>
+          </div>
+        </div>
+
+        <div class="step-arrow">→</div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Get Real-Time Updates</h3>
+            <p>View current status, location, and estimated delivery time of your shipment.</p>
+          </div>
+        </div>
+
+        <div class="step-arrow">→</div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Receive Notifications</h3>
+            <p>Automatic updates at pickup, in transit, and delivery stages.</p>
+          </div>
+        </div>
+
+        <div class="step-arrow">→</div>
+
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Confirm Delivery</h3>
+            <p>Get photo proof and delivery confirmation when your shipment arrives.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shipment Status Guide -->
+  <section class="section section--light">
+    <div class="container">
+      <h2 class="text-center mb">Shipment Status Guide</h2>
+      <p class="text-center text-gray" style="max-width: 600px; margin: 0 auto var(--spacing-xl);">
+        Understand what each status means for your shipment
+      </p>
+
+      <div class="status-guide">
+        <div class="status-item">
+          <div class="status-icon processing">📋</div>
+          <div class="status-info">
+            <h3>Processing</h3>
+            <p>Your shipment has been received and is being prepared for pickup from the origin location.</p>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="status-icon pickup">📦</div>
+          <div class="status-info">
+            <h3>Picked Up</h3>
+            <p>Your shipment has been collected from the origin and is ready to move to the next hub.</p>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="status-icon transit">🚚</div>
+          <div class="status-info">
+            <h3>In Transit</h3>
+            <p>Your shipment is on its way to the destination. Track the real-time location above.</p>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="status-icon hub">🏭</div>
+          <div class="status-info">
+            <h3>At Hub</h3>
+            <p>Your shipment has arrived at the distribution hub and is being sorted for final delivery.</p>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="status-icon out">🚗</div>
+          <div class="status-info">
+            <h3>Out for Delivery</h3>
+            <p>Your shipment is on the delivery vehicle and will be delivered soon.</p>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="status-icon delivered">✅</div>
+          <div class="status-info">
+            <h3>Delivered</h3>
+            <p>Your shipment has been successfully delivered to the destination.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb">Frequently Asked Questions</h2>
+
+      <div class="faq-container">
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>How often are tracking updates provided?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Tracking updates are provided in real-time as your shipment moves through our network. For in-transit
+              shipments, GPS updates are provided every minute. You'll receive notifications at key milestones like
+              pickup, arrival at hub, out for delivery, and delivery.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>What if my tracking ID is not working?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Make sure you've entered the tracking ID correctly (case-sensitive). If the ID is still not recognized,
+              the shipment may not have been added to our system yet. Please contact our customer support team at
+              info@speedsetu.com or call Coming soon for assistance.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Can I update my delivery address after shipment pickup?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>For shipments that haven't been picked up yet, you can change the delivery address. Once the shipment has
+              been picked up, changes are limited. Contact our support team immediately with your tracking ID to request
+              any address modifications.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>How accurate are the delivery time estimates?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Our AI-powered delivery time estimates are accurate within ±2 hours based on current traffic conditions,
+              weather, and historical data. We maintain a 98% on-time delivery rate. Actual delivery times may vary
+              based on unforeseen circumstances.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Can I receive SMS and email notifications?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Yes! You can enable SMS and email notifications for your shipment. By default, you'll receive
+              notifications at pickup, out for delivery, and delivery stages. You can customize notification preferences
+              in your account settings.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>What should I do if my shipment is delayed?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>If your shipment is delayed beyond the estimated delivery window, our system will automatically notify
+              you. You can also contact our customer support team for assistance. We work diligently to resolve any
+              delays and may provide compensation based on our terms.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="section cta-section">
+    <div class="container text-center">
+      <h2>Need Help With Your Shipment?</h2>
+      <p
+        style="color: var(--neutral-white); font-size: var(--font-size-lg); max-width: 600px; margin: 0 auto var(--spacing-xl);">
+        Our dedicated support team is here to help you with any questions or concerns.
+      </p>
+      <div style="display: flex; gap: var(--spacing-lg); justify-content: center; flex-wrap: wrap;">
+        <button class="btn btn--secondary btn--large" onclick="window.location.href='contact.html'">Contact
+          Support</button>
+        <button class="btn btn--outline btn--large" onclick="window.location.href='quote.html'">Get a Quote</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3>Speed Setu</h3>
+          <p>A fast, reliable, and technology-driven logistics company for modern businesses.</p>
+          <div style="margin-top: var(--spacing-md);">
+            <p><strong>Email:</strong> info@speedsetu.com</p>
+            <p><strong>Phone:</strong> Coming soon</p>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <h3>Quick Links</h3>
+          <ul>
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="services.html">Services</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="tracking.html">Track Shipment</a></li>
+            <li><a href="contact.html">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Services</h3>
+          <ul>
+            <li><a href="services.html#freight">Freight Transportation</a></li>
+            <li><a href="services.html#lastmile">Last-Mile Delivery</a></li>
+            <li><a href="services.html#supply">Supply Chain Solutions</a></li>
+            <li><a href="services.html#warehouse">Warehouse & Distribution</a></li>
+            <li><a href="services.html#customized">Customized Logistics</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Support</h3>
+          <ul>
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Pricing</a></li>
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">Terms & Conditions</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2024 Speed Setu. All rights reserved. | Connecting businesses with fast & reliable logistics.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/tracking.js"></script>
+</body>
+
+</html>

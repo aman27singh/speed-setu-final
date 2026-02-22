@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Get a free quote from Speed Setu, your trusted logistics company. Fast, transparent pricing for your shipment needs.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0B4DD9">
+  <title>Request a Quote - Speed Setu</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/quote.css">
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <div class="navbar">
+        <div class="navbar-brand">
+          <a href="../index.html" class="brand-link">
+            <img src="../assets/images/logo1.png" alt="Speed Setu logo" class="logo" />
+            <span class="site-name">Speed Setu</span>
+          </a>
+        </div>
+        <ul class="navbar-menu">
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="tracking.html">Track Shipment</a></li>
+          <li><a href="branches.html">Branches</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+        <div class="hamburger">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <h1>Request a Quote</h1>
+      <p>Get a free, transparent quote for your logistics needs</p>
+    </div>
+  </section>
+
+  <!-- Quote Form Section -->
+  <section class="section">
+    <div class="container">
+      <div class="quote-form-container">
+        <div class="form-info">
+          <h2>Get Your Personalized Quote</h2>
+          <p>Fill in the details below and our team will provide you with a competitive quote within 24 hours.</p>
+
+          <div class="info-cards">
+            <div class="info-card">
+              <div class="info-icon">⚡</div>
+              <h3>Quick Response</h3>
+              <p>Get quotes within 24 hours</p>
+            </div>
+
+            <div class="info-card">
+              <div class="info-icon">💰</div>
+              <h3>Transparent Pricing</h3>
+              <p>No hidden charges</p>
+            </div>
+
+            <div class="info-card">
+              <div class="info-icon">✅</div>
+              <h3>No Commitment</h3>
+              <p>Risk-free quote request</p>
+            </div>
+          </div>
+        </div>
+
+        <form id="quoteForm" class="quote-form" action="https://formsubmit.co/speedsetu@gmail.com" method="POST">
+          <input type="hidden" name="_subject" value="New Quote Request - Speed Setu">
+          <input type="hidden" name="_template" value="table">
+          <input type="hidden" name="_next" value="../index.html">
+          <!-- Company Information -->
+          <fieldset class="form-section">
+            <legend>Company Information</legend>
+
+            <div class="form-group">
+              <label for="companyName">Company Name *</label>
+              <input type="text" id="companyName" name="companyName" required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="contactPerson">Contact Person *</label>
+                <input type="text" id="contactPerson" name="contactPerson" required>
+              </div>
+
+              <div class="form-group">
+                <label for="contactPhone">Phone Number *</label>
+                <input type="tel" id="contactPhone" name="contactPhone" placeholder="+91 XXXXX XXXXX" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="contactEmail">Email Address *</label>
+                <input type="email" id="contactEmail" name="contactEmail" required>
+              </div>
+
+              <div class="form-group">
+                <label for="industry">Industry *</label>
+                <select id="industry" name="industry" required>
+                  <option value="">Select Industry</option>
+                  <option value="ecommerce">E-commerce</option>
+                  <option value="manufacturing">Manufacturing</option>
+                  <option value="retail">Retail</option>
+                  <option value="fmcg">FMCG</option>
+                  <option value="healthcare">Healthcare & Pharmaceuticals</option>
+                  <option value="electronics">Electronics</option>
+                  <option value="fashion">Fashion & Apparel</option>
+                  <option value="food">Food & Beverages</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Shipment Details -->
+          <fieldset class="form-section">
+            <legend>Shipment Details</legend>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="pickupLocation">Pickup Location *</label>
+                <input type="text" id="pickupLocation" name="pickupLocation" placeholder="City/Address" required>
+              </div>
+
+              <div class="form-group">
+                <label for="deliveryLocation">Delivery Location *</label>
+                <input type="text" id="deliveryLocation" name="deliveryLocation" placeholder="City/Address" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="shipmentType">Shipment Type *</label>
+                <select id="shipmentType" name="shipmentType" required>
+                  <option value="">Select Type</option>
+                  <option value="parcel">Parcel (up to 10 kg)</option>
+                  <option value="small">Small Shipment (10-50 kg)</option>
+                  <option value="medium">Medium Shipment (50-200 kg)</option>
+                  <option value="large">Large Shipment (200-1000 kg)</option>
+                  <option value="freight">Freight (1000+ kg)</option>
+                  <option value="bulk">Bulk/Full Truck Load</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="weight">Estimated Weight/Quantity *</label>
+                <input type="number" id="weight" name="weight" placeholder="in kg or units" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="goods">Description of Goods *</label>
+              <input type="text" id="goods" name="goods" placeholder="e.g., Electronics, Clothing, Raw Materials"
+                required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="deliveryUrgency">Delivery Urgency *</label>
+                <select id="deliveryUrgency" name="deliveryUrgency" required>
+                  <option value="">Select Urgency</option>
+                  <option value="express">Express (24-48 hours)</option>
+                  <option value="standard">Standard (3-5 days)</option>
+                  <option value="economy">Economy (5-10 days)</option>
+                  <option value="flexible">Flexible (No fixed timeline)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="pickupDate">Preferred Pickup Date</label>
+                <input type="date" id="pickupDate" name="pickupDate">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Special Requirements -->
+          <fieldset class="form-section">
+            <legend>Special Requirements (Optional)</legend>
+
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" name="specialReqs" value="temperature">
+                <span>Temperature Controlled</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="specialReqs" value="hazmat">
+                <span>Hazardous Materials</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="specialReqs" value="fragile">
+                <span>Fragile Goods</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="specialReqs" value="insurance">
+                <span>Additional Insurance</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="additionalInfo">Additional Information</label>
+              <textarea id="additionalInfo" name="additionalInfo"
+                placeholder="Any other details you'd like to share"></textarea>
+            </div>
+          </fieldset>
+
+          <!-- Agreement -->
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="agreement" required>
+              <span>I agree to be contacted via email or phone regarding my quote</span>
+            </label>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="btn btn--primary btn--block btn--large">Get Free Quote</button>
+
+          <p class="form-footer">We respect your privacy. We'll only use your information to provide a quote and related
+            services.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Get a Quote -->
+  <section class="section section--light">
+    <div class="container">
+      <h2 class="text-center mb">Why Get a Quote From Speed Setu?</h2>
+
+      <div class="grid grid--3">
+        <div class="benefit-card">
+          <div class="benefit-icon">📊</div>
+          <h3>Transparent Pricing</h3>
+          <p>No hidden charges. We provide detailed breakdowns so you know exactly what you're paying for.</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">🚀</div>
+          <h3>Fast Turnaround</h3>
+          <p>Get your quote within 24 hours. Our team responds quickly to help you make decisions fast.</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">💼</div>
+          <h3>Customized Solutions</h3>
+          <p>We tailor solutions to your specific needs, not one-size-fits-all pricing.</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">💰</div>
+          <h3>Competitive Rates</h3>
+          <p>Our logistics network ensures we provide the best rates without compromising quality.</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">🤝</div>
+          <h3>Expert Support</h3>
+          <p>Our team has 30+ years of combined experience in supply chain and logistics.</p>
+        </div>
+
+        <div class="benefit-card">
+          <div class="benefit-icon">✅</div>
+          <h3>No Commitment</h3>
+          <p>Get a free quote with no obligation. Perfect for comparing options.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Factors Section -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb">What Affects Your Quote?</h2>
+      <p class="text-center text-gray" style="max-width: 700px; margin: 0 auto var(--spacing-xl);">
+        Several factors influence the final cost of your shipment
+      </p>
+
+      <div class="factors-grid">
+        <div class="factor-card">
+          <div class="factor-number">1</div>
+          <div class="factor-content">
+            <h3>Distance & Route</h3>
+            <p>The pickup and delivery locations determine the base distance and routing complexity of your shipment.
+            </p>
+          </div>
+        </div>
+
+        <div class="factor-card">
+          <div class="factor-number">2</div>
+          <div class="factor-content">
+            <h3>Weight & Dimensions</h3>
+            <p>Heavier items and larger packages may cost more. We charge based on actual weight or dimensional weight.
+            </p>
+          </div>
+        </div>
+
+        <div class="factor-card">
+          <div class="factor-number">3</div>
+          <div class="factor-content">
+            <h3>Delivery Urgency</h3>
+            <p>Express deliveries cost more than standard or economy options. Choose based on your timeline.</p>
+          </div>
+        </div>
+
+        <div class="factor-card">
+          <div class="factor-number">4</div>
+          <div class="factor-content">
+            <h3>Goods Type</h3>
+            <p>Fragile, hazardous, or temperature-controlled items may have additional handling charges.</p>
+          </div>
+        </div>
+
+        <div class="factor-card">
+          <div class="factor-number">5</div>
+          <div class="factor-content">
+            <h3>Volume & Frequency</h3>
+            <p>Bulk shipments or regular volume get special discounts. Ask about our loyalty rates.</p>
+          </div>
+        </div>
+
+        <div class="factor-card">
+          <div class="factor-number">6</div>
+          <div class="factor-content">
+            <h3>Insurance & Coverage</h3>
+            <p>Basic insurance is included. Additional coverage options are available for valuable items.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="section section--light">
+    <div class="container">
+      <h2 class="text-center mb">Quote FAQs</h2>
+
+      <div class="faq-container">
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>How long is a quote valid?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Our quotes are valid for 7 days from the date of issue. After that, rates may change based on market
+              conditions. We can provide updated quotes anytime.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Is the quoted price final?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>The quoted price is final for the shipment details provided. Any changes to weight, dimensions, or
+              delivery location may affect the final cost. We'll inform you of any changes before pickup.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Can I modify my shipment after getting a quote?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Yes, you can modify your shipment details. However, changes may affect the quote. Please contact us with
+              any modifications, and we'll provide an updated quote.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Do you offer volume discounts?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Absolutely! We offer competitive rates for bulk shipments and regular clients. If you have recurring
+              shipping needs, mention this in your quote request for special pricing.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>What payment methods do you accept?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>We accept bank transfers, credit/debit cards, digital wallets, and checks. We also offer credit terms for
+              regular clients. Details will be provided with your quote.</p>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <div class="accordion-header">
+            <h3>Can I schedule pickup after getting a quote?</h3>
+            <span class="accordion-icon">+</span>
+          </div>
+          <div class="accordion-content">
+            <p>Yes, once you accept the quote, we'll help you schedule the pickup at your preferred date and time. We're
+              flexible with scheduling to accommodate your needs.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="section cta-section">
+    <div class="container text-center">
+      <h2>Ready to Get Your Quote?</h2>
+      <p
+        style="color: var(--neutral-white); font-size: var(--font-size-lg); max-width: 600px; margin: 0 auto var(--spacing-lg);">
+        Fill out the form above or contact our team directly for immediate assistance.
+      </p>
+      <p style="color: var(--neutral-white); margin-bottom: var(--spacing-xl);">
+        <strong>Email:</strong> quotes@speedsetu.com | <strong>Phone:</strong> Coming soon
+      </p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3>Speed Setu</h3>
+          <p>A fast, reliable, and technology-driven logistics company for modern businesses.</p>
+          <div style="margin-top: var(--spacing-md);">
+            <p><strong>Email:</strong> info@speedsetu.com</p>
+            <p><strong>Phone:</strong> Coming soon</p>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <h3>Quick Links</h3>
+          <ul>
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="services.html">Services</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="tracking.html">Track Shipment</a></li>
+            <li><a href="contact.html">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Services</h3>
+          <ul>
+            <li><a href="services.html#freight">Freight Transportation</a></li>
+            <li><a href="services.html#lastmile">Last-Mile Delivery</a></li>
+            <li><a href="services.html#supply">Supply Chain Solutions</a></li>
+            <li><a href="services.html#warehouse">Warehouse & Distribution</a></li>
+            <li><a href="services.html#customized">Customized Logistics</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Support</h3>
+          <ul>
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Pricing</a></li>
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">Terms & Conditions</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2024 Speed Setu. All rights reserved. | Connecting businesses with fast & reliable logistics.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+
+</html>

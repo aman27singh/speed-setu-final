@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Speed Setu Branches - Find our offices across India and get directions.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0B4DD9">
+  <title>Branches - Speed Setu</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/branches.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <div class="navbar">
+        <div class="navbar-brand">
+          <a href="../index.html" class="brand-link">
+            <img src="../assets/images/logo1.png" alt="Speed Setu logo" class="logo" />
+            <span class="site-name">Speed Setu</span>
+          </a>
+        </div>
+        <ul class="navbar-menu">
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="tracking.html">Track Shipment</a></li>
+          <li><a href="branches.html" class="active">Branches</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+        <div class="hamburger">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <section class="page-hero">
+    <div class="container">
+      <h1>Our Branches</h1>
+      <p>Find Speed Setu offices across India. Click a location or use the map to get directions.</p>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="branches-grid">
+        <div class="branches-map" id="branches-map"></div>
+
+        <aside class="branches-list">
+          <h3>Locations</h3>
+          <ul id="branchItems" class="branch-items">
+            <!-- JS will populate -->
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3>Speed Setu</h3>
+          <p>A fast, reliable, and technology-driven logistics company for modern businesses.</p>
+          <div style="margin-top: var(--spacing-md);">
+            <p><strong>Email:</strong> info@speedsetu.com</p>
+            <p><strong>Phone:</strong> Coming soon</p>
+          </div>
+        </div>
+
+        <div class="footer-section">
+          <h3>Quick Links</h3>
+          <ul>
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="services.html">Services</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="tracking.html">Track Shipment</a></li>
+            <li><a href="contact.html">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Services</h3>
+          <ul>
+            <li><a href="services.html#freight">Freight Transportation</a></li>
+            <li><a href="services.html#lastmile">Last-Mile Delivery</a></li>
+            <li><a href="services.html#supply">Supply Chain Solutions</a></li>
+            <li><a href="services.html#warehouse">Warehouse & Distribution</a></li>
+            <li><a href="services.html#customized">Customized Logistics</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-section">
+          <h3>Support</h3>
+          <ul>
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Pricing</a></li>
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">Terms & Conditions</a></li>
+            <li><a href="#">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2024 Speed Setu. All rights reserved. | Connecting businesses with fast & reliable logistics.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../js/branches.js"></script>
+  <script src="../js/main.js"></script>
+</body>
+
+</html>

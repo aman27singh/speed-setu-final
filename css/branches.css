@@ -1,0 +1,63 @@
+/* Branches page styles - match global UI/UX */
+.branches-grid{
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: var(--spacing-lg);
+  align-items: start;
+}
+
+/* Page hero - match other pages (blue gradient) */
+.page-hero {
+  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
+  color: var(--neutral-white);
+  padding: var(--spacing-xxl) 0;
+  text-align: center;
+  margin-top: 60px;
+}
+
+.page-hero h1 {
+  margin-bottom: var(--spacing-md);
+}
+
+.page-hero p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--font-size-lg);
+}
+
+.branches-map{
+  width: 100%;
+  height: 520px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--neutral-light), var(--neutral-white));
+  border: 1px solid var(--border-gray);
+}
+
+.branches-list{
+  background: var(--neutral-white);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-gray);
+}
+
+.branches-list h3{ margin-top: 0; font-size: var(--font-size-lg); }
+.branch-items{ list-style: none; padding: 0; margin: 0; }
+.branch-items li{ padding: calc(var(--spacing-sm) / 2) 0; border-bottom: 1px solid var(--border-gray); cursor: pointer; display: block; transition: background var(--transition-fast), transform var(--transition-fast); }
+.branch-items li:hover{ background: rgba(0,0,0,0.02); transform: translateX(3px); }
+.branch-items li:last-child{ border-bottom: none; }
+.branch-name{ font-weight: 700; color: var(--neutral-dark); }
+.branch-city{ color: var(--neutral-gray); font-size: 0.95rem; }
+.branch-actions{ margin-top: var(--spacing-xs); font-size: 0.9rem; }
+
+/* Ensure headings and paragraph spacing match other pages */
+.section h1{ margin-bottom: var(--spacing-sm); }
+.section p{ margin-bottom: var(--spacing-md); }
+
+@media (max-width: 900px){
+  .branches-grid{ grid-template-columns: 1fr; }
+  .branches-list{ order: 2; }
+  .branches-map{ height: 420px; }
+}
+
