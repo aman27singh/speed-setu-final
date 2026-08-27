@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { publicTrackingService } from '../services/publicTrackingService';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { formatDate } from '../utils/formatters';
+import logoImg from '../assets/logo1.png';
 import {
   Truck,
   Search,
@@ -65,9 +66,9 @@ export const PublicTrackingPage = () => {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img
-              src="/assets/images/logo1.png"
+              src={logoImg}
               alt="Speed Setu Logo"
-              className="h-8 w-auto object-contain shrink-0"
+              className="h-10 w-auto object-contain"
             />
             <div>
               <span className="font-extrabold text-base tracking-tight block">SPEED SETU</span>

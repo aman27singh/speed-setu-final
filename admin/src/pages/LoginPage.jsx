@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, Truck, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
 import { DatabaseStatusBanner } from '../components/common/DatabaseStatusBanner';
+import logoImg from '../assets/logo1.png';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export const LoginPage = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex items-center justify-center gap-3 mb-4">
           <img
-            src="/assets/images/logo1.png"
+            src={logoImg}
             alt="Speed Setu Logo"
             className="h-12 w-auto object-contain shrink-0"
           />

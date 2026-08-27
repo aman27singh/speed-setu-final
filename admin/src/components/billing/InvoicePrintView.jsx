@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatINR, formatDate } from '../../utils/formatters';
+import logoImg from '../../assets/logo1.png';
 
 export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
   if (!invoice) return null;
@@ -264,7 +265,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         <div className="col-span-5 p-2 print:p-1.5 border-r border-black space-y-0.5 print:space-y-0">
           <div className="flex items-center gap-1.5 mb-0.5">
             <img
-              src="/assets/images/logo1.png"
+              src={logoImg}
               alt="Speed Setu Logo"
               className="h-6 print:h-4.5 w-auto object-contain shrink-0"
             />

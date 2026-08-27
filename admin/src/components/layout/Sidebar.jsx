@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
+import logoImg from '../../assets/logo1.png';
 import {
   LayoutDashboard,
   Truck,
@@ -59,6 +60,8 @@ const NAVIGATION_GROUPS = [
 ];
 
 export const Sidebar = ({ isOpen, onClose }) => {
+  const location = useLocation();
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -79,7 +82,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         <div className="h-16 px-5 border-b border-slate-800 flex items-center justify-between shrink-0">
           <NavLink to="/admin/dashboard" className="flex items-center gap-3 group">
             <img
-              src="/assets/images/logo1.png"
+              src={logoImg}
               alt="Speed Setu Logo"
               className="h-9 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform"
             />
