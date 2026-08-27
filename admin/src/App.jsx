@@ -159,11 +159,26 @@ export const AppRoutes = () => {
   );
 };
 
+function SpaRedirectHandler() {
+  const navigate = React.useNavigate();
+  React.useEffect(() => {
+    const redirectPath = sessionStorage.getItem('speedsetu_spa_redirect');
+    if (redirectPath) {
+      sessionStorage.removeItem('speedsetu_spa_redirect');
+      if (redirectPath !== window.location.pathname) {
+        navigate(redirectPath, { replace: true });
+      }
+    }
+  }, [navigate]);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <SearchProvider>
+          <SpaRedirectHandler />
           <AppRoutes />
         </SearchProvider>
       </AuthProvider>

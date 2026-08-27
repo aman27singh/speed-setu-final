@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Speed Setu Logistics</title>
+    <script>
+      (function() {
+        var path = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
+
+        if (path.startsWith('/admin') || path.includes('/admin')) {
+          sessionStorage.setItem('speedsetu_spa_redirect', path + search + hash);
+          window.location.replace('/admin/');
+        } else {
+          window.location.replace('/');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
