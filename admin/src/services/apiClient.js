@@ -59,7 +59,8 @@ export async function apiRequest(endpoint, options = {}) {
     window.dispatchEvent(new CustomEvent('db-connection-recovered'));
     return await response.json();
   } catch (error) {
-    if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal && (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
       window.dispatchEvent(new CustomEvent('db-connection-error', {
         detail: { message: 'Backend Server or MongoDB Atlas is unreachable. Please check connection.' }
       }));

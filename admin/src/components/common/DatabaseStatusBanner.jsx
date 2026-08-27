@@ -7,9 +7,17 @@ export const DatabaseStatusBanner = () => {
   const [isChecking, setIsChecking] = useState(false);
 
   const checkHealth = async () => {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const apiUrl = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:5050/api' : null);
+
+    if (!apiUrl) {
+      setHasError(false);
+      return;
+    }
+
     setIsChecking(true);
     try {
-      const res = await fetch('http://localhost:5050/api/health');
+      const res = await fetch(`${apiUrl}/health`);
       if (res.ok) {
         const data = await res.json();
         if (data.connected) {
@@ -24,8 +32,12 @@ export const DatabaseStatusBanner = () => {
         setErrorMessage('MongoDB Atlas Database Connection Failed (HTTP 503 Service Unavailable)');
       }
     } catch (err) {
-      setHasError(true);
-      setErrorMessage('Unable to connect to Speed Setu API / MongoDB Atlas Cloud database.');
+      if (isLocal) {
+        setHasError(true);
+        setErrorMessage('Unable to connect to Speed Setu API / MongoDB Atlas Cloud database.');
+      } else {
+        setHasError(false);
+      }
     } finally {
       setIsChecking(false);
     }
