@@ -9,8 +9,8 @@ export const LoginPage = () => {
   const location = useLocation();
   const { login, isAuthenticated } = useAuth();
 
-  const [email, setEmail] = useState('admin@speedsetu.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -131,15 +131,6 @@ export const LoginPage = () => {
               )}
             </button>
           </form>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 bg-slate-50/60 p-3 rounded-lg border border-slate-200">
-            <p className="text-[11px] text-slate-500 font-semibold text-center mb-1">
-              🔑 Demo Admin Quick-Auth
-            </p>
-            <p className="text-[11px] text-slate-400 text-center font-mono">
-              admin@speedsetu.com / admin123
-            </p>
-          </div>
         </div>
 
         <div className="mt-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
