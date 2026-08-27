@@ -72,7 +72,9 @@ export const AppRoutes = () => {
       {/* PUBLIC CUSTOMER TRACKING PORTAL (NO AUTH REQUIRED) */}
       <Route path="/track" element={<PublicTrackingPage />} />
 
-      {/* Public Auth Route */}
+      {/* Root & Public Auth Routes */}
+      <Route path="/" element={<Navigate to="/admin/login" replace />} />
+      <Route path="/login" element={<Navigate to="/admin/login" replace />} />
       <Route path="/admin/login" element={<LoginPage />} />
 
       {/* Protected Admin Shell Routes */}
