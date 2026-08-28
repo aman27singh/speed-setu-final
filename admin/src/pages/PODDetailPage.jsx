@@ -182,7 +182,7 @@ export const PODDetailPage = () => {
           <button
             type="button"
             onClick={() => navigate('/admin/pod')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to POD List</span>
@@ -201,7 +201,7 @@ export const PODDetailPage = () => {
       )}
 
       {/* SPLIT SCREEN REVIEW GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* LEFT PANE: DOCUMENT PREVIEW CANVAS */}
         <div className="h-full">
           <DocumentPreviewer
@@ -213,8 +213,8 @@ export const PODDetailPage = () => {
         </div>
 
         {/* RIGHT PANE: EDITABLE POD VERIFICATION FORM */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-900">Delivery Information & POD Audit</h3>
@@ -226,7 +226,7 @@ export const PODDetailPage = () => {
             </div>
 
             {pod.status === 'Verified' && (
-              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+              <span className="self-start sm:self-auto inline-flex items-center gap-1 text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Verified ePOD
               </span>
             )}
@@ -239,8 +239,8 @@ export const PODDetailPage = () => {
           />
 
           <form onSubmit={handleVerifySubmit} className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Receiver Name <span className="text-rose-500">*</span>
                 </label>
@@ -306,7 +306,7 @@ export const PODDetailPage = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Cargo Damage Status</label>
                 <select
@@ -332,7 +332,7 @@ export const PODDetailPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-6 pt-2 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 pt-2 border-t border-slate-100">
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
                 <input
                   type="checkbox"
@@ -366,22 +366,22 @@ export const PODDetailPage = () => {
             </div>
 
             {/* ACTION CONTROLS */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setShowRejectModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100 transition-colors"
               >
                 <XCircle className="w-3.5 h-3.5" />
                 <span>Reject POD</span>
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleSaveDetailsOnly}
                   disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition-colors disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
                 >
                   <Save className="w-3.5 h-3.5 text-slate-600" />
                   <span>{saving ? 'Saving...' : 'Save Date & Details'}</span>
@@ -390,7 +390,7 @@ export const PODDetailPage = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-2 px-5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-sm disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-sm disabled:opacity-50 flex-1 sm:flex-initial"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{saving ? 'Verifying...' : 'Confirm & Verify POD'}</span>

@@ -124,7 +124,7 @@ export const PendingPODPage = () => {
         actions={
           <button
             onClick={() => navigate('/admin/pod')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to POD Overview</span>

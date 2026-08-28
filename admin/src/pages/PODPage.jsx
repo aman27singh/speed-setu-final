@@ -164,14 +164,14 @@ export const PODPage = () => {
         description="Monitor Proof of Delivery (POD) scans, package count matches, and verify receiver signatures."
         breadcrumbs={['Speed Setu Admin', 'Operations', 'POD Management']}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <button
               onClick={() => {
                 setTargetShipmentId('');
                 setTargetCN('');
                 setShowUploadModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
             >
               <Upload className="w-4 h-4" />
               <span>Upload POD Document</span>
@@ -179,7 +179,7 @@ export const PODPage = () => {
 
             <button
               onClick={() => navigate('/admin/pod/pending')}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-md transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-md transition-colors flex-1 sm:flex-initial"
             >
               <Clock className="w-4 h-4 text-setu-600" />
               <span>Pending POD Audit Queue</span>
@@ -189,7 +189,7 @@ export const PODPage = () => {
       />
 
       {/* POD TOP KPI STRIP */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
         <KPICard title="POD Pending" value={pods.filter((p) => p.status === 'Pending').length} subtext="Awaiting delivery scan" icon={Clock} variant="warning" />
         <KPICard title="Uploaded" value={pods.filter((p) => p.status === 'Uploaded').length} subtext="Uploaded via app/scanner" icon={Upload} variant="default" />
         <KPICard title="Needs Review" value={pods.filter((p) => p.status === 'Needs Review').length} subtext="Awaiting admin verification" icon={AlertTriangle} variant="accent" />
@@ -198,7 +198,7 @@ export const PODPage = () => {
       </div>
 
       {/* FILTER & SEARCH BAR */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-center gap-3">
           <div className="w-full md:flex-1">
             <SearchBar
@@ -208,11 +208,11 @@ export const PODPage = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
             <select
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md font-medium text-slate-700"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Companies</option>
               {companies.map((c) => (
@@ -226,7 +226,7 @@ export const PODPage = () => {
                 setStatusFilter('All');
                 setCompanyFilter('All');
               }}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md"
+              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
             >
               Reset
             </button>
@@ -234,7 +234,7 @@ export const PODPage = () => {
         </div>
 
         <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="overflow-x-auto min-w-0 w-full sm:w-auto">
+          <div className="overflow-x-auto max-w-full pb-1">
             <FilterBar
               options={statusOptions}
               activeFilter={statusFilter}
