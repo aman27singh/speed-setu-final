@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: speed-setu-backend-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        value: mongodb+srv://bhagatspeedsetu_db_user:EAuXDpaK5qHgCKi7@speedsetu.gldylje.mongodb.net/speed_setu_db?retryWrites=true&w=majority
+      - key: PORT
+        value: 5050
