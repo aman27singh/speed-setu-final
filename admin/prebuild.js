@@ -1,4 +1,12 @@
-<!DOCTYPE html>
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const adminIndex = path.join(__dirname, 'index.html');
+const devIndexContent = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -8,10 +16,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/admin/assets/index-l4B0Umhg.js"></script>
-    <link rel="stylesheet" crossorigin href="/admin/assets/index-DuCcsMOV.css">
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-setu-600 selection:text-white">
     <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
+`;
+
+fs.writeFileSync(adminIndex, devIndexContent, 'utf-8');
+console.log('✓ Restored dev entry point in admin/index.html for Vite');

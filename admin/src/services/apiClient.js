@@ -3,7 +3,7 @@
  * Configured for Express + MongoDB Atlas Cloud Backend.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5050/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://speed-setu-final.onrender.com/api';
 
 // Token storage key
 const TOKEN_KEY = 'speedsetu_admin_token';
