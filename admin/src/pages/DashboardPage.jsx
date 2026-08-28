@@ -309,12 +309,12 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* 1. 10 KPI CARDS GRID */}
+      {/* 1. KPI CARDS GRID */}
       <div>
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+        <h3 className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 sm:mb-3">
           Key Performance Indicators (KPIs)
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-4">
           {kpiCards.map((card, idx) => (
             <KPICard key={idx} {...card} />
           ))}
@@ -322,29 +322,29 @@ export const DashboardPage = () => {
       </div>
 
       {/* 2. CHARTS SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Company Monthly Turnover Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-3 sm:mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Company Monthly Turnover</h3>
-              <p className="text-xs text-slate-500">Client turnover breakdown for current billing period</p>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">Company Monthly Turnover</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Client turnover breakdown for current billing period</p>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-setu-600 border border-blue-100">
+            <span className="self-start xs:self-auto text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-setu-600 border border-blue-100 shrink-0">
               {formatINR(kpis.currentMonthRevenue || 0)} Total Turnover
             </span>
           </div>
 
-          <div className="h-64 w-full">
+          <div className="h-56 sm:h-64 w-full">
             {companyTurnover && companyTurnover.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={companyTurnover} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
+                <BarChart data={companyTurnover} margin={{ top: 10, right: 10, left: -10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" />
+                  <YAxis tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
                     formatter={(value) => [formatINR(value), 'Monthly Turnover']}
-                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px' }}
                   />
                   <Bar dataKey="turnover" name="Turnover (₹)" fill="#0052cc" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -360,27 +360,27 @@ export const DashboardPage = () => {
         </div>
 
         {/* Company Monthly Profit Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-3 sm:mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Company Monthly Profit</h3>
-              <p className="text-xs text-slate-500">Net profit breakdown per client company</p>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">Company Monthly Profit</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Net profit breakdown per client company</p>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
+            <span className="self-start xs:self-auto text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
               {formatINR(kpis.currentMonthProfit || 0)} Total Profit
             </span>
           </div>
 
-          <div className="h-64 w-full">
+          <div className="h-56 sm:h-64 w-full">
             {companyProfit && companyProfit.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={companyProfit} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
+                <BarChart data={companyProfit} margin={{ top: 10, right: 10, left: -10, bottom: 25 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" />
+                  <YAxis tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
                     formatter={(value) => [formatINR(value), 'Net Profit']}
-                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px' }}
                   />
                   <Bar dataKey="profit" name="Profit (₹)" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -400,8 +400,8 @@ export const DashboardPage = () => {
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Recent Shipments & Consignment Notes</h3>
-            <p className="text-xs text-slate-500">Click any shipment row to view full A-to-Z detail page</p>
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900">Recent Shipments & Consignment Notes</h3>
+            <p className="text-[11px] sm:text-xs text-slate-500">Click any shipment row to view full A-to-Z detail page</p>
           </div>
 
           <div className="w-full sm:w-64">
@@ -423,15 +423,15 @@ export const DashboardPage = () => {
       </div>
 
       {/* 4. FINANCIAL FOLLOW-UPS & PAYABLES GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Payment Follow-up Section */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Payment Follow-up</h3>
-              <p className="text-xs text-slate-500">Customers with outstanding & overdue invoices</p>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">Payment Follow-up</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Customers with outstanding & overdue invoices</p>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700">
+            <span className="self-start xs:self-auto text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-700 shrink-0">
               {formatINR(kpis.customerOutstanding || 0)} Outstanding
             </span>
           </div>
@@ -441,12 +441,12 @@ export const DashboardPage = () => {
 
         {/* Pending Payables Section */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Pending Payables</h3>
-              <p className="text-xs text-slate-500">Transporter, driver & linehaul vendor payouts</p>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">Pending Payables</h3>
+              <p className="text-[11px] sm:text-xs text-slate-500">Transporter, driver & linehaul vendor payouts</p>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+            <span className="self-start xs:self-auto text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0">
               {formatINR(kpis.payables || 0)} Due
             </span>
           </div>
