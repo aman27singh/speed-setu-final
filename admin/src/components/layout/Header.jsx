@@ -187,7 +187,7 @@ export const Header = ({ onToggleSidebar }) => {
       </div>
 
       {/* Center: Global Functional Search Input */}
-      <div ref={searchContainerRef} className="flex items-center flex-1 max-w-[200px] xs:max-w-[260px] sm:max-w-md mx-1 sm:mx-4 relative">
+      <div ref={searchContainerRef} className="flex items-center flex-1 max-w-[150px] xs:max-w-[220px] sm:max-w-md mx-1 sm:mx-4 relative">
         <div className="relative w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
@@ -195,8 +195,8 @@ export const Header = ({ onToggleSidebar }) => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setIsSearchFocused(true)}
-            placeholder="Search CN #, Company, Invoice..."
-            className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-setu-600/20 focus:border-setu-600 focus:bg-white transition-all placeholder:text-slate-400 font-medium"
+            placeholder="Search CN #, Company..."
+            className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-setu-600/20 focus:border-setu-600 focus:bg-white transition-all placeholder:text-slate-400 font-medium truncate"
           />
           {searchQuery && (
             <button

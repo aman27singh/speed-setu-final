@@ -500,7 +500,7 @@ export const ShipmentFormPage = () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <PageHeader
-        title={isEditMode ? `Edit Shipment — CN ${formData.cnNumber}` : `New Shipment Consignment Note — ${formData.cnNumber}`}
+        title={isEditMode ? `Edit Shipment — CN ${formData.cnNumber}` : (formData.cnNumber ? `New Shipment Consignment Note — ${formData.cnNumber}` : 'New Shipment Consignment Note')}
         description="Issue Consignment Note (CN), record consignor/consignee details, e-way bill and dispatch specs."
         breadcrumbs={['Speed Setu Admin', 'Operations', 'Shipments', isEditMode ? 'Edit' : 'New']}
         actions={
@@ -532,10 +532,10 @@ export const ShipmentFormPage = () => {
 
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
         {/* SECTION A: COMPANY SELECTION */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-50 text-setu-600">
+              <div className="p-2 rounded-lg bg-blue-50 text-setu-600 shrink-0">
                 <Building2 className="w-4 h-4" />
               </div>
               <div>
@@ -544,7 +544,7 @@ export const ShipmentFormPage = () => {
               </div>
             </div>
 
-            <div className="px-3 py-1 bg-setu-50 text-setu-700 rounded font-mono font-bold text-xs border border-setu-100">
+            <div className="self-start sm:self-auto px-3 py-1 bg-setu-50 text-setu-700 rounded font-mono font-bold text-xs border border-setu-100 whitespace-nowrap">
               CN Number: {formData.cnNumber || 'Not specified'}
             </div>
           </div>
@@ -621,10 +621,10 @@ export const ShipmentFormPage = () => {
         {/* SECTION B & C: CONSIGNOR & CONSIGNEE CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Section B: Consignor */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
                   <User className="w-4 h-4" />
                 </div>
                 <div>
@@ -636,7 +636,7 @@ export const ShipmentFormPage = () => {
               <button
                 type="button"
                 onClick={() => handleAutofillSectionB()}
-                className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs"
+                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                 title="Fill Section B with selected Corporate Account details"
               >
                 ⚡ Fill Corporate Details
@@ -679,7 +679,7 @@ export const ShipmentFormPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">GSTIN</label>
                   <input
@@ -712,7 +712,7 @@ export const ShipmentFormPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">City</label>
                   <input
@@ -752,10 +752,10 @@ export const ShipmentFormPage = () => {
           </div>
 
           {/* Section C: Consignee */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
+                <div className="p-2 rounded-lg bg-amber-50 text-amber-600 shrink-0">
                   <User className="w-4 h-4" />
                 </div>
                 <div>
@@ -767,7 +767,7 @@ export const ShipmentFormPage = () => {
               <button
                 type="button"
                 onClick={() => handleAutofillSectionC()}
-                className="px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs"
+                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                 title="Fill Section C with selected Corporate Account details"
               >
                 ⚡ Fill Corporate Details
@@ -810,7 +810,7 @@ export const ShipmentFormPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">GSTIN</label>
                   <input
@@ -843,7 +843,7 @@ export const ShipmentFormPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">City</label>
                   <input
@@ -1143,10 +1143,10 @@ export const ShipmentFormPage = () => {
         </div>
 
         {/* SECTION E: COMMERCIAL INVOICES & E-WAY BILLS */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-50 text-setu-600">
+              <div className="p-2 rounded-lg bg-blue-50 text-setu-600 shrink-0">
                 <FileText className="w-4 h-4" />
               </div>
               <div>
@@ -1158,7 +1158,7 @@ export const ShipmentFormPage = () => {
             <button
               type="button"
               onClick={handleAddCommercialInvoice}
-              className="px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-lg hover:bg-setu-100 transition-colors flex items-center gap-1.5 shadow-2xs"
+              className="self-start sm:self-auto px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-lg hover:bg-setu-100 transition-colors flex items-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
               + Add Commercial Invoice
