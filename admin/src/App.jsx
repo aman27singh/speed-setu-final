@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SearchProvider } from './context/SearchContext';
 import { AdminLayout } from './components/layout/AdminLayout';
@@ -160,7 +160,7 @@ export const AppRoutes = () => {
 };
 
 function SpaRedirectHandler() {
-  const navigate = React.useNavigate();
+  const navigate = useNavigate();
   React.useEffect(() => {
     const redirectPath = sessionStorage.getItem('speedsetu_spa_redirect');
     if (redirectPath) {
