@@ -251,7 +251,7 @@ export const QuotationFormPage = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Cancel</span>
@@ -276,10 +276,10 @@ export const QuotationFormPage = () => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* SECTION A: BASIC INFORMATION */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-50 text-setu-600">
+              <div className="p-2 rounded-lg bg-blue-50 text-setu-600 shrink-0">
                 <Building2 className="w-4 h-4" />
               </div>
               <div>
@@ -288,14 +288,14 @@ export const QuotationFormPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="self-start sm:self-auto flex items-center gap-2">
               <span className="px-2.5 py-1 rounded bg-setu-50 font-mono text-setu-700 font-bold text-xs border border-setu-100">
                 Version {formData.version}
               </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Corporate Client <span className="text-rose-500">*</span>
@@ -385,7 +385,7 @@ export const QuotationFormPage = () => {
 
         {/* SECTION B: RATE RULES (EXPANDABLE ROUTE CARDS) */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-slate-900">Section B — Lane Rate Rules ({formData.rateRules.length})</h3>
               <p className="text-xs text-slate-500">Configure origin, destination, mode, base rates, weight slabs and charges</p>
@@ -394,7 +394,7 @@ export const QuotationFormPage = () => {
             <button
               type="button"
               onClick={handleAddRateRule}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors"
+              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Add Rate Rule</span>
@@ -411,17 +411,17 @@ export const QuotationFormPage = () => {
                 {/* Route Card Header */}
                 <div
                   onClick={() => setExpandedRuleIndex(isExpanded ? -1 : ruleIdx)}
-                  className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition-colors"
+                  className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer hover:bg-slate-100/80 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-slate-800 text-white font-bold text-xs flex items-center justify-center">
+                    <span className="w-6 h-6 rounded-full bg-slate-800 text-white font-bold text-xs flex items-center justify-center shrink-0">
                       {ruleIdx + 1}
                     </span>
                     <div>
                       <span className="font-bold text-slate-900 text-sm">
                         {rule.origin || 'Origin City'} → {rule.destination || 'Destination City'}
                       </span>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="px-2 py-0.2 rounded text-[10px] font-semibold bg-setu-600 text-white">
                           {rule.mode}
                         </span>
@@ -435,7 +435,7 @@ export const QuotationFormPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -453,7 +453,7 @@ export const QuotationFormPage = () => {
 
                 {/* Expanded Card Body */}
                 {isExpanded && (
-                  <div className="p-5 space-y-6">
+                  <div className="p-4 sm:p-5 space-y-6">
                     {/* Basic Route Specs */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 text-xs items-end">
                       {/* Origin City / Hub */}
@@ -612,11 +612,11 @@ export const QuotationFormPage = () => {
         </div>
 
         {/* BOTTOM SUBMISSION CONTROLS */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors text-center"
           >
             Cancel
           </button>
@@ -624,7 +624,7 @@ export const QuotationFormPage = () => {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             <span>

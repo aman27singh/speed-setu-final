@@ -87,31 +87,31 @@ export const QuotationDetailPage = () => {
     <div className="space-y-6 pb-12">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start sm:items-center gap-3">
           <button
             onClick={() => navigate('/admin/quotations')}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs shrink-0 mt-1 sm:mt-0"
             title="Back to Quotations List"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Rate Card Agreement
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100 whitespace-nowrap">
                 Version {quotation.version}
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 font-mono tracking-tight">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-mono tracking-tight">
                 {quotation.quotationNumber}
               </h1>
               <span
                 onClick={() => navigate(`/admin/companies/${quotation.companyId}`)}
-                className="text-sm font-semibold text-slate-700 hover:text-setu-600 cursor-pointer"
+                className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-setu-600 cursor-pointer truncate max-w-[180px] sm:max-w-xs"
               >
                 {quotation.companyName}
               </span>
@@ -121,18 +121,18 @@ export const QuotationDetailPage = () => {
         </div>
 
         {/* Actions Bar */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => navigate(`/admin/quotations/${quotation.id}/new-version`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-600 hover:text-white transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-600 hover:text-white transition-colors flex-1 sm:flex-initial"
           >
             <GitBranch className="w-3.5 h-3.5" />
-            <span>Create New Version (V+1)</span>
+            <span>New Version (V+1)</span>
           </button>
 
           <button
             onClick={() => navigate(`/admin/quotations/${quotation.id}/edit`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Edit className="w-3.5 h-3.5" />
             <span>Edit</span>
@@ -140,7 +140,7 @@ export const QuotationDetailPage = () => {
 
           <button
             onClick={handleDuplicate}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Copy className="w-3.5 h-3.5" />
             <span>Duplicate</span>
@@ -148,7 +148,7 @@ export const QuotationDetailPage = () => {
 
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print</span>
@@ -157,9 +157,9 @@ export const QuotationDetailPage = () => {
           {quotation.status === 'Active' && (
             <button
               onClick={handleDeactivate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-600 hover:text-white transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-600 hover:text-white transition-colors flex-1 sm:flex-initial"
             >
-              <span>Cancel Agreement</span>
+              <span>Cancel</span>
             </button>
           )}
         </div>
@@ -176,36 +176,36 @@ export const QuotationDetailPage = () => {
       )}
 
       {/* SUMMARY METRICS STRIP */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4 font-sans">
         <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Company Code</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Company Code</span>
           <span className="text-xs font-bold text-slate-900 font-mono">{quotation.companyCode}</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Agreement Version</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Agreement Version</span>
           <span className="text-xs font-bold text-setu-600 font-mono">Version {quotation.version}</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Effective From</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Effective From</span>
           <span className="text-xs font-bold text-slate-900 font-mono">{formatDate(quotation.effectiveFrom)}</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Effective Until</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Effective Until</span>
           <span className="text-xs font-bold text-slate-900 font-mono">
             {quotation.effectiveUntil ? formatDate(quotation.effectiveUntil) : 'Ongoing'}
           </span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Routes</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Routes</span>
           <span className="text-xs font-bold text-slate-900">{totalRoutesCount} Lanes</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Modes Included</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Modes Included</span>
           <span className="text-xs font-bold text-slate-900">{uniqueModes.join(', ')}</span>
         </div>
       </div>
@@ -229,24 +229,24 @@ export const QuotationDetailPage = () => {
               {/* Card Header */}
               <div
                 onClick={() => setExpandedRuleIndex(isExpanded ? -1 : ruleIdx)}
-                className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 transition-colors"
+                className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer hover:bg-slate-100/80 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-setu-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                  <div className="w-8 h-8 rounded-lg bg-setu-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
                     R{ruleIdx + 1}
                   </div>
 
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-base">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm sm:text-base">
                         {rule.origin} → {rule.destination}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-setu-50 text-setu-700 border border-setu-100">
+                      <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold bg-setu-50 text-setu-700 border border-setu-100">
                         {rule.mode}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-600 mt-0.5">
+                    <div className="flex items-center gap-3 text-xs text-slate-600 mt-0.5 flex-wrap">
                       <span>Base Freight: <strong className="text-slate-900 font-mono">₹{rule.freightRate} / {rule.rateBasis}</strong></span>
                       <span>Min Weight: <strong className="text-slate-900 font-mono">{rule.minimumChargeableWeight} kg</strong></span>
                     </div>

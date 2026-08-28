@@ -211,7 +211,7 @@ export const QuotationsPage = () => {
         actions={
           <button
             onClick={() => navigate('/admin/quotations/new')}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>New Quotation</span>
@@ -230,7 +230,7 @@ export const QuotationsPage = () => {
       )}
 
       {/* Search & Filter Controls Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-center gap-3">
           <div className="w-full md:flex-1">
             <SearchBar
@@ -240,12 +240,12 @@ export const QuotationsPage = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
             {/* Company Select */}
             <select
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Companies</option>
               {companies.map((comp) => (
@@ -259,7 +259,7 @@ export const QuotationsPage = () => {
             <select
               value={modeFilter}
               onChange={(e) => setModeFilter(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Freight Modes</option>
               {modeOptions.slice(1).map((m) => (
@@ -274,20 +274,22 @@ export const QuotationsPage = () => {
                 setStatusFilter('All');
                 setModeFilter('All');
               }}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors"
+              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
             >
               Reset
             </button>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-          <FilterBar
-            options={statusFilterOptions}
-            activeFilter={statusFilter}
-            onSelectFilter={setStatusFilter}
-          />
-          <span className="text-slate-500 font-medium">
+        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="overflow-x-auto max-w-full pb-1">
+            <FilterBar
+              options={statusFilterOptions}
+              activeFilter={statusFilter}
+              onSelectFilter={setStatusFilter}
+            />
+          </div>
+          <span className="text-slate-500 font-medium shrink-0 text-[11px] sm:text-xs">
             Showing <strong>{quotations.length}</strong> Rate Card Agreements
           </span>
         </div>
