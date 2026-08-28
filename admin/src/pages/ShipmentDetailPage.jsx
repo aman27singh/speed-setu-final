@@ -193,40 +193,40 @@ export const ShipmentDetailPage = () => {
     <div className="space-y-6 pb-12">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start sm:items-center gap-3">
           <button
             onClick={() => navigate('/admin/shipments')}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs shrink-0 mt-1 sm:mt-0"
             title="Back to Shipments Master"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Consignment Note (CN)
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100 flex items-center gap-1.5">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100 flex items-center gap-1.5 whitespace-nowrap">
                 <span>EWB: {shipment.ewayBillNumber || 'N/A'}</span>
                 <span>•</span>
                 <span>AWB: {shipment.awbNumber || 'N/A'}</span>
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 font-mono tracking-tight flex items-center gap-2">
-                <span>{shipment.cnNumber}</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-mono tracking-tight">
+                {shipment.cnNumber}
               </h1>
 
               <span
                 onClick={() => navigate(`/admin/companies/${shipment.companyId}`)}
-                className="text-sm font-semibold text-slate-700 hover:text-setu-600 cursor-pointer"
+                className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-setu-600 cursor-pointer truncate max-w-[180px] sm:max-w-xs"
               >
                 {shipment.companyName || 'General Logistics Customer'}
               </span>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={shipment.status || 'Booked'} />
                 <StatusBadge status={shipment.podStatus || 'Pending'} />
                 <StatusBadge status={shipment.billingStatus || 'Not Ready'} />
@@ -236,10 +236,10 @@ export const ShipmentDetailPage = () => {
         </div>
 
         {/* Actions Bar */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => setShowStatusModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Update Status</span>
@@ -247,7 +247,7 @@ export const ShipmentDetailPage = () => {
 
           <button
             onClick={() => setShowUploadModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Upload className="w-3.5 h-3.5 text-setu-600" />
             <span>Upload Document</span>
@@ -255,7 +255,7 @@ export const ShipmentDetailPage = () => {
 
           <button
             onClick={() => navigate(`/admin/shipments/${shipment.id || shipment.cnNumber}/edit`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Edit className="w-3.5 h-3.5" />
             <span>Edit</span>
@@ -263,104 +263,75 @@ export const ShipmentDetailPage = () => {
 
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print CN</span>
           </button>
-
-          <button
-            onClick={async () => {
-              const cn = shipment.cnNumber || shipment.id;
-              if (window.confirm(`Are you sure you want to delete Consignment Note ${cn}? This action cannot be undone.`)) {
-                try {
-                  await shipmentService.deleteShipment(shipment.id || cn);
-                  alert(`Consignment Note ${cn} deleted successfully.`);
-                  navigate('/admin/shipments');
-                } catch (err) {
-                  alert(`Failed to delete shipment ${cn}: ${err.message}`);
-                }
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete CN</span>
-          </button>
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="p-3 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-between shadow-lg animate-fade-in">
-          <span>{toastMessage}</span>
-          <button onClick={() => setToastMessage('')} className="text-slate-400 hover:text-white font-bold">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* VISUAL MILESTONE TIMELINE COMPONENT */}
       <StatusTimeline currentStatus={shipment.status} statusHistory={shipment.statusHistory} />
 
       {/* SUMMARY METRICS STRIP */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4 font-sans">
         <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Booking Date</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Booking Date</span>
           <span className="text-xs font-bold text-slate-900 font-mono">
             {formatDate(shipment.cnDate || shipment.bookingDate || shipment.createdAt)}
           </span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Freight Mode</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Freight Mode</span>
           <span className="text-xs font-bold text-setu-600 font-mono">{shipment.mode || shipment.freightMode || 'Express LTL'}</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Packages</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Packages</span>
           <span className="text-xs font-bold text-slate-900">{shipment.packages || 0} Boxes</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Gross / Chargeable</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Gross / Chargeable</span>
           <span className="text-xs font-bold text-slate-900 font-mono">
             {shipment.actualWeight || 0} Kg / {shipment.chargeableWeight || shipment.volumetricWeight || 0} Kg
           </span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Billing Status</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Billing Status</span>
           <StatusBadge status={shipment.billingStatus || 'Not Ready'} />
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Payment Status</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Payment Status</span>
           {shipment.paymentStatus === 'Paid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               Paid
             </span>
           ) : shipment.paymentStatus === 'Partially Paid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
               Partially Paid
             </span>
           ) : shipment.paymentStatus === 'Unpaid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
               Unpaid
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
               Unbilled
             </span>
           )}
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Current Location</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Current Location</span>
           <span className="text-xs font-bold text-slate-800 truncate block">
             {shipment.operational?.currentLocation || shipment.origin || 'Branch Hub'}
           </span>
@@ -368,8 +339,8 @@ export const ShipmentDetailPage = () => {
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="border-b border-slate-200">
-        <nav className="flex space-x-6 overflow-x-auto">
+      <div className="border-b border-slate-200 overflow-x-auto max-w-full">
+        <nav className="flex space-x-4 sm:space-x-6 min-w-max pb-0.5">
           {tabs.map((t) => (
             <button
               key={t.id}

@@ -347,12 +347,12 @@ export const ShipmentsPage = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
             {/* Company Filter */}
             <select
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full sm:w-auto"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Companies</option>
               {companies.map((c) => (
@@ -364,7 +364,7 @@ export const ShipmentsPage = () => {
             <select
               value={modeFilter}
               onChange={(e) => setModeFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full sm:w-auto"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Modes</option>
               {modeOptions.slice(1).map((m) => (
@@ -376,7 +376,7 @@ export const ShipmentsPage = () => {
             <select
               value={podStatusFilter}
               onChange={(e) => setPodStatusFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full sm:w-auto"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">POD Status</option>
               {podOptions.slice(1).map((p) => (
@@ -388,7 +388,7 @@ export const ShipmentsPage = () => {
             <select
               value={paymentStatusFilter}
               onChange={(e) => setPaymentStatusFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full sm:w-auto truncate"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">Payment Status</option>
               {paymentOptions.slice(1).map((p) => (
@@ -406,7 +406,7 @@ export const ShipmentsPage = () => {
                 setBillingStatusFilter('All');
                 setPaymentStatusFilter('All');
               }}
-              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center"
+              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
             >
               Reset
             </button>
@@ -414,7 +414,7 @@ export const ShipmentsPage = () => {
         </div>
 
         <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="overflow-x-auto min-w-0 w-full sm:w-auto">
+          <div className="overflow-x-auto max-w-full pb-1">
             <FilterBar
               options={statusFilterOptions}
               activeFilter={statusFilter}

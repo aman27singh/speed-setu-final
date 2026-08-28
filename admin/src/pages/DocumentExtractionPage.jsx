@@ -390,8 +390,8 @@ export const DocumentExtractionPage = () => {
                     <ConfidenceBadge score={extractionData.consignor?.name?.confidence} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
                       <label className="font-bold text-slate-700 block mb-0.5">Consignor Name</label>
                       <input
                         type="text"
@@ -421,7 +421,7 @@ export const DocumentExtractionPage = () => {
                       />
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="font-bold text-slate-700 block mb-0.5">Pickup Address</label>
                       <input
                         type="text"
@@ -443,8 +443,8 @@ export const DocumentExtractionPage = () => {
                     <ConfidenceBadge score={extractionData.consignee?.name?.confidence} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
                       <label className="font-bold text-slate-700 block mb-0.5">Consignee Name</label>
                       <input
                         type="text"
@@ -474,7 +474,7 @@ export const DocumentExtractionPage = () => {
                       />
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="font-bold text-slate-700 block mb-0.5">Delivery Address</label>
                       <input
                         type="text"
@@ -492,7 +492,7 @@ export const DocumentExtractionPage = () => {
                     Shipment & Cargo Specs
                   </h4>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-slate-700">CN Number</label>
@@ -571,7 +571,7 @@ export const DocumentExtractionPage = () => {
                       />
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-slate-700">Commodity Description</label>
                         <ConfidenceBadge score={extractionData.shipment?.materialDescription?.confidence} />
@@ -592,7 +592,7 @@ export const DocumentExtractionPage = () => {
                     Invoice & Regulatory
                   </h4>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-slate-700">Invoice Number</label>
@@ -623,11 +623,11 @@ export const DocumentExtractionPage = () => {
               </div>
 
               {/* BOTTOM ACTIONS */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => navigate('/admin/shipments')}
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+                  className="w-full sm:w-auto px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors text-center"
                 >
                   Cancel
                 </button>
@@ -636,7 +636,7 @@ export const DocumentExtractionPage = () => {
                   type="button"
                   disabled={saving}
                   onClick={() => handleConfirmExtraction(null)}
-                  className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   <span>{saving ? 'Creating Shipment...' : 'Confirm & Create Official Shipment'}</span>
