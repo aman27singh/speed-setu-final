@@ -125,28 +125,28 @@ export const TripDetailPage = () => {
     <div className="space-y-6 pb-12">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start sm:items-center gap-3">
           <button
             onClick={() => navigate('/admin/trips')}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs shrink-0 mt-1 sm:mt-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Linehaul Dispatch Trip</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Linehaul Dispatch Trip</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100 whitespace-nowrap">
                 Mode: {trip.mode}
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 font-mono tracking-tight flex items-center gap-2">
-                <span>{trip.tripNumber}</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-mono tracking-tight">
+                {trip.tripNumber}
               </h1>
 
-              <span className="text-sm font-semibold text-slate-700">
+              <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate max-w-[200px] sm:max-w-xs">
                 {trip.origin} → {trip.destination}
               </span>
 
@@ -155,18 +155,18 @@ export const TripDetailPage = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => setShowStatusModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Update Trip Status</span>
+            <span>Update Status</span>
           </button>
 
           <button
             onClick={() => setShowShipmentModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Plus className="w-3.5 h-3.5 text-setu-600" />
             <span>Add Shipment</span>
@@ -174,7 +174,7 @@ export const TripDetailPage = () => {
 
           <button
             onClick={() => navigate(`/admin/trips/${trip.id}/edit`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Edit className="w-3.5 h-3.5" />
             <span>Edit</span>
@@ -182,7 +182,7 @@ export const TripDetailPage = () => {
 
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print Manifest</span>
@@ -204,39 +204,39 @@ export const TripDetailPage = () => {
       <TripStatusTimeline currentStatus={trip.status} statusHistory={trip.statusHistory} />
 
       {/* SUMMARY METRICS STRIP */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 font-sans">
         <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Trip Date</span>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Trip Date</span>
           <span className="text-xs font-bold text-slate-900 font-mono">{formatDate(trip.tripDate)}</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Shipments</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Shipments</span>
           <span className="text-xs font-bold text-setu-600 font-mono">{assignedShipments.length} CNs</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Freight Volume</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Freight Volume</span>
           <span className="text-xs font-bold text-slate-900">{totalPackages} Packages ({totalWeight} Kg)</span>
         </div>
 
-        <div className="pt-2 sm:pt-0 sm:pl-4">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Vehicle</span>
+        <div>
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Vehicle</span>
           <span className="text-xs font-bold text-slate-900 font-mono">{trip.vehicleNumber || 'Unassigned'}</span>
         </div>
       </div>
 
       {/* TRIP EXPENSES & PAYABLES BREAKDOWN CARD */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
           <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-600" />
+            <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" />
             <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Trip Expenses & Transporter Payable Summary</h3>
           </div>
-          <span className="font-mono font-bold text-slate-900 text-sm">Total Trip Expense: {formatINR(21000)}</span>
+          <span className="font-mono font-bold text-slate-900 text-xs sm:text-sm">Total Trip Expense: {formatINR(21000)}</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 font-mono">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded flex justify-between items-center">
             <span className="text-slate-600 font-sans">Transporter Freight:</span>
             <strong className="text-slate-900">{formatINR(18000)}</strong>
@@ -253,11 +253,11 @@ export const TripDetailPage = () => {
       </div>
 
       {/* THREE ENTITY CARDS: TRANSPORTER, DRIVER, VEHICLE */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Transporter Card */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-            <Building2 className="w-4 h-4 text-setu-600" />
+            <Building2 className="w-4 h-4 text-setu-600 shrink-0" />
             <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Transporter Vendor</h3>
           </div>
           <div>
@@ -267,9 +267,9 @@ export const TripDetailPage = () => {
         </div>
 
         {/* Driver Card */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-            <User className="w-4 h-4 text-emerald-600" />
+            <User className="w-4 h-4 text-emerald-600 shrink-0" />
             <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Linehaul Driver</h3>
           </div>
           <div>
@@ -279,9 +279,9 @@ export const TripDetailPage = () => {
         </div>
 
         {/* Vehicle Card */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-            <Truck className="w-4 h-4 text-amber-600" />
+            <Truck className="w-4 h-4 text-amber-600 shrink-0" />
             <h3 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Assigned Vehicle</h3>
           </div>
           <div>
@@ -292,8 +292,8 @@ export const TripDetailPage = () => {
       </div>
 
       {/* ASSIGNED SHIPMENTS MASTER TABLE */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Assigned Consignment Notes (Shipments)</h3>
             <p className="text-xs text-slate-500">All shipments loaded for linehaul movement on {trip.tripNumber}</p>
@@ -301,7 +301,7 @@ export const TripDetailPage = () => {
 
           <button
             onClick={() => setShowShipmentModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded transition-colors"
+            className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded transition-colors shrink-0 whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Manage Shipments</span>

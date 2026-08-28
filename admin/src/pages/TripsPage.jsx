@@ -160,7 +160,7 @@ export const TripsPage = () => {
         actions={
           <button
             onClick={() => navigate('/admin/trips/new')}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>Create Trip</span>
@@ -168,7 +168,7 @@ export const TripsPage = () => {
         }
       />
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-center gap-3">
           <div className="w-full md:flex-1">
             <SearchBar
@@ -178,11 +178,11 @@ export const TripsPage = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
             <select
               value={transporterFilter}
               onChange={(e) => setTransporterFilter(e.target.value)}
-              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium"
+              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
             >
               <option value="All">All Transporters</option>
               {transporters.map((t) => (
@@ -197,7 +197,7 @@ export const TripsPage = () => {
                 setModeFilter('All');
                 setTransporterFilter('All');
               }}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md"
+              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
             >
               Reset
             </button>
@@ -205,7 +205,7 @@ export const TripsPage = () => {
         </div>
 
         <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="overflow-x-auto min-w-0 w-full sm:w-auto">
+          <div className="overflow-x-auto max-w-full pb-1">
             <FilterBar
               options={statusOptions}
               activeFilter={statusFilter}

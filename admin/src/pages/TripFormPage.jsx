@@ -207,10 +207,10 @@ export const TripFormPage = () => {
 
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
         {/* SECTION A: TRIP ROUTE & SPECS */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-50 text-setu-600">
+              <div className="p-2 rounded-lg bg-blue-50 text-setu-600 shrink-0">
                 <Truck className="w-4 h-4" />
               </div>
               <div>
@@ -219,12 +219,12 @@ export const TripFormPage = () => {
               </div>
             </div>
 
-            <div className="px-3 py-1 bg-setu-50 text-setu-700 rounded font-mono font-bold text-xs border border-setu-100">
+            <div className="self-start sm:self-auto px-3 py-1 bg-setu-50 text-setu-700 rounded font-mono font-bold text-xs border border-setu-100 whitespace-nowrap">
               Trip ID: {formData.tripNumber}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Origin City / Hub <span className="text-rose-500">*</span>
@@ -303,18 +303,18 @@ export const TripFormPage = () => {
         </div>
 
         {/* SECTIONS B, C, D: TRANSPORTER, DRIVER, VEHICLE */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {/* Section B: Transporter */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-setu-600" />
+                <Building2 className="w-3.5 h-3.5 text-setu-600 shrink-0" />
                 Transporter Vendor <span className="text-rose-500">*</span>
               </span>
               <button
                 type="button"
                 onClick={() => setShowTransporterModal(true)}
-                className="text-[10px] text-setu-600 font-bold hover:underline"
+                className="text-[10px] text-setu-600 font-bold hover:underline shrink-0"
               >
                 + Add New
               </button>
@@ -339,16 +339,16 @@ export const TripFormPage = () => {
           </div>
 
           {/* Section C: Driver */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-600" />
+                <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 Assigned Driver
               </span>
               <button
                 type="button"
                 onClick={() => setShowDriverModal(true)}
-                className="text-[10px] text-setu-600 font-bold hover:underline"
+                className="text-[10px] text-setu-600 font-bold hover:underline shrink-0"
               >
                 + Add New
               </button>
@@ -380,16 +380,16 @@ export const TripFormPage = () => {
           </div>
 
           {/* Section D: Vehicle */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3 text-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-bold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-amber-600" />
+                <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 Assigned Vehicle
               </span>
               <button
                 type="button"
                 onClick={() => setShowVehicleModal(true)}
-                className="text-[10px] text-setu-600 font-bold hover:underline"
+                className="text-[10px] text-setu-600 font-bold hover:underline shrink-0"
               >
                 + Add New
               </button>
@@ -422,10 +422,10 @@ export const TripFormPage = () => {
         </div>
 
         {/* SECTION E: ASSIGN SHIPMENTS & LIVE SUMMARY METRICS */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+              <div className="p-2 rounded-lg bg-purple-50 text-purple-600 shrink-0">
                 <Package className="w-4 h-4" />
               </div>
               <div>
@@ -437,7 +437,7 @@ export const TripFormPage = () => {
             <button
               type="button"
               onClick={() => setShowShipmentModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded transition-colors shadow-xs"
+              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded transition-colors shadow-xs shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Select Shipments</span>
@@ -445,7 +445,7 @@ export const TripFormPage = () => {
           </div>
 
           {/* DYNAMIC LIVE METRICS SUMMARY BAR */}
-          <div className="p-4 bg-setu-50/50 border border-setu-200 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-800">
+          <div className="p-3.5 sm:p-4 bg-setu-50/50 border border-setu-200 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs text-slate-800">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Shipments</span>
               <span className="text-sm font-black text-setu-700 font-mono">{selectedShipmentObjects.length} CNs</span>
@@ -460,13 +460,13 @@ export const TripFormPage = () => {
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Route</span>
-              <span className="text-sm font-bold text-slate-900">{formData.origin || 'Origin'} → {formData.destination || 'Destination'}</span>
+              <span className="text-xs sm:text-sm font-bold text-slate-900 truncate block">{formData.origin || 'Origin'} → {formData.destination || 'Destination'}</span>
             </div>
           </div>
 
           {/* SELECTED SHIPMENTS TABLE */}
           {selectedShipmentObjects.length > 0 ? (
-            <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
+            <div className="border border-slate-200 rounded-lg overflow-x-auto text-xs">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-bold text-[10px]">
                   <tr>
@@ -513,11 +513,11 @@ export const TripFormPage = () => {
         </div>
 
         {/* BOTTOM FORM ACTIONS */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors text-center"
           >
             Cancel
           </button>
@@ -527,7 +527,7 @@ export const TripFormPage = () => {
               type="button"
               disabled={saving}
               onClick={(e) => handleSubmit(e, true)}
-              className="px-4 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors"
+              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors text-center"
             >
               Create & Add Another
             </button>
@@ -536,7 +536,7 @@ export const TripFormPage = () => {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'Saving...' : isEditMode ? 'Save Trip Changes' : 'Create Trip'}</span>
