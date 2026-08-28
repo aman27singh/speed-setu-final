@@ -155,26 +155,26 @@ export const CompanyDetailPage = () => {
     <div className="space-y-6 pb-12">
       {/* Top Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start sm:items-center gap-3">
           <button
             onClick={() => navigate('/admin/companies')}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-xs shrink-0 mt-1 sm:mt-0"
             title="Back to Companies Directory"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Corporate Master Record
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-setu-50 font-mono text-setu-700 font-bold border border-setu-100 whitespace-nowrap">
                 {company.companyCode}
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 {company.companyName}
               </h1>
               <StatusBadge status={company.status} />
@@ -183,27 +183,27 @@ export const CompanyDetailPage = () => {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
             onClick={() => navigate(`/admin/quotations/new?companyId=${company.id}`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md transition-colors shadow-xs"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md transition-colors shadow-xs flex-1 sm:flex-initial"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Create Quotation</span>
+            <span>Quotation</span>
           </button>
 
           <button
             onClick={() => navigate(`/admin/companies/${company.id}/edit`)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-xs"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-xs flex-1 sm:flex-initial"
           >
             <Edit className="w-3.5 h-3.5" />
-            <span>Edit Company</span>
+            <span>Edit</span>
           </button>
 
           {company.status === 'Active' && (
             <button
               onClick={() => setShowDeactivateModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-600 hover:text-white transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-600 hover:text-white transition-colors flex-1 sm:flex-initial"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Deactivate</span>
@@ -223,67 +223,69 @@ export const CompanyDetailPage = () => {
       )}
 
       {/* FINANCIAL & OPERATIONAL KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Shipments</span>
-          <span className="text-xl font-bold text-slate-900">{company.kpis?.totalShipments || 0}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Shipments</span>
+          <span className="text-lg sm:text-xl font-bold text-slate-900">{company.kpis?.totalShipments || 0}</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Billing</span>
-          <span className="text-xl font-bold text-slate-900 font-mono">{formatINR(company.kpis?.totalBilling || 0)}</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Billing</span>
+          <span className="text-lg sm:text-xl font-bold text-slate-900 font-mono">{formatINR(company.kpis?.totalBilling || 0)}</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Outstanding</span>
-          <span className="text-xl font-bold text-rose-600 font-mono">{formatINR(company.kpis?.outstandingAmount || 0)}</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Outstanding</span>
+          <span className="text-lg sm:text-xl font-bold text-rose-600 font-mono">{formatINR(company.kpis?.outstandingAmount || 0)}</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Paid Amount</span>
-          <span className="text-xl font-bold text-emerald-600 font-mono">{formatINR(company.kpis?.paidAmount || 0)}</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Paid Amount</span>
+          <span className="text-lg sm:text-xl font-bold text-emerald-600 font-mono">{formatINR(company.kpis?.paidAmount || 0)}</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Active Shipments</span>
-          <span className="text-xl font-bold text-blue-600">{company.kpis?.activeShipments || 0}</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Active Shipments</span>
+          <span className="text-lg sm:text-xl font-bold text-blue-600">{company.kpis?.activeShipments || 0}</span>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Last Shipment</span>
-          <span className="text-sm font-bold text-slate-700 font-mono">{company.kpis?.lastShipmentDate || '-'}</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Last Shipment</span>
+          <span className="text-xs sm:text-sm font-bold text-slate-700 font-mono">{company.kpis?.lastShipmentDate || '-'}</span>
         </div>
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="border-b border-slate-200 flex gap-6 text-xs font-bold text-slate-500">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`pb-3 transition-colors relative ${
-              activeTab === t.id ? 'text-setu-600 font-extrabold' : 'hover:text-slate-900'
-            }`}
-          >
-            {t.label}
-            {activeTab === t.id && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-setu-600 rounded-full" />
-            )}
-          </button>
-        ))}
+      <div className="overflow-x-auto max-w-full border-b border-slate-200 pb-1">
+        <div className="flex gap-4 sm:gap-6 text-xs font-bold text-slate-500 whitespace-nowrap min-w-max">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`pb-2.5 transition-colors relative ${
+                activeTab === t.id ? 'text-setu-600 font-extrabold' : 'hover:text-slate-900'
+              }`}
+            >
+              {t.label}
+              {activeTab === t.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-setu-600 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* TAB CONTENT: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6 text-xs">
           {/* BASIC COMPANY PROFILE & MASTER INFORMATION CARD */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-setu-600" />
+                <Building2 className="w-4 h-4 text-setu-600 shrink-0" />
                 <span>Basic Company Profile & Corporate Information</span>
               </div>
-              <span className="text-xs font-mono font-bold text-setu-700 bg-setu-50 px-2.5 py-1 rounded border border-setu-100">
+              <span className="self-start sm:self-auto text-xs font-mono font-bold text-setu-700 bg-setu-50 px-2.5 py-1 rounded border border-setu-100 whitespace-nowrap">
                 ID: {company.companyCode || company.companyId}
               </span>
             </h3>

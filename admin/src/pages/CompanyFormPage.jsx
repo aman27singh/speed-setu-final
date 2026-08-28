@@ -262,9 +262,9 @@ export const CompanyFormPage = () => {
 
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
         {/* SECTION 1: BASIC INFORMATION */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="p-2 rounded-lg bg-blue-50 text-setu-600">
+            <div className="p-2 rounded-lg bg-blue-50 text-setu-600 shrink-0">
               <Building2 className="w-4 h-4" />
             </div>
             <div>
@@ -273,8 +273,8 @@ export const CompanyFormPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
+            <div className="sm:col-span-2">
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Company Legal Name <span className="text-rose-500">*</span>
               </label>
@@ -369,9 +369,9 @@ export const CompanyFormPage = () => {
         </div>
 
         {/* SECTION 2: PRIMARY CONTACT */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
               <User className="w-4 h-4" />
             </div>
             <div>
@@ -380,7 +380,7 @@ export const CompanyFormPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Contact Person Name
@@ -439,7 +439,7 @@ export const CompanyFormPage = () => {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Email Address
               </label>
@@ -458,9 +458,9 @@ export const CompanyFormPage = () => {
         </div>
 
         {/* SECTION 3: BILLING INFORMATION */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
+            <div className="p-2 rounded-lg bg-amber-50 text-amber-600 shrink-0">
               <CreditCard className="w-4 h-4" />
             </div>
             <div>
@@ -469,8 +469,8 @@ export const CompanyFormPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
+            <div className="sm:col-span-2">
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Billing Address Line 1
               </label>
@@ -601,9 +601,9 @@ export const CompanyFormPage = () => {
         </div>
 
         {/* SECTION 4: OPERATIONAL INFORMATION */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+            <div className="p-2 rounded-lg bg-purple-50 text-purple-600 shrink-0">
               <Truck className="w-4 h-4" />
             </div>
             <div>
@@ -645,7 +645,7 @@ export const CompanyFormPage = () => {
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Regular Pickup Locations
               </label>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
                 <input
                   type="text"
                   value={pickupInput}
@@ -657,7 +657,7 @@ export const CompanyFormPage = () => {
                 <button
                   type="button"
                   onClick={handleAddPickupLocation}
-                  className="px-3 py-2 bg-slate-800 text-white rounded-md font-semibold hover:bg-slate-900"
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-800 text-white rounded-md font-semibold hover:bg-slate-900 shrink-0 text-center"
                 >
                   Add Location
                 </button>
@@ -687,7 +687,7 @@ export const CompanyFormPage = () => {
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Regular Destinations / Delivery Lanes
               </label>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
                 <input
                   type="text"
                   value={destinationInput}
@@ -699,7 +699,7 @@ export const CompanyFormPage = () => {
                 <button
                   type="button"
                   onClick={handleAddDestination}
-                  className="px-3 py-2 bg-slate-800 text-white rounded-md font-semibold hover:bg-slate-900"
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-800 text-white rounded-md font-semibold hover:bg-slate-900 shrink-0 text-center"
                 >
                   Add Destination
                 </button>
@@ -727,11 +727,11 @@ export const CompanyFormPage = () => {
         </div>
 
         {/* BOTTOM FORM ACTIONS */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors text-center"
           >
             Cancel
           </button>
@@ -741,7 +741,7 @@ export const CompanyFormPage = () => {
               type="button"
               disabled={saving}
               onClick={(e) => handleSubmit(e, true)}
-              className="px-4 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors"
+              className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors text-center"
             >
               Save & Add Another
             </button>
@@ -750,7 +750,7 @@ export const CompanyFormPage = () => {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Company'}</span>
