@@ -146,17 +146,8 @@ export const Header = ({ onToggleSidebar }) => {
 
   const q = searchQuery.toLowerCase().trim();
 
-  const matchedInvoices = q
-    ? mockPaymentFollowUps.filter(
-        (p) => p.invoice.toLowerCase().includes(q) || p.company.toLowerCase().includes(q)
-      )
-    : [];
-
-  const matchedPayables = q
-    ? mockPendingPayables.filter(
-        (p) => p.vendor.toLowerCase().includes(q) || p.trip.toLowerCase().includes(q)
-      )
-    : [];
+  const matchedInvoices = [];
+  const matchedPayables = [];
 
   const totalResultsCount = matchedShipments.length + matchedInvoices.length + matchedPayables.length;
 
