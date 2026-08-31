@@ -33,11 +33,11 @@ export const authService = {
         return res;
       }
     } catch (err) {
-      console.warn('[AuthService] Backend authentication failed or unreachable:', err.message);
-      // If backend explicitly rejected credentials (401 / Invalid credentials)
-      if (err.message.includes('Invalid credentials') || err.message.includes('401') || err.message.includes('Unauthorized')) {
-        throw new Error('Invalid credentials. Please check username/email and password.');
+      // If backend explicitly rejected credentials or returned error message, throw it
+      if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+        throw new Error(err.message || 'Invalid credentials. Please check username/email and password.');
       }
+      console.warn('[AuthService] Backend unreachable, checking offline credentials...');
     }
 
     // Offline fallback ONLY for official admin credentials when backend is unreachable
@@ -69,7 +69,7 @@ export const authService = {
       }
     }
 
-    return DEFAULT_ADMIN;
+    return null;
   },
 
   /**

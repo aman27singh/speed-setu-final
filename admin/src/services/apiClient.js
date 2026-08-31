@@ -34,6 +34,13 @@ export async function apiRequest(endpoint, options = {}) {
     const response = await fetch(`${BASE_URL}${endpoint}`, config);
 
     if (response.status === 401) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.message || 'Invalid credentials. Please check username/email and password.';
+      
+      if (endpoint === '/auth/login') {
+        throw new Error(errorMessage);
+      }
+
       removeStoredToken();
       window.location.href = '/admin/login';
       throw new Error('Unauthorized. Please log in again.');
