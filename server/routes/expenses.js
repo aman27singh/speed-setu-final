@@ -86,6 +86,24 @@ router.put('/:id', async (req, res) => {
     console.log(`[MongoDB] Expense updated: ${updated.expenseId}`);
     res.json(updated);
   } catch (err) {
+// DELETE /api/expenses/:id — Delete expense
+router.delete('/:id', async (req, res) => {
+  try {
+    const param = req.params.id;
+    const isValidId = mongoose.isValidObjectId(param);
+
+    const deleted = await Expense.findOneAndDelete({
+      $or: [
+        { expenseId: new RegExp(`^${param}$`, 'i') },
+        { expenseNumber: new RegExp(`^${param}$`, 'i') },
+        ...(isValidId ? [{ _id: param }] : [])
+      ]
+    });
+
+    if (!deleted) return res.status(404).json({ error: 'Expense record not found for deletion' });
+    console.log(`[MongoDB Atlas] Expense deleted: ${deleted.expenseId}`);
+    res.json({ success: true, message: `Expense ${deleted.expenseId} deleted successfully.` });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

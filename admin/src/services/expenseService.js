@@ -184,5 +184,24 @@ export const expenseService = {
 
     expensesStore[index] = updatedExpense;
     return { ...updatedExpense };
+  },
+
+  async deleteExpense(id) {
+    if (!id) throw new Error('Invalid Expense ID for deletion.');
+
+    try {
+      await apiRequest(`/expenses/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn('[MongoDB Client] Delete expense remote API fallback:', err.message);
+    }
+
+    const target = id.toString().toLowerCase();
+    expensesStore = expensesStore.filter(
+      (e) => (e.id && e.id.toString().toLowerCase() !== target) &&
+             (e.expenseId && e.expenseId.toString().toLowerCase() !== target)
+    );
+    return true;
   }
 };

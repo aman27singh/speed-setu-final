@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Plus,
   Eye,
+  Trash2,
   PieChart
 } from 'lucide-react';
 
@@ -53,6 +54,21 @@ export const ExpensesPage = () => {
   useEffect(() => {
     fetchExpensesData();
   }, [search, categoryFilter, scopeFilter]);
+
+  const handleDeleteExpense = async (e, row) => {
+    e.stopPropagation();
+    const expNum = row.expenseId || row.expenseNumber || row.id;
+    if (!window.confirm(`Are you sure you want to delete expense '${expNum}' (${row.title || row.description || ''})? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await expenseService.deleteExpense(row.id || row.expenseId || row._id);
+      fetchExpensesData();
+    } catch (err) {
+      alert(err.message || 'Failed to delete expense.');
+    }
+  };
 
   const [viewMode, setViewMode] = useState('all'); // 'all' | 'driverwise'
   const [selectedDriverForStatement, setSelectedDriverForStatement] = useState(null);
@@ -187,6 +203,29 @@ export const ExpensesPage = () => {
       header: 'Status',
       accessor: 'paymentStatus',
       render: (row) => <StatusBadge status={row.paymentStatus || row.status || 'Pending'} />
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => navigate(`/admin/expenses/${row.id || row.expenseId}`)}
+            className="p-1.5 text-slate-500 hover:text-setu-600 hover:bg-slate-100 rounded transition-colors"
+            title="View Expense Profile"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => handleDeleteExpense(e, row)}
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+            title="Delete Expense Record"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )
     }
   ];
 

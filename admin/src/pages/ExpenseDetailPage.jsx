@@ -13,7 +13,8 @@ import {
   PieChart,
   Truck,
   Package,
-  CreditCard
+  CreditCard,
+  Trash2
 } from 'lucide-react';
 
 export const ExpenseDetailPage = () => {
@@ -39,6 +40,21 @@ export const ExpenseDetailPage = () => {
   useEffect(() => {
     fetchExpenseData();
   }, [id]);
+
+  const handleDelete = async () => {
+    const expNum = expense?.expenseNumber || expense?.expenseId || id;
+    if (!window.confirm(`Are you sure you want to delete expense record '${expNum}'? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await expenseService.deleteExpense(expense.id || expense.expenseId || id);
+      alert(`Expense ${expNum} deleted successfully.`);
+      navigate('/admin/expenses');
+    } catch (err) {
+      alert(err.message || 'Failed to delete expense.');
+    }
+  };
 
   if (loading) {
     return <LoadingState message="Loading Expense Transaction Profile..." />;
@@ -71,15 +87,25 @@ export const ExpenseDetailPage = () => {
           </div>
         </div>
 
-        {expense.payableId && (
+        <div className="flex items-center gap-2">
+          {expense.payableId && (
+            <button
+              onClick={() => navigate(`/admin/payables/${expense.payableId}`)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-md transition-colors shadow-xs"
+            >
+              <CreditCard className="w-4 h-4 text-setu-600" />
+              <span>View Vendor Payable ({expense.payableId.toUpperCase()})</span>
+            </button>
+          )}
+
           <button
-            onClick={() => navigate(`/admin/payables/${expense.payableId}`)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-md transition-colors shadow-xs"
+            onClick={handleDelete}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-md transition-colors shadow-xs"
           >
-            <CreditCard className="w-4 h-4 text-setu-600" />
-            <span>View Vendor Payable ({expense.payableId.toUpperCase()})</span>
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            <span>Delete Expense</span>
           </button>
-        )}
+        </div>
       </div>
 
       {/* SUMMARY METRICS STRIP */}
