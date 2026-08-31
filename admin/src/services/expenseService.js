@@ -194,13 +194,17 @@ export const expenseService = {
         method: 'DELETE'
       });
     } catch (err) {
-      console.warn('[MongoDB Client] Delete expense remote API fallback:', err.message);
+      console.warn('[MongoDB Client] Delete expense remote API error:', err.message);
+      if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+        throw new Error(err.message || 'Failed to delete expense record.');
+      }
     }
 
     const target = id.toString().toLowerCase();
     expensesStore = expensesStore.filter(
       (e) => (e.id && e.id.toString().toLowerCase() !== target) &&
-             (e.expenseId && e.expenseId.toString().toLowerCase() !== target)
+             (e.expenseId && e.expenseId.toString().toLowerCase() !== target) &&
+             (e._id && e._id.toString().toLowerCase() !== target)
     );
     return true;
   }

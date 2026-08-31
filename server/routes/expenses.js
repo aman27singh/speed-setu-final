@@ -18,10 +18,12 @@ router.get('/:id', async (req, res) => {
   try {
     const param = req.params.id;
     const isValidId = mongoose.isValidObjectId(param);
+    const safeParam = param.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+
     const item = await Expense.findOne({
       $or: [
-        { expenseId: new RegExp(`^${param}$`, 'i') },
-        { expenseNumber: new RegExp(`^${param}$`, 'i') },
+        { expenseId: new RegExp(`^${safeParam}$`, 'i') },
+        { expenseNumber: new RegExp(`^${safeParam}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
     });
@@ -69,12 +71,13 @@ router.put('/:id', async (req, res) => {
   try {
     const param = req.params.id;
     const isValidId = mongoose.isValidObjectId(param);
+    const safeParam = param.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
     const updated = await Expense.findOneAndUpdate(
       {
         $or: [
-          { expenseId: new RegExp(`^${param}$`, 'i') },
-          { expenseNumber: new RegExp(`^${param}$`, 'i') },
+          { expenseId: new RegExp(`^${safeParam}$`, 'i') },
+          { expenseNumber: new RegExp(`^${safeParam}$`, 'i') },
           ...(isValidId ? [{ _id: param }] : [])
         ]
       },
@@ -86,16 +89,21 @@ router.put('/:id', async (req, res) => {
     console.log(`[MongoDB] Expense updated: ${updated.expenseId}`);
     res.json(updated);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/expenses/:id — Delete expense
 router.delete('/:id', async (req, res) => {
   try {
     const param = req.params.id;
     const isValidId = mongoose.isValidObjectId(param);
+    const safeParam = param.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
     const deleted = await Expense.findOneAndDelete({
       $or: [
-        { expenseId: new RegExp(`^${param}$`, 'i') },
-        { expenseNumber: new RegExp(`^${param}$`, 'i') },
+        { expenseId: new RegExp(`^${safeParam}$`, 'i') },
+        { expenseNumber: new RegExp(`^${safeParam}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
     });
@@ -104,6 +112,7 @@ router.delete('/:id', async (req, res) => {
     console.log(`[MongoDB Atlas] Expense deleted: ${deleted.expenseId}`);
     res.json({ success: true, message: `Expense ${deleted.expenseId} deleted successfully.` });
   } catch (err) {
+    console.error(`[MongoDB Error] Delete expense failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
