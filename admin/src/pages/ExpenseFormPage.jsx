@@ -26,6 +26,7 @@ import {
 
 const CATEGORIES = [
   'Transporter',
+  'Flight Charges',
   'Driver',
   'Toll',
   'Fuel',

@@ -60,6 +60,7 @@ export const ExpensesPage = () => {
   const categoryOptions = [
     { label: 'All Categories', value: 'All' },
     { label: 'Transporter', value: 'Transporter' },
+    { label: 'Flight Charges', value: 'Flight Charges' },
     { label: 'Driver', value: 'Driver' },
     { label: 'Toll', value: 'Toll' },
     { label: 'Fuel', value: 'Fuel' },
