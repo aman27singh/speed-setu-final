@@ -51,7 +51,8 @@ router.post('/', async (req, res) => {
 
     const newExpense = new Expense({
       ...payload,
-      expenseId
+      expenseId: expenseId,
+      expenseNumber: expenseId
     });
 
     const saved = await newExpense.save();
