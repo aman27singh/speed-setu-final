@@ -10,8 +10,16 @@ try {
 }
 
 const connectDB = async () => {
-  const primaryUri = process.env.MONGO_URI || 'mongodb+srv://bhagatspeedsetu_db_user:EAuXDpaK5qHgCKi7@speedsetu.gldylje.mongodb.net/speed_setu_db?retryWrites=true&w=majority';
-  const directFallbackUri = 'mongodb://bhagatspeedsetu_db_user:EAuXDpaK5qHgCKi7@ac-nqzc8lq-shard-00-00.gldylje.mongodb.net:27017,ac-nqzc8lq-shard-00-01.gldylje.mongodb.net:27017,ac-nqzc8lq-shard-00-02.gldylje.mongodb.net:27017/speed_setu_db?ssl=true&replicaSet=atlas-nqzc8lq-shard-0&authSource=admin&retryWrites=true&w=majority';
+  const primaryUri = process.env.MONGO_URI;
+  const directFallbackUri = process.env.MONGO_DIRECT_URI || primaryUri;
+
+  if (!primaryUri) {
+    console.error(`\n=====================================================`);
+    console.error(`❌ [CRITICAL CONFIG ERROR]: MONGO_URI environment variable is not defined.`);
+    console.error(`📌 Please define MONGO_URI in your server/.env file or deployment environment variables.`);
+    console.error(`=====================================================\n`);
+    process.exit(1);
+  }
 
   // Monitor runtime connection errors
   mongoose.connection.on('error', (err) => {

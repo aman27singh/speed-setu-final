@@ -7,6 +7,6 @@ services:
     startCommand: npm start
     envVars:
       - key: MONGO_URI
-        value: mongodb+srv://bhagatspeedsetu_db_user:EAuXDpaK5qHgCKi7@speedsetu.gldylje.mongodb.net/speed_setu_db?retryWrites=true&w=majority
+        sync: false
       - key: PORT
         value: 5050
