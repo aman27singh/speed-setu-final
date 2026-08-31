@@ -6,6 +6,7 @@ import { validateShipmentForm } from '../utils/shipmentValidation';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
 import { Modal } from '../components/common/Modal';
+import { ConsignmentNoteModal } from '../components/shipment/ConsignmentNoteModal';
 import {
   Package,
   Building2,
@@ -151,6 +152,8 @@ export const ShipmentFormPage = () => {
   // Success Modal State
   const [createdCN, setCreatedCN] = useState(null);
   const [createdId, setCreatedId] = useState(null);
+  const [createdShipment, setCreatedShipment] = useState(null);
+  const [showCNModal, setShowCNModal] = useState(false);
 
   const handleAddCommercialInvoice = () => {
     setFormData((prev) => ({
@@ -214,12 +217,70 @@ export const ShipmentFormPage = () => {
     const loadInitialData = async () => {
       setLoading(true);
       try {
-        const compList = await companyService.getCompanies();
+        const [compList, shipmentList] = await Promise.all([
+          companyService.getCompanies().catch(() => []),
+          shipmentService.getShipments().catch(() => [])
+        ]);
         setCompanies(compList);
 
-        // Start clean with no pre-fed data - users add custom consignors/consignees one by one
-        setSavedConsignorsList([]);
-        setSavedConsigneesList([]);
+        // Dynamically extract all saved consignors & consignees from past shipments & companies
+        const consignorMap = new Map();
+        const consigneeMap = new Map();
+
+        const addConsignor = (c) => {
+          if (c && c.name && c.name.trim()) {
+            const key = c.name.trim().toLowerCase();
+            if (!consignorMap.has(key)) {
+              consignorMap.set(key, {
+                id: c.id || `consignor-${consignorMap.size + 1}`,
+                name: c.name.trim(),
+                code: c.code || '',
+                gstin: c.gstin || c.gstNo || '',
+                address: c.address || c.pickupAddress || '',
+                city: c.city || '',
+                state: c.state || '',
+                pin: c.pin || c.pinCode || '',
+                contact: c.contact || c.contactPhone || c.phone || ''
+              });
+            }
+          }
+        };
+
+        const addConsignee = (c) => {
+          if (c && c.name && c.name.trim()) {
+            const key = c.name.trim().toLowerCase();
+            if (!consigneeMap.has(key)) {
+              consigneeMap.set(key, {
+                id: c.id || `consignee-${consigneeMap.size + 1}`,
+                name: c.name.trim(),
+                code: c.code || '',
+                gstin: c.gstin || c.gstNo || '',
+                address: c.address || c.deliveryAddress || '',
+                city: c.city || '',
+                state: c.state || '',
+                pin: c.pin || c.pinCode || '',
+                contact: c.contact || c.contactPhone || c.phone || ''
+              });
+            }
+          }
+        };
+
+        (shipmentList || []).forEach((s) => {
+          if (s.consignor) addConsignor(s.consignor);
+          if (s.consignee) addConsignee(s.consignee);
+        });
+
+        (compList || []).forEach((comp) => {
+          if (comp.hubs && Array.isArray(comp.hubs)) {
+            comp.hubs.forEach((hub) => {
+              addConsignor({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
+              addConsignee({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
+            });
+          }
+        });
+
+        setSavedConsignorsList(Array.from(consignorMap.values()));
+        setSavedConsigneesList(Array.from(consigneeMap.values()));
 
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
@@ -371,7 +432,7 @@ export const ShipmentFormPage = () => {
       companyId: targetComp.id,
       companyName: targetComp.companyName,
       companyCode: targetComp.companyCode,
-      origin: targetComp.billing?.city ? `${targetComp.billing.city} Hub` : prev.origin,
+      origin: targetComp.billing?.city || prev.origin,
       consignor: {
         ...prev.consignor,
         name: `${targetComp.companyName} (Vendor Hub)`,
@@ -394,7 +455,7 @@ export const ShipmentFormPage = () => {
       companyId: targetComp.id,
       companyName: targetComp.companyName,
       companyCode: targetComp.companyCode,
-      destination: targetComp.billing?.city ? `${targetComp.billing.city} Hub` : prev.destination,
+      destination: targetComp.billing?.city || prev.destination,
       consignee: {
         ...prev.consignee,
         name: targetComp.companyName,
@@ -443,26 +504,26 @@ export const ShipmentFormPage = () => {
       const defaultCompany = companies.find((c) => c.id === formData.companyId) || companies[0] || {};
       const payload = {
         ...formData,
-        companyId: formData.companyId || defaultCompany.id || 'GEN-COMP',
-        companyName: formData.companyName || defaultCompany.companyName || 'General Corporate Client',
-        companyCode: formData.companyCode || defaultCompany.companyCode || 'GCC',
+        companyId: formData.companyId || defaultCompany.id || '',
+        companyName: formData.companyName || defaultCompany.companyName || '',
+        companyCode: formData.companyCode || defaultCompany.companyCode || '',
         consignor: {
           ...formData.consignor,
-          name: formData.consignor?.name || `${formData.companyName || 'Corporate'} Origin Hub`,
-          city: formData.consignor?.city || 'Bengaluru',
-          state: formData.consignor?.state || 'Karnataka'
+          name: formData.consignor?.name || '',
+          city: formData.consignor?.city || '',
+          state: formData.consignor?.state || ''
         },
         consignee: {
           ...formData.consignee,
-          name: formData.consignee?.name || 'Destination Receiver Store',
-          city: formData.consignee?.city || 'Pune',
-          state: formData.consignee?.state || 'Maharashtra'
+          name: formData.consignee?.name || '',
+          city: formData.consignee?.city || '',
+          state: formData.consignee?.state || ''
         },
-        origin: formData.origin || formData.consignor?.city || 'Origin Hub',
-        destination: formData.destination || formData.consignee?.city || 'Destination Hub',
+        origin: formData.origin || formData.consignor?.city || '',
+        destination: formData.destination || formData.consignee?.city || '',
         packages: formData.packages || 1,
-        actualWeight: formData.actualWeight || 10,
-        chargeableWeight: formData.chargeableWeight || formData.actualWeight || 10
+        actualWeight: formData.actualWeight || 0,
+        chargeableWeight: formData.chargeableWeight || formData.actualWeight || 0
       };
 
       if (isEditMode) {
@@ -484,6 +545,7 @@ export const ShipmentFormPage = () => {
         } else {
           setCreatedCN(created.cnNumber);
           setCreatedId(created.id);
+          setCreatedShipment(created);
         }
       }
     } catch (err) {
@@ -656,7 +718,7 @@ export const ShipmentFormPage = () => {
                   <option value="">-- Select Saved Consignor / Shipper Hub --</option>
                   {savedConsignorsList.map((c) => (
                     <option key={c.id || c.name} value={c.name}>
-                      {c.name} {c.city ? `(${c.city})` : ''}
+                      {c.name}
                     </option>
                   ))}
                   <option value="__custom__">✍️ + Custom Add New Consignor</option>
@@ -787,7 +849,7 @@ export const ShipmentFormPage = () => {
                   <option value="">-- Select Saved Consignee / Delivery Store --</option>
                   {savedConsigneesList.map((e) => (
                     <option key={e.id || e.name} value={e.name}>
-                      {e.name} {e.city ? `(${e.city})` : ''}
+                      {e.name}
                     </option>
                   ))}
                   <option value="__custom__">✍️ + Custom Add New Consignee</option>
@@ -1320,24 +1382,32 @@ export const ShipmentFormPage = () => {
         onClose={() => navigate(`/admin/shipments/${createdCN || createdId}`)}
         title="Shipment Created Successfully"
         footer={
-          <>
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full">
             <button
               onClick={() => {
                 setCreatedCN(null);
+                setCreatedShipment(null);
                 setFormData(INITIAL_FORM_STATE);
               }}
-              className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50"
             >
               Create Another Shipment
             </button>
 
             <button
+              onClick={() => setShowCNModal(true)}
+              className="px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded shadow-xs inline-flex items-center gap-1.5"
+            >
+              <span>📄 Print Pickup Document (CN)</span>
+            </button>
+
+            <button
               onClick={() => navigate(`/admin/shipments/${createdCN || createdId}`)}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-sm"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-xs"
             >
               View Shipment Details
             </button>
-          </>
+          </div>
         }
       >
         <div className="space-y-3 text-xs text-center py-2">
@@ -1349,8 +1419,20 @@ export const ShipmentFormPage = () => {
           <div className="p-3 bg-setu-50 border border-setu-200 rounded-lg inline-block font-mono text-base font-bold text-setu-700">
             CN Number: {createdCN}
           </div>
+
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-left text-xs space-y-1">
+            <span className="font-bold block">💡 Pickup Document Ready</span>
+            <p>You can generate and print the official Speed Setu Consignment Note (Pickup Document) immediately using the button below or print it anytime later from the shipment details page.</p>
+          </div>
         </div>
       </Modal>
+
+      {/* CONSIGNMENT NOTE PICKUP DOCUMENT MODAL */}
+      <ConsignmentNoteModal
+        isOpen={showCNModal}
+        onClose={() => setShowCNModal(false)}
+        shipment={createdShipment || { ...formData, cnNumber: createdCN, id: createdId }}
+      />
     </div>
   );
 };

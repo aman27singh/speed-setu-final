@@ -187,6 +187,7 @@ export const billingService = {
     const rawShipmentWeight = shipment.chargeableWeight || Math.max(shipment.actualWeight || 0, shipment.volumetricWeight || 0, 1);
 
     let ratePerKg = 0;
+    let isRateFoundFromCard = false;
     let minChargeableWeight = 0;
     let docketCharge = 0;
     let pickupCharge = 0;
@@ -246,32 +247,38 @@ export const billingService = {
     }
 
     try {
-      const companyQueries = [
-        shipment.companyId,
-        shipment.companyCode,
-        shipment.companyName
-      ].filter(Boolean);
+      const allQuotations = await quotationService.getQuotations();
 
-      let quotations = [];
-      for (const queryVal of companyQueries) {
-        try {
-          const list = await quotationService.getQuotations({ companyId: queryVal });
-          if (list && list.length > 0) {
-            quotations = list;
-            break;
-          }
-        } catch (e) {
-          // continue loop
+      const sCompName = (shipment.companyName || '').toLowerCase().trim();
+      const sCompCode = (shipment.companyCode || '').toLowerCase().trim();
+      const sCompId = (shipment.companyId || '').toLowerCase().trim();
+
+      const shipWords = sCompName
+        .replace(/[^a-z0-9]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !['pvt', 'ltd', 'private', 'limited', 'inc', 'corp', 'india'].includes(w));
+
+      let quotations = allQuotations.filter((q) => {
+        const qCompName = (q.companyName || '').toLowerCase().trim();
+        const qCompCode = (q.companyCode || '').toLowerCase().trim();
+        const qCompId = (q.companyId || q.id || '').toLowerCase().trim();
+
+        // 1. Exact Name match or Code/ID match
+        if (sCompName && qCompName && (sCompName === qCompName || sCompName.includes(qCompName) || qCompName.includes(sCompName))) return true;
+        if (sCompCode && (qCompCode === sCompCode || qCompId === sCompCode)) return true;
+
+        // 2. Token word match (e.g. "techniques surfaces" in "TECHNIQUES SURFACES INDIA PVT LTD.")
+        if (shipWords.length > 0) {
+          const combinedText = `${qCompName} ${qCompCode} ${qCompId}`;
+          const matchedCount = shipWords.filter((w) => combinedText.includes(w)).length;
+          if (matchedCount >= Math.min(2, shipWords.length)) return true;
         }
-      }
 
-      if (quotations.length === 0) {
-        const allQuotations = await quotationService.getQuotations();
-        const compNameLower = (shipment.companyName || '').toLowerCase().trim();
-        quotations = allQuotations.filter((q) => {
-          const qComp = (q.companyName || '').toLowerCase().trim();
-          return qComp && (qComp.includes(compNameLower) || compNameLower.includes(qComp));
-        });
+        return false;
+      });
+
+      if (quotations.length === 0 && sCompId) {
+        quotations = allQuotations.filter((q) => (q.companyId || '').toLowerCase().trim() === sCompId);
       }
 
       const activeQuotation = quotations.find((q) => q.status === 'Active' || (q.status || '').toLowerCase() === 'approved') || quotations[0];
@@ -417,13 +424,22 @@ export const billingService = {
             return rawShipmentWeight >= minW && rawShipmentWeight <= maxW;
           });
 
-          if (matchedSlab && typeof matchedSlab.rate === 'number') {
-            ratePerKg = matchedSlab.rate;
+          if (matchedSlab && (typeof matchedSlab.rate === 'number' || (typeof matchedSlab.rate === 'string' && matchedSlab.rate !== ''))) {
+            ratePerKg = parseFloat(matchedSlab.rate) || 0;
+            isRateFoundFromCard = true;
           } else {
-            ratePerKg = matchingRule.freightRate || matchingRule.ratePerKg || matchingRule.rate || 0;
+            const ruleVal = matchingRule.freightRate ?? matchingRule.ratePerKg ?? matchingRule.rate;
+            if (typeof ruleVal === 'number' || (typeof ruleVal === 'string' && ruleVal !== '')) {
+              ratePerKg = parseFloat(ruleVal) || 0;
+              isRateFoundFromCard = true;
+            }
           }
         } else {
-          ratePerKg = matchingRule.freightRate || matchingRule.ratePerKg || matchingRule.rate || 0;
+          const ruleVal = matchingRule.freightRate ?? matchingRule.ratePerKg ?? matchingRule.rate;
+          if (typeof ruleVal === 'number' || (typeof ruleVal === 'string' && ruleVal !== '')) {
+            ratePerKg = parseFloat(ruleVal) || 0;
+            isRateFoundFromCard = true;
+          }
         }
 
         if (matchingRule.additionalCharges && Array.isArray(matchingRule.additionalCharges)) {
@@ -465,11 +481,13 @@ export const billingService = {
       console.warn('[Billing Engine] Rate card lookup error:', err.message);
     }
 
-    // Override with custom pickup/delivery charges ONLY if explicitly entered as positive values on the shipment (> 0)
-    if (typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
+    const hasRateCard = !!matchedRuleInfo || !!activeQuotation;
+
+    // Override with custom pickup/delivery charges ONLY if explicitly entered as positive values on the shipment (> 0) and no rate card exists
+    if (!hasRateCard && typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
       pickupCharge = shipment.pickupCharges;
     }
-    if (typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
+    if (!hasRateCard && typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
       deliveryCharge = shipment.deliveryCharges;
     }
 
@@ -477,26 +495,31 @@ export const billingService = {
       docketCharge = 0;
     }
 
-    // Fallback rate detection if ratePerKg is 0
-    if (!ratePerKg || ratePerKg === 0) {
-      if (shipment.ratePerKg > 0 || shipment.rate > 0) {
-        ratePerKg = shipment.ratePerKg || shipment.rate;
-      } else {
+    // Fallback rate detection ONLY if no rate card or explicit rate was found
+    if (!isRateFoundFromCard) {
+      if (typeof shipment.ratePerKg === 'number' && !isNaN(shipment.ratePerKg) && shipment.ratePerKg > 0) {
+        ratePerKg = shipment.ratePerKg;
+      } else if (typeof shipment.rate === 'number' && !isNaN(shipment.rate) && shipment.rate > 0) {
+        ratePerKg = shipment.rate;
+      } else if (!activeQuotation) {
         const modeLower = (shipment.mode || shipment.freightMode || '').toLowerCase();
         ratePerKg = modeLower.includes('air') ? 45 : 12;
       }
     }
 
-    const hasRateCard = !!matchedRuleInfo || !!activeQuotation;
     if (docketCharge === 0 && !shipment.isGstExempt && !hasRateCard) docketCharge = 100;
     if (pickupCharge === 0 && !hasRateCard) pickupCharge = 500;
     if (deliveryCharge === 0 && !hasRateCard) deliveryCharge = 500;
 
-    const effectiveWeight = Math.max(rawShipmentWeight, minChargeableWeight);
+    const actualRawWeight = shipment.chargeableWeight || shipment.actualWeight || shipment.volumetricWeight || 0;
+    const effectiveWeight = (hasRateCard && minChargeableWeight > 0)
+      ? Math.max(actualRawWeight, minChargeableWeight)
+      : (actualRawWeight > 0 ? actualRawWeight : 0);
+
     const freightAmount = effectiveWeight * ratePerKg;
 
     const lineItems = [];
-    if (freightAmount > 0) {
+    if (effectiveWeight > 0 || freightAmount > 0 || (isRateFoundFromCard && ratePerKg > 0)) {
       lineItems.push({
         name: `Freight (${shipment.origin} → ${shipment.destination})`,
         description: `Freight (${shipment.origin} → ${shipment.destination}) [${effectiveWeight} Kg Chargeable Wt @ ₹${ratePerKg}/Kg]`,

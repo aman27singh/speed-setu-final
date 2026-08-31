@@ -76,6 +76,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
   const [taxMode, setTaxMode] = useState(initialTaxMode); // 'no_gst' | 'charging_gst'
 
   const isChargingGst = taxMode === 'charging_gst';
+  const useDeliveryDate = invoice.is3PL === true || invoice.useDeliveryDate === true || invoice.companyBilling?.is3PL === true;
 
   // Build dockets breakdown list
   let dockets = [];
@@ -85,6 +86,19 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       const taxable = d.taxableAmount || d.freight || 0;
       const isInterState = d.origin && d.destination && d.origin.toLowerCase().trim() !== d.destination.toLowerCase().trim();
       const gstRate = invoice.gstRate || 18;
+
+      let pickupCharges = typeof d.pickupCharges === 'number' ? d.pickupCharges : parseFloat(d.pickupCharges || 0);
+      let deliveryCharges = typeof d.deliveryCharges === 'number' ? d.deliveryCharges : parseFloat(d.deliveryCharges || 0);
+
+      // Smart fallback: If pickup and delivery charges on docket object are 0, but taxable subtotal exceeds accounted freight/docket/other charges, allocate difference evenly
+      if (pickupCharges === 0 && deliveryCharges === 0 && taxable > 0) {
+        const accounted = (d.freight || 0) + (d.docketCharges || 0) + (d.packingCharges || d.packing || 0) + (d.laborCharges || d.labor || 0) + (d.godownCharges || d.godown || 0);
+        const diff = taxable - accounted;
+        if (diff > 0) {
+          pickupCharges = Math.round(diff / 2);
+          deliveryCharges = diff - pickupCharges;
+        }
+      }
 
       let cgst = 0;
       let sgst = 0;
@@ -109,6 +123,8 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
 
       return {
         ...d,
+        pickupCharges,
+        deliveryCharges,
         cgst,
         sgst,
         igst,
@@ -328,7 +344,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               <tr className="divide-x divide-black">
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">SL. NO.</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET DATE</th>
+                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">ORIGIN</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DESTINATION</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">NO. OF BOXES</th>
@@ -383,7 +399,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.origin || '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.destination || '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.noPack || 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight || 0}</td>
+                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.pickupCharges || 0).toLocaleString('en-IN')}</td>
@@ -414,7 +430,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               <tr className="divide-x divide-black">
                 <td colSpan={5} className="px-1 py-0.5 print:py-[1px] text-right uppercase">TOTAL:</td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalPacks}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight}</td>
+                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
                 <td className="px-1 py-0.5 print:py-[1px]"></td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalPickupCharges.toLocaleString('en-IN')}</td>
@@ -439,7 +455,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               <tr className="divide-x divide-black">
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">SL. NO.</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET DATE</th>
+                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">ORIGIN</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DESTINATION</th>
                 <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">NO. PACK</th>
@@ -493,7 +509,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.origin || '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.destination || '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.noPack || 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight || 0}</td>
+                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
                     <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{(d.docketCharges || 0).toLocaleString('en-IN')}</td>
@@ -515,7 +531,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               <tr className="divide-x divide-black">
                 <td colSpan={5} className="px-1 py-0.5 print:py-[1px] text-right uppercase">TOTAL:</td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalPacks}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight}</td>
+                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
                 <td className="px-1 py-0.5 print:py-[1px]"></td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
                 <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalDocketCharges.toLocaleString('en-IN')}</td>

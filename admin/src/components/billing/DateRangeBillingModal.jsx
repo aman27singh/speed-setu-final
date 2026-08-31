@@ -33,6 +33,7 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
   const [querying, setQuerying] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [isGstExempt, setIsGstExempt] = useState(false);
+  const [is3PL, setIs3PL] = useState(false);
   const [hsnCode, setHsnCode] = useState('996531');
 
   useEffect(() => {
@@ -61,6 +62,28 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
 
   if (!isOpen) return null;
 
+  const toISODate = (dateStr) => {
+    if (!dateStr) return '';
+    const str = String(dateStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      return str.slice(0, 10);
+    }
+    const parts = str.split(/[\s\-\/]+/);
+    if (parts.length === 3) {
+      const months = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+      }
+      const day = parts[0].padStart(2, '0');
+      const month = isNaN(parts[1]) ? months[parts[1].toLowerCase().slice(0, 3)] : parts[1].padStart(2, '0');
+      const year = parts[2];
+      if (year && month && day) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+    return str.slice(0, 10);
+  };
+
   const handleFetchCNs = async (e) => {
     e?.preventDefault();
     if (!selectedCompanyId) {
@@ -80,23 +103,42 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
           c.companyName === selectedCompanyId
       );
 
-      const targetCompName = (targetCompany?.companyName || selectedCompanyId).toLowerCase().trim();
-      const targetCompCode = (targetCompany?.companyCode || targetCompany?.companyId || '').toLowerCase().trim();
+      const targetCompName = (targetCompany?.companyName || selectedCompanyId || '').toLowerCase().trim();
+      const targetCompCode = (targetCompany?.companyCode || '').toLowerCase().trim();
+      const targetCompId = (targetCompany?.companyId || targetCompany?.id || '').toLowerCase().trim();
+
+      const targetWords = targetCompName
+        .replace(/[^a-z0-9]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !['pvt', 'ltd', 'private', 'limited', 'inc', 'corp', 'india'].includes(w));
 
       const matchingShipments = allShipments.filter((s) => {
-        const sCompId = (s.companyId || s.companyCode || '').toLowerCase().trim();
+        const sCompId = (s.companyId || '').toLowerCase().trim();
+        const sCompCode = (s.companyCode || '').toLowerCase().trim();
         const sCompName = (s.companyName || '').toLowerCase().trim();
+        const sConsignor = (s.consignor?.name || '').toLowerCase().trim();
+        const sConsignee = (s.consignee?.name || '').toLowerCase().trim();
 
-        const matchesCompany =
-          !selectedCompanyId ||
-          (sCompId && (sCompId === targetCompCode || sCompId === selectedCompanyId.toLowerCase())) ||
-          (sCompName && targetCompName && (sCompName.includes(targetCompName) || targetCompName.includes(sCompName)));
+        let matchesCompany = !selectedCompanyId;
+        if (!matchesCompany) {
+          if (targetCompCode && (sCompCode === targetCompCode || sCompId === targetCompCode)) matchesCompany = true;
+          else if (targetCompId && (sCompId === targetCompId || sCompCode === targetCompId)) matchesCompany = true;
+          else if (selectedCompanyId && (sCompId === selectedCompanyId.toLowerCase() || sCompCode === selectedCompanyId.toLowerCase())) matchesCompany = true;
+          else if (targetCompName && sCompName && (sCompName.includes(targetCompName) || targetCompName.includes(sCompName))) matchesCompany = true;
+          else if (targetWords.length > 0) {
+            const combinedText = `${sCompName} ${sConsignor} ${sConsignee} ${sCompId} ${sCompCode}`;
+            const matchedCount = targetWords.filter((w) => combinedText.includes(w)).length;
+            if (matchedCount >= Math.min(2, targetWords.length)) matchesCompany = true;
+          }
+        }
 
         if (!matchesCompany) return false;
 
-        const d = s.cnDate || s.bookingDate || (s.createdAt ? s.createdAt.split('T')[0] : '');
-        const isAfterFrom = !fromDate || d >= fromDate;
-        const isBeforeTo = !toDate || d <= toDate;
+        const rawDate = s.cnDate || s.bookingDate || (s.createdAt ? s.createdAt.split('T')[0] : '');
+        const isoDate = toISODate(rawDate);
+
+        const isAfterFrom = !fromDate || !isoDate || isoDate >= fromDate;
+        const isBeforeTo = !toDate || !isoDate || isoDate <= toDate;
 
         const isNotBilled = billingFilter === 'all' || (s.billingStatus || '').toLowerCase() !== 'invoiced';
 
@@ -117,13 +159,17 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
           const laborItem = (calc.lineItems || []).find((i) => (i.name || '').toLowerCase().includes('labor') || (i.name || '').toLowerCase().includes('loading'));
           const godownItem = (calc.lineItems || []).find((i) => (i.name || '').toLowerCase().includes('godown') || (i.name || '').toLowerCase().includes('storage'));
 
-          const wt = isGodownOnly ? 1 : (calc.weight || s.chargeableWeight || s.actualWeight || 0);
+          const originVal = s.origin || (s.consignor && (s.consignor.city || s.consignor.name)) || s.fromCity || '-';
+          const destVal = s.destination || (s.consignee && (s.consignee.city || s.consignee.name)) || s.toCity || '-';
+          const rawUserWeight = s.chargeableWeight || s.actualWeight || s.volumetricWeight || 0;
+          const wt = isGodownOnly ? 0 : (rawUserWeight > 0 ? (calc.weight || rawUserWeight) : 0);
+
           const rate = freightItem ? freightItem.rate : (isGodownOnly ? godownItem?.rate || s.godownCharges || 0 : 0);
           const freightAmt = freightItem ? freightItem.amount : 0;
           const effectiveGstRate = (isGstExempt || calc.gstRate === 0 || s.isGstExempt) ? 0 : (calc.gstRate || 18);
           const docketAmt = effectiveGstRate === 0 ? 0 : (docketItem ? docketItem.amount : 0);
-          const pickupAmt = (typeof s.pickupCharges === 'number' && !isNaN(s.pickupCharges)) ? s.pickupCharges : (pickupItem ? pickupItem.amount : 0);
-          const deliveryAmt = (typeof s.deliveryCharges === 'number' && !isNaN(s.deliveryCharges)) ? s.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0);
+          const pickupAmt = (typeof s.pickupCharges === 'number' && !isNaN(s.pickupCharges) && s.pickupCharges > 0) ? s.pickupCharges : (pickupItem ? pickupItem.amount : 0);
+          const deliveryAmt = (typeof s.deliveryCharges === 'number' && !isNaN(s.deliveryCharges) && s.deliveryCharges > 0) ? s.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0);
           const packingAmt = packingItem ? packingItem.amount : (s.packingCharges || 0);
           const laborAmt = laborItem ? laborItem.amount : (s.laborCharges || 0);
           const godownAmt = godownItem ? godownItem.amount : (s.godownCharges || 0);
@@ -132,15 +178,26 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
           const gstAmt = effectiveGstRate === 0 ? 0 : (calc.gstAmount ?? Math.round(taxable * (effectiveGstRate / 100)));
           const grandTotal = taxable + gstAmt;
 
+          const deliveryDateVal = formatDate(
+            s.operational?.actualDeliveryDate ||
+            s.actualDeliveryDate ||
+            s.deliveryDate ||
+            s.operational?.expectedDeliveryDate ||
+            s.expectedDeliveryDate ||
+            s.cnDate ||
+            s.bookingDate
+          );
+
           evaluatedDockets.push({
             id: s.id || s.cnNumber,
             shipment: s,
             cnNumber: s.cnNumber,
             cnDate: s.cnDate || s.bookingDate || '-',
-            origin: s.origin || (s.consignor && s.consignor.city) || 'Origin',
-            destination: s.destination || (s.consignee && s.consignee.city) || 'Destination',
+            deliveryDate: deliveryDateVal,
+            origin: originVal,
+            destination: destVal,
             mode: s.mode || s.freightMode || 'Express LTL',
-            noPack: s.packages || s.numberOfBoxes || s.noOfBoxes || 10,
+            noPack: s.packages || s.numberOfBoxes || s.noOfBoxes || 1,
             chargeableWeight: wt,
             rate: rate,
             freightAmount: freightAmt,
@@ -269,14 +326,25 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
 
         const itemTotal = itemTaxable + itemCgst + itemSgst + itemIgst;
 
+        const formattedDeliveryDate = formatDate(
+          item.shipment?.operational?.actualDeliveryDate ||
+          item.shipment?.actualDeliveryDate ||
+          item.shipment?.deliveryDate ||
+          item.shipment?.operational?.expectedDeliveryDate ||
+          item.shipment?.expectedDeliveryDate ||
+          item.cnDate
+        );
+
         return {
           slNo: idx + 1,
           docketNo: item.cnNumber,
-          docketDate: formatDate(item.cnDate),
-          origin: item.origin,
-          destination: item.destination,
-          noPack: item.noPack || 10,
-          weight: item.chargeableWeight,
+          docketDate: is3PL ? formattedDeliveryDate : formatDate(item.cnDate),
+          deliveryDate: formattedDeliveryDate,
+          is3PL: is3PL,
+          origin: item.origin || item.shipment?.origin || (item.shipment?.consignor && item.shipment.consignor.city) || '-',
+          destination: item.destination || item.shipment?.destination || (item.shipment?.consignee && item.shipment.consignee.city) || '-',
+          noPack: item.noPack || 1,
+          weight: item.chargeableWeight > 0 ? item.chargeableWeight : 0,
           rate: item.rate,
           freight: item.freightAmount,
           docketCharges: item.docketCharges,
@@ -302,6 +370,8 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
         hsnCode: hsnCode || '996531',
         chargingGst: !isGstExempt,
         isGstExempt: isGstExempt,
+        is3PL: is3PL,
+        useDeliveryDate: is3PL,
         companyId: targetComp.id || targetComp.companyId || 'comp-001',
         companyCode: targetComp.companyCode || 'COM-001',
         companyName: compName,
@@ -381,7 +451,7 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
           
           {/* STEP 1: COMPANY & DATE RANGE FILTERS */}
           <form onSubmit={handleFetchCNs} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                   1. Customer / Company
@@ -451,6 +521,20 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                   <option value="gst">18% Charging GST (Image 2 Format)</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block font-bold text-amber-800 uppercase tracking-wider mb-1">
+                  6. 3PL Logistics Co?
+                </label>
+                <select
+                  value={is3PL ? 'yes' : 'no'}
+                  onChange={(e) => setIs3PL(e.target.value === 'yes')}
+                  className="w-full p-2 bg-amber-50 border border-amber-300 rounded font-bold text-amber-900 cursor-pointer focus:ring-2 focus:ring-amber-500/20"
+                >
+                  <option value="no">No (Standard Customer)</option>
+                  <option value="yes">Yes (3PL Company)</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
@@ -510,7 +594,7 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                           />
                         </th>
                         <th className="p-2">Docket No</th>
-                        <th className="p-2">Docket Date</th>
+                        <th className="p-2">{is3PL ? 'Delivery Date' : 'Docket Date'}</th>
                         <th className="p-2">Route</th>
                         <th className="p-2 text-center">Packs</th>
                         <th className="p-2 text-right">Weight</th>
@@ -537,10 +621,10 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                               />
                             </td>
                             <td className="p-2 font-bold font-mono text-setu-700">{cn.cnNumber}</td>
-                            <td className="p-2 font-mono text-slate-600">{cn.cnDate}</td>
+                            <td className="p-2 font-mono text-slate-600 font-bold">{is3PL ? cn.deliveryDate : cn.cnDate}</td>
                             <td className="p-2 text-slate-700">{cn.origin} → {cn.destination}</td>
                             <td className="p-2 text-center font-mono">{cn.noPack || 1}</td>
-                            <td className="p-2 text-right font-mono font-bold">{cn.chargeableWeight} Kg</td>
+                            <td className="p-2 text-right font-mono font-bold">{cn.chargeableWeight > 0 ? `${cn.chargeableWeight} Kg` : '-'}</td>
                             <td className="p-2 text-right font-mono">₹{cn.rate || 65}</td>
                           </tr>
                         );

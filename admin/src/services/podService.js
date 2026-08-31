@@ -206,5 +206,18 @@ export const podService = {
       status: 'Rejected',
       rejectionReason: reason
     };
+  },
+
+  async bulkVerifyPODs(cnsOrIds = []) {
+    let count = 0;
+    for (const id of cnsOrIds) {
+      try {
+        await this.verifyPOD(id);
+        count++;
+      } catch (err) {
+        console.warn(`[POD Service] Bulk verify error for ${id}:`, err.message);
+      }
+    }
+    return { success: true, count };
   }
 };

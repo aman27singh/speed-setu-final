@@ -40,6 +40,11 @@ export const PODPage = () => {
   const [targetShipmentId, setTargetShipmentId] = useState('');
   const [targetCN, setTargetCN] = useState('');
 
+  // Multi-selection & Toast state
+  const [selectedCNs, setSelectedCNs] = useState([]);
+  const [verifyingBulk, setVerifyingBulk] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
   const fetchPODData = async () => {
     setLoading(true);
     setError(null);
@@ -61,6 +66,48 @@ export const PODPage = () => {
     fetchPODData();
   }, [search, statusFilter, companyFilter]);
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allCNs = pods.map((p) => p.cnNumber || p.id).filter(Boolean);
+      setSelectedCNs(allCNs);
+    } else {
+      setSelectedCNs([]);
+    }
+  };
+
+  const handleSelectRow = (cnKey, e) => {
+    if (e) e.stopPropagation();
+    if (selectedCNs.includes(cnKey)) {
+      setSelectedCNs(selectedCNs.filter((c) => c !== cnKey));
+    } else {
+      setSelectedCNs([...selectedCNs, cnKey]);
+    }
+  };
+
+  const handleBulkVerify = async () => {
+    const count = selectedCNs.length;
+    if (count === 0) return;
+
+    if (
+      window.confirm(
+        `Are you sure you want to mark ${count} selected POD${count > 1 ? 's' : ''} as VERIFIED & DELIVERED?`
+      )
+    ) {
+      setVerifyingBulk(true);
+      try {
+        await podService.bulkVerifyPODs(selectedCNs);
+        setToastMessage(`Successfully verified and marked ${count} shipment${count > 1 ? 's' : ''} as Delivered!`);
+        setSelectedCNs([]);
+        fetchPODData();
+        setTimeout(() => setToastMessage(''), 4000);
+      } catch (err) {
+        alert(`Bulk verification error: ${err.message}`);
+      } finally {
+        setVerifyingBulk(false);
+      }
+    }
+  };
+
   const statusOptions = [
     { label: 'All PODs', value: 'All' },
     { label: 'Pending', value: 'Pending' },
@@ -72,6 +119,33 @@ export const PODPage = () => {
   ];
 
   const columns = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          checked={pods.length > 0 && selectedCNs.length === pods.length}
+          onChange={handleSelectAll}
+          className="w-4 h-4 rounded text-setu-600 focus:ring-setu-500 cursor-pointer accent-setu-600"
+          title="Select All POD Records"
+        />
+      ),
+      key: 'select',
+      align: 'center',
+      render: (row) => {
+        const cnKey = row.cnNumber || row.id;
+        const isSelected = selectedCNs.includes(cnKey);
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => handleSelectRow(cnKey, e)}
+              className="w-4 h-4 rounded text-setu-600 focus:ring-setu-500 cursor-pointer accent-setu-600"
+            />
+          </div>
+        );
+      }
+    },
     {
       header: 'CN Number',
       accessor: 'cnNumber',
@@ -134,6 +208,25 @@ export const PODPage = () => {
       key: 'actions',
       render: (row) => (
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {row.status !== 'Verified' && (
+            <button
+              onClick={async () => {
+                try {
+                  await podService.verifyPOD(row.cnNumber);
+                  setToastMessage(`Consignment ${row.cnNumber} marked Verified & Delivered!`);
+                  fetchPODData();
+                  setTimeout(() => setToastMessage(''), 4000);
+                } catch (err) {
+                  alert(`Failed to verify POD: ${err.message}`);
+                }
+              }}
+              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+              title="Mark Verified & Delivered"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => navigate(`/admin/pod/${row.cnNumber}`)}
             className="p-1.5 text-slate-500 hover:text-setu-600 hover:bg-slate-100 rounded transition-colors"
@@ -246,6 +339,55 @@ export const PODPage = () => {
           </span>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="p-3 bg-emerald-900 text-white rounded-lg text-xs font-semibold flex items-center justify-between shadow-lg animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage('')} className="text-emerald-300 hover:text-white font-bold">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Multi-Selection Bulk Actions Floating Banner */}
+      {selectedCNs.length > 0 && (
+        <div className="bg-slate-900 text-white border border-slate-700 rounded-xl p-3 px-4 shadow-xl flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full text-xs font-bold font-mono">
+              {selectedCNs.length} Selected
+            </span>
+            <span className="text-xs text-slate-300 font-medium">
+              POD records selected for bulk verification
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedCNs([])}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Clear Selection
+            </button>
+
+            <button
+              disabled={verifyingBulk}
+              onClick={handleBulkVerify}
+              className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {verifyingBulk
+                  ? `Verifying (${selectedCNs.length})...`
+                  : `Mark ${selectedCNs.length} Selected as Verified & Delivered`}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* POD MASTER TABLE */}
       {loading ? (

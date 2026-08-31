@@ -12,6 +12,7 @@ import { FilterBar } from '../components/common/FilterBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { DocumentUploadModal } from '../components/shipment/DocumentUploadModal';
+import { BulkShipmentImportModal } from '../components/shipment/BulkShipmentImportModal';
 import {
   Plus,
   Upload,
@@ -21,7 +22,8 @@ import {
   Truck,
   Package,
   X,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const ShipmentsPage = () => {
@@ -43,7 +45,12 @@ export const ShipmentsPage = () => {
 
   // Modal State
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   // Keep local search synced with global header search query
   useEffect(() => {
@@ -53,6 +60,47 @@ export const ShipmentsPage = () => {
   const handleSearchChange = (val) => {
     setSearch(val);
     setSearchQuery(val);
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allIds = shipments.map((s) => s.id || s.cnNumber || s._id).filter(Boolean);
+      setSelectedIds(allIds);
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id, e) => {
+    if (e) e.stopPropagation();
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((item) => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedIds.length;
+    if (count === 0) return;
+
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${count} selected shipment${count > 1 ? 's' : ''}? This action cannot be undone.`
+      )
+    ) {
+      setDeletingBulk(true);
+      try {
+        await shipmentService.deleteMultipleShipments(selectedIds);
+        setToastMessage(`Successfully deleted ${count} shipment${count > 1 ? 's' : ''}.`);
+        setSelectedIds([]);
+        fetchData();
+      } catch (err) {
+        alert(`Bulk deletion error: ${err.message}`);
+      } finally {
+        setDeletingBulk(false);
+      }
+    }
   };
 
   const fetchData = async () => {
@@ -104,6 +152,33 @@ export const ShipmentsPage = () => {
 
   const columns = [
     {
+      header: (
+        <input
+          type="checkbox"
+          checked={shipments.length > 0 && selectedIds.length === shipments.length}
+          onChange={handleSelectAll}
+          className="w-4 h-4 rounded text-setu-600 focus:ring-setu-500 cursor-pointer accent-setu-600"
+          title="Select All Shipments"
+        />
+      ),
+      key: 'select',
+      align: 'center',
+      render: (row) => {
+        const rowId = row.id || row.cnNumber || row._id;
+        const isSelected = selectedIds.includes(rowId);
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => handleSelectRow(rowId, e)}
+              className="w-4 h-4 rounded text-setu-600 focus:ring-setu-500 cursor-pointer accent-setu-600"
+            />
+          </div>
+        );
+      }
+    },
+    {
       header: 'CN Number',
       accessor: 'cnNumber',
       render: (row) => (
@@ -145,8 +220,8 @@ export const ShipmentsPage = () => {
       accessor: 'consignor',
       render: (row) => (
         <div>
-          <span className="font-semibold text-slate-800 block text-xs truncate max-w-[140px]">{row.consignor?.name}</span>
-          <span className="text-[10px] text-slate-400">{row.consignor?.city}</span>
+          <span className="font-semibold text-slate-800 block text-xs truncate max-w-[140px]">{row.consignor?.name || '-'}</span>
+          {row.consignor?.city && <span className="text-[10px] text-slate-400 block">{row.consignor.city}</span>}
         </div>
       )
     },
@@ -155,8 +230,8 @@ export const ShipmentsPage = () => {
       accessor: 'consignee',
       render: (row) => (
         <div>
-          <span className="font-semibold text-slate-800 block text-xs truncate max-w-[140px]">{row.consignee?.name}</span>
-          <span className="text-[10px] text-slate-400">{row.consignee?.city}</span>
+          <span className="font-semibold text-slate-800 block text-xs truncate max-w-[140px]">{row.consignee?.name || '-'}</span>
+          {row.consignee?.city && <span className="text-[10px] text-slate-400 block">{row.consignee.city}</span>}
         </div>
       )
     },
@@ -164,9 +239,15 @@ export const ShipmentsPage = () => {
       header: 'Origin → Dest',
       accessor: 'origin',
       render: (row) => (
-        <div className="text-xs">
-          <span className="font-semibold text-slate-900">{row.origin}</span>
-          <span className="text-slate-400 block text-[10px]">→ {row.destination}</span>
+        <div className="text-xs font-semibold">
+          {row.origin || row.destination ? (
+            <>
+              <span className="text-slate-900">{row.origin || '-'}</span>
+              <span className="text-slate-400 block text-[10px]">→ {row.destination || '-'}</span>
+            </>
+          ) : (
+            <span className="text-slate-400 font-normal">-</span>
+          )}
         </div>
       )
     },
@@ -308,6 +389,15 @@ export const ShipmentsPage = () => {
         actions={
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-md shadow-2xs transition-colors flex-1 sm:flex-initial"
+              title="Bulk import shipment data from Excel (.xlsx/.xls/.csv) file"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>Import Excel / CSV</span>
+            </button>
+
+            <button
               onClick={() => setShowUploadModal(true)}
               className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
             >
@@ -427,6 +517,38 @@ export const ShipmentsPage = () => {
         </div>
       </div>
 
+      {/* Multi-Selection Bulk Actions Floating Banner */}
+      {selectedIds.length > 0 && (
+        <div className="bg-slate-900 text-white border border-slate-700 rounded-xl p-3 px-4 shadow-xl flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-full text-xs font-bold font-mono">
+              {selectedIds.length} Selected
+            </span>
+            <span className="text-xs text-slate-300 font-medium">
+              Shipments selected for bulk action
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Clear Selection
+            </button>
+
+            <button
+              disabled={deletingBulk}
+              onClick={handleBulkDelete}
+              className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{deletingBulk ? `Deleting (${selectedIds.length})...` : `Delete Selected (${selectedIds.length})`}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Shipments Table */}
       {loading ? (
         <LoadingState message="Loading Speed Setu Consignment Notes..." />
@@ -448,6 +570,17 @@ export const ShipmentsPage = () => {
         onClose={() => setShowUploadModal(false)}
         onUploadSuccess={() => {
           setToastMessage('Document uploaded successfully!');
+          fetchData();
+          setTimeout(() => setToastMessage(''), 4000);
+        }}
+      />
+
+      {/* Excel / CSV Bulk Shipment Import Modal */}
+      <BulkShipmentImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          setToastMessage('Bulk shipment data imported successfully from Excel!');
           fetchData();
           setTimeout(() => setToastMessage(''), 4000);
         }}

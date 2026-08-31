@@ -10,6 +10,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { Modal } from '../components/common/Modal';
 import { StatusTimeline } from '../components/shipment/StatusTimeline';
 import { DocumentUploadModal } from '../components/shipment/DocumentUploadModal';
+import { ConsignmentNoteModal } from '../components/shipment/ConsignmentNoteModal';
 import {
   Package,
   Building2,
@@ -52,6 +53,7 @@ export const ShipmentDetailPage = () => {
   // Modal States
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCNModal, setShowCNModal] = useState(false);
   const [selectedDocForPreview, setSelectedDocForPreview] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [statusLocation, setStatusLocation] = useState('');
@@ -167,15 +169,15 @@ export const ShipmentDetailPage = () => {
   const consignor = shipment.consignor || shipment.shipper || {};
   const consignee = shipment.consignee || {};
 
-  const formatAddress = (contactObj, fallbackCity, fallbackState) => {
-    const city = contactObj?.city || fallbackCity || '';
-    const state = contactObj?.state || fallbackState || '';
+  const formatAddress = (contactObj) => {
+    const city = contactObj?.city || '';
+    const state = contactObj?.state || '';
     const pin = contactObj?.pin || '';
     const parts = [city, state].filter(Boolean).join(', ');
     if (parts && pin) return `${parts} - ${pin}`;
     if (parts) return parts;
     if (pin) return `PIN: ${pin}`;
-    return 'Location Details N/A';
+    return '';
   };
 
   const tabs = [
@@ -237,6 +239,15 @@ export const ShipmentDetailPage = () => {
 
         {/* Actions Bar */}
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <button
+            onClick={() => setShowCNModal(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
+            title="View & Print Official Pickup Document (Consignment Note)"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Pickup Document (CN)</span>
+          </button>
+
           <button
             onClick={() => setShowStatusModal(true)}
             className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
@@ -989,6 +1000,13 @@ export const ShipmentDetailPage = () => {
           </div>
         )}
       </Modal>
+
+      {/* CONSIGNMENT NOTE PICKUP DOCUMENT MODAL */}
+      <ConsignmentNoteModal
+        isOpen={showCNModal}
+        onClose={() => setShowCNModal(false)}
+        shipment={shipment}
+      />
     </div>
   );
 };

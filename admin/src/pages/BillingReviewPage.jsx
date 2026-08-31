@@ -173,8 +173,8 @@ export const BillingReviewPage = () => {
       const rate = freightItem ? freightItem.rate : (isGodownOnly ? godownItem?.rate || calculation.shipment?.godownCharges || 0 : 0);
       const freightAmt = freightItem ? freightItem.amount : 0;
       const docketAmt = isGstExempt ? 0 : (docketItem ? docketItem.amount : 0);
-      const pickupAmt = ((typeof calculation.shipment?.pickupCharges === 'number' && !isNaN(calculation.shipment.pickupCharges)) ? calculation.shipment.pickupCharges : (pickupItem ? pickupItem.amount : 0)) + addedPickupAdj;
-      const deliveryAmt = ((typeof calculation.shipment?.deliveryCharges === 'number' && !isNaN(calculation.shipment.deliveryCharges)) ? calculation.shipment.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0)) + addedDeliveryAdj;
+      const pickupAmt = ((typeof calculation.shipment?.pickupCharges === 'number' && !isNaN(calculation.shipment.pickupCharges) && calculation.shipment.pickupCharges > 0) ? calculation.shipment.pickupCharges : (pickupItem ? pickupItem.amount : 0)) + addedPickupAdj;
+      const deliveryAmt = ((typeof calculation.shipment?.deliveryCharges === 'number' && !isNaN(calculation.shipment.deliveryCharges) && calculation.shipment.deliveryCharges > 0) ? calculation.shipment.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0)) + addedDeliveryAdj;
       const packingAmt = (packingItem ? packingItem.amount : (calculation.shipment?.packingCharges || 0)) + addedPackingAdj;
       const laborAmt = (laborItem ? laborItem.amount : (calculation.shipment?.laborCharges || 0)) + addedLaborAdj;
       const godownAmt = godownItem ? godownItem.amount : (calculation.shipment?.godownCharges || 0);

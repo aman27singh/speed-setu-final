@@ -529,5 +529,21 @@ export const shipmentService = {
       );
       return { success: true, message: `Shipment ${idOrCN} removed` };
     }
+  },
+
+  /**
+   * Delete multiple Consignment Note (CN) shipments
+   */
+  async deleteMultipleShipments(idsOrCNs = []) {
+    let successCount = 0;
+    for (const id of idsOrCNs) {
+      try {
+        await this.deleteShipment(id);
+        successCount++;
+      } catch (err) {
+        console.warn(`[Shipment Service] Bulk delete error for ${id}:`, err.message);
+      }
+    }
+    return { success: true, count: successCount };
   }
 };
