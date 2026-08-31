@@ -141,16 +141,32 @@ export const ExpensesPage = () => {
     {
       header: 'Trip / CN Reference',
       accessor: 'shipmentId',
-      render: (row) => (
-        <span className="font-mono text-xs font-bold text-setu-700">
-          {row.tripId ? `TRIP: ${row.tripId}` : (row.shipmentId || row.cnNumber) ? `CN: ${row.shipmentId || row.cnNumber}` : 'Overhead'}
-        </span>
-      )
+      render: (row) => {
+        const isAir = row.scope === 'AIR' || row.category === 'Flight Charges' || row.payeeType === 'Air Cargo';
+        if (isAir && !row.tripId) {
+          return (
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+              {row.shipmentId || row.cnNumber ? `AIR CN: ${row.shipmentId || row.cnNumber}` : 'AIR CARGO'}
+            </span>
+          );
+        }
+        if (row.tripId) {
+          return <span className="font-mono text-xs font-bold text-setu-700">TRIP: {row.tripId}</span>;
+        }
+        if (row.shipmentId || row.cnNumber) {
+          return <span className="font-mono text-xs font-bold text-slate-700">CN: {row.shipmentId || row.cnNumber}</span>;
+        }
+        return <span className="text-xs text-slate-400 font-medium">Overhead / Direct</span>;
+      }
     },
     {
       header: 'Payee / Driver',
       accessor: 'vendorName',
-      render: (row) => <span className="text-xs text-slate-700 font-medium">{row.vendorName || row.payeeName || 'N/A'}</span>
+      render: (row) => (
+        <span className="text-xs text-slate-900 font-semibold">
+          {row.vendorName || row.payeeName || row.title || row.description || 'N/A'}
+        </span>
+      )
     },
     {
       header: 'Amount',

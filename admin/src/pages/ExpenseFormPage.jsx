@@ -135,8 +135,13 @@ export const ExpenseFormPage = () => {
 
     setSaving(true);
     try {
+      const finalVendorName = formData.payeeName || formData.description || 'FORTUNE AIR';
       const created = await expenseService.createExpense({
         ...formData,
+        vendorName: finalVendorName,
+        payeeName: finalVendorName,
+        title: formData.description || finalVendorName,
+        tripId: formData.scope === 'TRP' ? formData.tripId : '',
         allocations
       });
 
@@ -199,7 +204,21 @@ export const ExpenseFormPage = () => {
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => {
+                  const cat = e.target.value;
+                  if (cat === 'Flight Charges') {
+                    setFormData({
+                      ...formData,
+                      category: cat,
+                      payeeType: 'Air Cargo',
+                      scope: 'AIR',
+                      tripId: '',
+                      payeeName: formData.payeeName || formData.description || ''
+                    });
+                  } else {
+                    setFormData({ ...formData, category: cat });
+                  }
+                }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-bold text-slate-900"
               >
                 {CATEGORIES.map((c) => (
@@ -216,7 +235,7 @@ export const ExpenseFormPage = () => {
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="e.g. Linehaul Container Freight Charges for Agra → Hosur"
+                placeholder="e.g. Air Freight Charges for Fortune Air / Cargo Linehaul"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-medium text-slate-900"
               />
               {errors.description && <span className="text-rose-600 text-[10px]">{errors.description}</span>}
@@ -230,7 +249,7 @@ export const ExpenseFormPage = () => {
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="e.g. 18000"
+                placeholder="e.g. 127525"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-setu-700 text-sm"
               />
               {errors.amount && <span className="text-rose-600 text-[10px]">{errors.amount}</span>}
@@ -260,6 +279,8 @@ export const ExpenseFormPage = () => {
                   } else if (type === 'Driver') {
                     defaultName = drivers[0]?.name || '';
                     defaultId = drivers[0]?.id || '';
+                  } else if (type === 'Air Cargo') {
+                    defaultName = formData.payeeName || 'FORTUNE AIR';
                   }
                   setFormData({
                     ...formData,
@@ -270,6 +291,7 @@ export const ExpenseFormPage = () => {
                 }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-semibold text-slate-900"
               >
+                <option value="Air Cargo">Airlines / Air Cargo Company</option>
                 <option value="Transporter">Transporter Vendor</option>
                 <option value="Driver">Linehaul Driver</option>
                 <option value="Vendor">External Vendor</option>
@@ -279,7 +301,7 @@ export const ExpenseFormPage = () => {
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payee Name</label>
+              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payee / Vendor Name</label>
               {formData.payeeType === 'Transporter' ? (
                 <select
                   value={formData.payeeId}
@@ -319,7 +341,7 @@ export const ExpenseFormPage = () => {
                   type="text"
                   value={formData.payeeName}
                   onChange={(e) => setFormData({ ...formData, payeeName: e.target.value })}
-                  placeholder="e.g. NHAI FASTag Auto Remittance"
+                  placeholder="e.g. FORTUNE AIR, Indigo Cargo, Blue Dart Air"
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-semibold text-slate-900"
                 />
               )}
@@ -327,11 +349,11 @@ export const ExpenseFormPage = () => {
           </div>
         </div>
 
-        {/* SECTION C: SCOPE & TRIP ALLOCATION ENGINE */}
+        {/* SECTION C: SCOPE & ALLOCATION ENGINE */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4 text-xs">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
             <PieChart className="w-4 h-4 text-purple-600" />
-            <h3 className="text-sm font-bold text-slate-900">Section C — Expense Scope & Trip Allocation Engine</h3>
+            <h3 className="text-sm font-bold text-slate-900">Section C — Expense Scope & Allocation Engine</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -339,10 +361,18 @@ export const ExpenseFormPage = () => {
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Expense Scope</label>
               <select
                 value={formData.scope}
-                onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
+                onChange={(e) => {
+                  const s = e.target.value;
+                  setFormData({
+                    ...formData,
+                    scope: s,
+                    tripId: s === 'TRP' ? (trips[0]?.tripNumber || 'TRP-102') : ''
+                  });
+                }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-bold text-slate-900"
               >
-                <option value="TRP">Trip Expense (Allocated across CNs)</option>
+                <option value="AIR">Direct Air Cargo / Flight Freight (No Road Trip)</option>
+                <option value="TRP">Road Trip Expense (Allocated across CNs)</option>
                 <option value="SHIPMENT">Shipment Expense (Direct CN cost)</option>
                 <option value="OVERHEAD">Company Overhead</option>
               </select>
