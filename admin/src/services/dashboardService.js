@@ -28,27 +28,36 @@ export const dashboardService = {
       // Customer Outstanding = All-time unpaid receivables across all valid client invoices
       const customerOutstanding = validInvoices.reduce((acc, i) => acc + (typeof i.balanceAmount === 'number' ? i.balanceAmount : (i.balanceDue ?? i.grandTotal ?? 0)), 0);
 
+      // Pending Vendor Payables
+      const payablesVal = payables.reduce((acc, p) => acc + (p.balance ?? p.outstandingAmount ?? p.amount ?? 0), 0);
+
       // Current Month Date Filter (e.g. "2026-08")
       const now = new Date();
       const currentYearMonth = now.toISOString().slice(0, 7);
 
-      // Invoices issued in the current month
-      const currentMonthInvoices = validInvoices.filter((i) => {
+      // Dynamic Active Month: If current calendar month has invoice activity, use current month; otherwise use latest active billing month
+      const invoiceMonths = validInvoices.map(i => (i.invoiceDate || i.createdAt || '').slice(0, 7)).filter(Boolean).sort().reverse();
+      const activeBillingMonth = (invoiceMonths.includes(currentYearMonth) || invoiceMonths.length === 0)
+        ? currentYearMonth
+        : invoiceMonths[0];
+
+      // Invoices issued in active billing month
+      const activeMonthInvoices = validInvoices.filter((i) => {
         const d = i.invoiceDate || i.createdAt || '';
-        return d.startsWith(currentYearMonth);
+        return d.startsWith(activeBillingMonth);
       });
 
-      const currentMonthRevenue = currentMonthInvoices.length > 0
-        ? currentMonthInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0)
+      const currentMonthRevenue = activeMonthInvoices.length > 0
+        ? activeMonthInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0)
         : validInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0);
 
-      // Expenses incurred in the current month
-      const currentMonthExpensesList = expenses.filter((e) => {
+      // Expenses incurred in active billing month
+      const activeMonthExpensesList = expenses.filter((e) => {
         const d = e.expenseDate || e.date || e.createdAt || '';
-        return d.startsWith(currentYearMonth);
+        return d.startsWith(activeBillingMonth);
       });
 
-      const currentMonthExpenses = (currentMonthExpensesList.length > 0 ? currentMonthExpensesList : expenses).reduce((acc, e) => acc + (e.amount || 0), 0);
+      const currentMonthExpenses = (activeMonthExpensesList.length > 0 ? activeMonthExpensesList : expenses).reduce((acc, e) => acc + (e.amount || 0), 0);
       const currentMonthProfit = Math.max(0, currentMonthRevenue - currentMonthExpenses);
 
       const kpis = {
