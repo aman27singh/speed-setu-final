@@ -35,20 +35,30 @@ router.get('/:id', async (req, res) => {
 // POST /api/expenses — Record expense
 router.post('/', async (req, res) => {
   try {
-    const count = await Expense.countDocuments();
-    const nextNum = count + 101;
-    const autoId = `EXP-${nextNum}`;
-    const expenseId = req.body.expenseId || req.body.expenseNumber || autoId;
+    let expenseId = req.body.expenseId || req.body.expenseNumber;
+    const exists = expenseId ? await Expense.findOne({ expenseId }) : null;
+
+    if (!expenseId || exists) {
+      const count = await Expense.countDocuments();
+      const nextNum = count + 101;
+      const timestamp = Date.now().toString().slice(-4);
+      expenseId = `EXP-${nextNum}-${timestamp}`;
+    }
+
+    const payload = { ...req.body };
+    delete payload._id;
+    delete payload.id;
 
     const newExpense = new Expense({
-      ...req.body,
+      ...payload,
       expenseId
     });
 
     const saved = await newExpense.save();
-    console.log(`[MongoDB] New Expense recorded: ${saved.expenseId}`);
+    console.log(`[MongoDB Atlas] New Expense recorded: ${saved.expenseId}`);
     res.status(201).json(saved);
   } catch (err) {
+    console.error(`[MongoDB Error] Record expense failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

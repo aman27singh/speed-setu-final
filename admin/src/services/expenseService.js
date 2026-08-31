@@ -99,10 +99,14 @@ export const expenseService = {
   },
 
   async recordExpense(expenseData) {
+    const payload = { ...expenseData };
+    delete payload._id;
+    delete payload.id;
+
     try {
       const response = await apiRequest('/expenses', {
         method: 'POST',
-        body: JSON.stringify(expenseData)
+        body: JSON.stringify(payload)
       });
 
       if (response && (response.expenseId || response._id)) {
@@ -112,16 +116,20 @@ export const expenseService = {
           expenseId: response.expenseId || response.id || response._id,
           expenseNumber: response.expenseId || response.expenseNumber || response.id || response._id
         };
-        expensesStore = [formatted, ...expensesStore];
+        expensesStore = [formatted, ...expensesStore.filter((e) => e.expenseId !== formatted.expenseId)];
         return formatted;
       }
     } catch (err) {
-      console.warn('[MongoDB Client] Record expense fallback:', err.message);
+      console.warn('[MongoDB Client] Record expense remote API error:', err.message);
+      if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
+        throw new Error(err.message || 'Failed to record expense in database.');
+      }
     }
 
-    await simulateDelay(250);
+    await simulateDelay(200);
     const nextNum = expensesStore.length + 101;
-    const expenseId = expenseData.expenseId || `EXP-${nextNum}`;
+    const timestamp = Date.now().toString().slice(-4);
+    const expenseId = `EXP-${nextNum}-${timestamp}`;
 
     const newExpense = {
       ...expenseData,
