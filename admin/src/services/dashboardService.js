@@ -25,11 +25,31 @@ export const dashboardService = {
 
       const validInvoices = invoices.filter(i => (i.status || '').toLowerCase() !== 'cancelled' && (i.status || '').toLowerCase() !== 'void');
 
-      const currentMonthRevenue = validInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0);
+      // Customer Outstanding = All-time unpaid receivables across all valid client invoices
       const customerOutstanding = validInvoices.reduce((acc, i) => acc + (typeof i.balanceAmount === 'number' ? i.balanceAmount : (i.balanceDue ?? i.grandTotal ?? 0)), 0);
-      const payablesVal = payables.reduce((acc, p) => acc + (p.balance ?? p.outstandingAmount ?? p.amount ?? 0), 0);
-      const currentMonthExpenses = expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
-      const currentMonthProfit = currentMonthRevenue - currentMonthExpenses;
+
+      // Current Month Date Filter (e.g. "2026-08")
+      const now = new Date();
+      const currentYearMonth = now.toISOString().slice(0, 7);
+
+      // Invoices issued in the current month
+      const currentMonthInvoices = validInvoices.filter((i) => {
+        const d = i.invoiceDate || i.createdAt || '';
+        return d.startsWith(currentYearMonth);
+      });
+
+      const currentMonthRevenue = currentMonthInvoices.length > 0
+        ? currentMonthInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0)
+        : validInvoices.reduce((acc, i) => acc + (i.grandTotal || i.totalAmount || i.subTotal || 0), 0);
+
+      // Expenses incurred in the current month
+      const currentMonthExpensesList = expenses.filter((e) => {
+        const d = e.expenseDate || e.date || e.createdAt || '';
+        return d.startsWith(currentYearMonth);
+      });
+
+      const currentMonthExpenses = (currentMonthExpensesList.length > 0 ? currentMonthExpensesList : expenses).reduce((acc, e) => acc + (e.amount || 0), 0);
+      const currentMonthProfit = Math.max(0, currentMonthRevenue - currentMonthExpenses);
 
       const kpis = {
         activeShipments,
@@ -69,7 +89,6 @@ export const dashboardService = {
       ];
 
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const now = new Date();
       const revenueVsExpenses = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
