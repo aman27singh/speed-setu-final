@@ -19,11 +19,13 @@ export const authService = {
       throw new Error('Username/Email and password are required.');
     }
 
+    const inputClean = email.trim();
+
     try {
       // Try backend API first
       const res = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: inputClean, password })
       });
       if (res.token && res.user) {
         setStoredToken(res.token);
@@ -31,11 +33,14 @@ export const authService = {
         return res;
       }
     } catch (err) {
-      console.warn('[AuthService] Backend authentication fallback:', err.message);
+      console.warn('[AuthService] Backend authentication failed or unreachable:', err.message);
+      // If backend explicitly rejected credentials (401 / Invalid credentials)
+      if (err.message.includes('Invalid credentials') || err.message.includes('401') || err.message.includes('Unauthorized')) {
+        throw new Error('Invalid credentials. Please check username/email and password.');
+      }
     }
 
-    // Direct credential check fallback for Aman / Aman@1234
-    const inputClean = email.trim();
+    // Offline fallback ONLY for official admin credentials when backend is unreachable
     if ((inputClean.toLowerCase() === 'aman' || inputClean.toLowerCase() === 'aman@speedsetu.com') && password === 'Aman@1234') {
       const mockToken = 'mock_jwt_speed_setu_aman_' + Date.now();
       setStoredToken(mockToken);
@@ -44,16 +49,8 @@ export const authService = {
       return { token: mockToken, user };
     }
 
-    // Generic fallback for testing
-    const mockToken = 'mock_jwt_speed_setu_' + Date.now();
-    setStoredToken(mockToken);
-    const fallbackUser = {
-      ...DEFAULT_ADMIN,
-      name: inputClean.split('@')[0] || 'Aman',
-      email: inputClean.includes('@') ? inputClean : `${inputClean}@speedsetu.com`
-    };
-    localStorage.setItem('speedsetu_admin_user', JSON.stringify(fallbackUser));
-    return { token: mockToken, user: fallbackUser };
+    // Reject all invalid credentials
+    throw new Error('Invalid credentials. Please check username/email and password.');
   },
 
   /**
