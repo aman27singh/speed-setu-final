@@ -59,6 +59,7 @@ export const ExpensesPage = () => {
 
   const categoryOptions = [
     { label: 'All Categories', value: 'All' },
+    { label: 'Employee Salary / Allowance', value: 'Employee Salary / Allowance' },
     { label: 'Transporter', value: 'Transporter' },
     { label: 'Flight Charges', value: 'Flight Charges' },
     { label: 'Driver', value: 'Driver' },
@@ -142,6 +143,14 @@ export const ExpensesPage = () => {
       header: 'Trip / CN Reference',
       accessor: 'shipmentId',
       render: (row) => {
+        const isEmployee = row.payeeType === 'Employee' || (row.category || '').toLowerCase().includes('employee');
+        if (isEmployee && !row.tripId) {
+          return (
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+              EMPLOYEE PAYROLL
+            </span>
+          );
+        }
         const isAir = row.scope === 'AIR' || row.category === 'Flight Charges' || row.payeeType === 'Air Cargo';
         if (isAir && !row.tripId) {
           return (

@@ -5,6 +5,7 @@ import { tripService } from '../services/tripService';
 import { shipmentService } from '../services/shipmentService';
 import { transporterService } from '../services/transporterService';
 import { driverService } from '../services/driverService';
+import { userService } from '../services/userService';
 import {
   calculateWeightBasedAllocation,
   calculateRevenueBasedAllocation,
@@ -21,10 +22,12 @@ import {
   Save,
   ArrowLeft,
   PieChart,
+  UserCheck,
   AlertCircle
 } from 'lucide-react';
 
 const CATEGORIES = [
+  'Employee Salary / Allowance',
   'Transporter',
   'Flight Charges',
   'Driver',
@@ -54,7 +57,7 @@ export const ExpenseFormPage = () => {
     payeeName: '',
 
     scope: 'TRP', // SHIPMENT, TRIP, OVERHEAD
-    tripId: 'TRP-102',
+    tripId: '',
     shipmentId: '',
     cnNumber: '',
 
@@ -65,6 +68,7 @@ export const ExpenseFormPage = () => {
   const [shipments, setShipments] = useState([]);
   const [transporters, setTransporters] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [employees, setEmployees] = useState([]);
 
   const [allocations, setAllocations] = useState([]);
   const [errors, setErrors] = useState({});
@@ -74,11 +78,12 @@ export const ExpenseFormPage = () => {
   const fetchInitializationData = async () => {
     setLoading(true);
     try {
-      const [tList, sList, trList, drList] = await Promise.all([
+      const [tList, sList, trList, drList, empList] = await Promise.all([
         tripService.getTrips(),
         shipmentService.getShipments(),
         transporterService.getTransporters(),
-        driverService.getDrivers()
+        driverService.getDrivers(),
+        userService.getUsers().catch(() => [])
       ]);
 
       setTrips(tList);
@@ -86,11 +91,20 @@ export const ExpenseFormPage = () => {
       setTransporters(trList);
       setDrivers(drList);
 
+      const defaultEmps = empList && empList.length > 0 ? empList : [
+        { id: 'emp-1', name: 'Aman', department: 'Operations & Dispatch' },
+        { id: 'emp-2', name: 'Rajesh Sharma', department: 'Logistics Manager' },
+        { id: 'emp-3', name: 'Priya Singh', department: 'Accounts Specialist' }
+      ];
+      setEmployees(defaultEmps);
+
       const defaultTransporter = trList[0];
+      const defaultTrip = tList[0];
       setFormData((prev) => ({
         ...prev,
         payeeId: defaultTransporter ? defaultTransporter.id : '',
-        payeeName: defaultTransporter ? defaultTransporter.name : ''
+        payeeName: defaultTransporter ? defaultTransporter.name : '',
+        tripId: defaultTrip ? (defaultTrip.tripNumber || defaultTrip.id) : ''
       }));
     } catch (err) {
       alert(err.message || 'Failed to load form initialization data.');
@@ -215,6 +229,17 @@ export const ExpenseFormPage = () => {
                       tripId: '',
                       payeeName: formData.payeeName || formData.description || ''
                     });
+                  } else if (cat === 'Employee Salary / Allowance') {
+                    const firstEmp = employees[0];
+                    setFormData({
+                      ...formData,
+                      category: cat,
+                      payeeType: 'Employee',
+                      scope: 'OVERHEAD',
+                      tripId: '',
+                      payeeId: firstEmp ? (firstEmp.id || firstEmp._id) : '',
+                      payeeName: firstEmp ? (firstEmp.name || firstEmp.username) : ''
+                    });
                   } else {
                     setFormData({ ...formData, category: cat });
                   }
@@ -235,7 +260,7 @@ export const ExpenseFormPage = () => {
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="e.g. Air Freight Charges for Fortune Air / Cargo Linehaul"
+                placeholder="e.g. Monthly Salary Payout / Travel Allowance / Advance Reimbursement"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-medium text-slate-900"
               />
               {errors.description && <span className="text-rose-600 text-[10px]">{errors.description}</span>}
@@ -249,7 +274,7 @@ export const ExpenseFormPage = () => {
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="e.g. 127525"
+                placeholder="e.g. 45000"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-setu-700 text-sm"
               />
               {errors.amount && <span className="text-rose-600 text-[10px]">{errors.amount}</span>}
@@ -273,7 +298,10 @@ export const ExpenseFormPage = () => {
                   const type = e.target.value;
                   let defaultName = '';
                   let defaultId = '';
-                  if (type === 'Transporter') {
+                  if (type === 'Employee') {
+                    defaultName = employees[0]?.name || '';
+                    defaultId = employees[0]?.id || employees[0]?._id || '';
+                  } else if (type === 'Transporter') {
                     defaultName = transporters[0]?.name || '';
                     defaultId = transporters[0]?.id || '';
                   } else if (type === 'Driver') {
@@ -291,18 +319,52 @@ export const ExpenseFormPage = () => {
                 }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-semibold text-slate-900"
               >
+                <option value="Employee">Company Employee / Staff Member</option>
                 <option value="Air Cargo">Airlines / Air Cargo Company</option>
                 <option value="Transporter">Transporter Vendor</option>
                 <option value="Driver">Linehaul Driver</option>
                 <option value="Vendor">External Vendor</option>
-                <option value="Employee">Employee</option>
                 <option value="Other">Other</option>
               </select>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payee / Vendor Name</label>
-              {formData.payeeType === 'Transporter' ? (
+              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">Payee / Employee Name</label>
+              {formData.payeeType === 'Employee' ? (
+                <div className="space-y-2">
+                  <select
+                    value={formData.payeeId}
+                    onChange={(e) => {
+                      const empId = e.target.value;
+                      const emp = employees.find((x) => (x.id || x._id) === empId);
+                      setFormData({
+                        ...formData,
+                        payeeId: empId,
+                        payeeName: emp ? (emp.name || emp.username) : (empId === 'custom' ? '' : empId)
+                      });
+                    }}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-semibold text-slate-900"
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id || emp._id || emp.email} value={emp.id || emp._id}>
+                        {emp.name || emp.username} ({emp.department || emp.role || 'Staff'})
+                      </option>
+                    ))}
+                    <option value="custom">Other / Custom Employee Name...</option>
+                  </select>
+
+                  {(formData.payeeId === 'custom' || !formData.payeeId) && (
+                    <input
+                      type="text"
+                      value={formData.payeeName}
+                      onChange={(e) => setFormData({ ...formData, payeeName: e.target.value })}
+                      placeholder="e.g. Employee Full Name (e.g. Aman, Rajesh Sharma)"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded font-semibold text-slate-900"
+                    />
+                  )}
+                </div>
+              ) : formData.payeeType === 'Transporter' ? (
                 <select
                   value={formData.payeeId}
                   onChange={(e) => {
