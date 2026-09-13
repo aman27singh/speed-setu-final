@@ -104,7 +104,7 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
     setError(null);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const bstr = event.target.result;
         const workbook = XLSX.read(bstr, { type: 'binary', cellDates: true });
@@ -118,8 +118,24 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
           return;
         }
 
+        // Fetch existing shipments to detect existing Docket / CN Numbers
+        const existingCNSet = new Set();
+        try {
+          const existingShipments = await shipmentService.getShipments();
+          if (Array.isArray(existingShipments)) {
+            existingShipments.forEach((s) => {
+              if (s.cnNumber) existingCNSet.add(s.cnNumber.trim().toLowerCase());
+              if (s.id) existingCNSet.add(String(s.id).trim().toLowerCase());
+            });
+          }
+        } catch (e) {
+          console.warn('Could not fetch existing shipments for duplicate check:', e.message);
+        }
+
         const mapped = rawData.map((row, idx) => {
           const cnNumber = getFieldValue(row, ['docketno', 'cnnumber', 'docketnumber', 'cnno', 'waybill', 'lrno', 'lrnumber', 'cn', 'docket', 'bookingno', 'consignmentno']) || `CN-${Date.now()}-${idx + 1}`;
+          const isDuplicate = existingCNSet.has(cnNumber.trim().toLowerCase());
+
           const cnDate = formatExcelDate(getFieldValue(row, ['docketdate', 'cndate', 'bookingdate', 'docketdate', 'lrdate', 'dispatchdate']));
           const companyName = getFieldValue(row, [
             'billto',
@@ -177,7 +193,8 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
           const vehicleNo = getFieldValue(row, ['flightnumber-trainnumber', 'flightnumber', 'trainnumber', 'vehiclenumber', 'vehicleno']);
 
           return {
-            selected: true,
+            selected: !isDuplicate, // Automatically UNCHECK existing CN numbers
+            isDuplicate,
             rawRow: row,
             cnNumber,
             cnDate,
@@ -313,12 +330,32 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
     setError(null);
 
     let count = 0;
+    const skippedDuplicates = [];
+
     try {
-      const companies = await companyService.getCompanies();
+      const [companies, existingShipments] = await Promise.all([
+        companyService.getCompanies(),
+        shipmentService.getShipments()
+      ]);
+
+      const existingCNSet = new Set();
+      if (Array.isArray(existingShipments)) {
+        existingShipments.forEach((s) => {
+          if (s.cnNumber) existingCNSet.add(s.cnNumber.trim().toLowerCase());
+          if (s.id) existingCNSet.add(String(s.id).trim().toLowerCase());
+        });
+      }
 
       for (let i = 0; i < rowsToImport.length; i++) {
         const item = rowsToImport[i];
-        
+
+        // Double check if CN number already exists in DB before creating
+        if (item.cnNumber && existingCNSet.has(item.cnNumber.trim().toLowerCase())) {
+          skippedDuplicates.push(item.cnNumber);
+          setProgress(i + 1);
+          continue;
+        }
+
         const matchedComp = findMatchingCompany(item.companyName, item.companyCode, companies);
 
         const resolvedCompanyName = matchedComp?.companyName || item.companyName || 'General Corporate Client';
@@ -372,6 +409,7 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
 
         try {
           await shipmentService.createShipment(payload);
+          existingCNSet.add(item.cnNumber.trim().toLowerCase());
           count++;
           setSuccessCount(count);
         } catch (err) {
@@ -381,7 +419,12 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
         setProgress(i + 1);
       }
 
-      alert(`Successfully imported ${count} of ${rowsToImport.length} shipments from Excel!`);
+      let completionMsg = `Successfully imported ${count} new shipments from Excel into DB!`;
+      if (skippedDuplicates.length > 0) {
+        completionMsg += `\n\n⚠️ SKIPPED ${skippedDuplicates.length} ALREADY EXISTING DOCKET / CN NUMBER(S):\n- ${skippedDuplicates.slice(0, 10).join('\n- ')}${skippedDuplicates.length > 10 ? `\n...and ${skippedDuplicates.length - 10} more` : ''}\n\nThese existing records were NOT re-uploaded.`;
+      }
+
+      alert(completionMsg);
       if (onImportSuccess) onImportSuccess();
       onClose();
     } catch (err) {
@@ -438,10 +481,35 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
 
           {fileName && (
             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-xs font-medium text-emerald-900">
-              <span>📄 Loaded: <strong>{fileName}</strong> ({parsedRows.length} rows parsed)</span>
+              <div className="flex items-center gap-2">
+                <span>📄 Loaded: <strong>{fileName}</strong> ({parsedRows.length} rows parsed)</span>
+                {parsedRows.some((r) => r.isDuplicate) && (
+                  <span className="text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded text-[11px] border border-amber-300">
+                    ⚠️ {parsedRows.filter((r) => r.isDuplicate).length} Existing CNs Auto-Unchecked
+                  </span>
+                )}
+              </div>
               <button onClick={() => setParsedRows(parsedRows.map((r) => ({ ...r, selected: !r.selected })))} className="text-xs font-bold underline">
                 Toggle Select All
               </button>
+            </div>
+          )}
+
+          {parsedRows.some((r) => r.isDuplicate) && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h5 className="font-bold text-amber-900">
+                  ⚠️ Duplicate Detection: {parsedRows.filter((r) => r.isDuplicate).length} Existing Docket / CN Number(s) Found
+                </h5>
+                <p className="text-amber-800 mt-0.5">
+                  The following CN numbers already exist in Speed Setu DB and have been <strong>automatically unchecked</strong> to prevent duplicate uploads:{' '}
+                  <span className="font-mono font-bold">
+                    {parsedRows.filter((r) => r.isDuplicate).map((r) => r.cnNumber).slice(0, 8).join(', ')}
+                    {parsedRows.filter((r) => r.isDuplicate).length > 8 ? '...' : ''}
+                  </span>
+                </p>
+              </div>
             </div>
           )}
 
@@ -476,7 +544,7 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {parsedRows.map((row, idx) => (
-                      <tr key={idx} className={`hover:bg-slate-50 ${row.selected ? 'bg-white' : 'bg-slate-50/50 opacity-60'}`}>
+                      <tr key={idx} className={`hover:bg-slate-50 ${row.isDuplicate ? 'bg-amber-50/40' : row.selected ? 'bg-white' : 'bg-slate-50/50 opacity-60'}`}>
                         <td className="p-2 text-center">
                           <input
                             type="checkbox"
@@ -487,9 +555,20 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
                               setParsedRows(updated);
                             }}
                             className="rounded text-setu-600 cursor-pointer"
+                            title={row.isDuplicate ? 'CN already exists in DB (Unchecked by default)' : ''}
                           />
                         </td>
-                        <td className="p-2 font-mono font-bold text-slate-900">{row.cnNumber}</td>
+                        <td className="p-2 font-mono font-bold text-slate-900">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{row.cnNumber}</span>
+                            {row.isDuplicate && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                                Already Exists
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-2 font-mono text-slate-600">{row.cnDate}</td>
                         <td className="p-2 font-bold text-slate-800 truncate max-w-[120px]">{row.companyName}</td>
                         <td className="p-2 text-slate-700 truncate max-w-[120px]">{row.consignor?.name || '-'}</td>
