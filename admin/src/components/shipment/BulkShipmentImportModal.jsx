@@ -121,7 +121,26 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
         const mapped = rawData.map((row, idx) => {
           const cnNumber = getFieldValue(row, ['docketno', 'cnnumber', 'docketnumber', 'cnno', 'waybill', 'lrno', 'lrnumber', 'cn', 'docket', 'bookingno', 'consignmentno']) || `CN-${Date.now()}-${idx + 1}`;
           const cnDate = formatExcelDate(getFieldValue(row, ['docketdate', 'cndate', 'bookingdate', 'docketdate', 'lrdate', 'dispatchdate']));
-          const companyName = getFieldValue(row, ['billto', 'companyname', 'company', 'customer', 'client', 'billingparty', 'billedto', 'party', 'customername']) || 'General Corporate Client';
+          const companyName = getFieldValue(row, [
+            'billto',
+            'billtocompany',
+            'billingcompany',
+            'billtoparty',
+            'billingparty',
+            'billingpartyname',
+            'billtoname',
+            'billingname',
+            'billedto',
+            'clientname',
+            'customername',
+            'companyname',
+            'client',
+            'customer',
+            'billing',
+            'party',
+            'partyname',
+            'company'
+          ]) || 'General Corporate Client';
           const companyCode = getFieldValue(row, ['companycode', 'companyid', 'customercode', 'partycode']) || '';
           
           const consignorName = getFieldValue(row, ['consignor', 'consignorname', 'shipper', 'fromname', 'fromparty', 'shippername', 'pickupfrom']);
@@ -239,11 +258,13 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
   };
 
   const findMatchingCompany = (companyNameRaw, companyCodeRaw, companiesList = []) => {
-    if (!companiesList || companiesList.length === 0) return {};
+    if (!companiesList || companiesList.length === 0 || (!companyNameRaw && !companyCodeRaw)) return null;
 
     const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     const searchName = clean(companyNameRaw);
     const searchCode = clean(companyCodeRaw);
+
+    if (!searchName && !searchCode) return null;
 
     let match = companiesList.find((c) => {
       const cName = clean(c.companyName);
@@ -275,7 +296,7 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
       if (match) return match;
     }
 
-    return companiesList[0] || {};
+    return null;
   };
 
   const handleImportSubmit = async () => {
@@ -300,13 +321,17 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
         
         const matchedComp = findMatchingCompany(item.companyName, item.companyCode, companies);
 
+        const resolvedCompanyName = matchedComp?.companyName || item.companyName || 'General Corporate Client';
+        const resolvedCompanyCode = matchedComp?.companyCode || item.companyCode || (resolvedCompanyName !== 'General Corporate Client' ? resolvedCompanyName.slice(0, 3).toUpperCase() : 'GCC');
+        const resolvedCompanyId = matchedComp?.id || matchedComp?._id || matchedComp?.companyId || `comp-${Date.now()}`;
+
         const payload = {
           cnNumber: item.cnNumber,
           cnDate: item.cnDate,
           bookingDate: item.cnDate,
-          companyId: matchedComp.id || matchedComp._id || 'comp-001',
-          companyName: matchedComp.companyName || item.companyName || 'General Corporate Client',
-          companyCode: matchedComp.companyCode || item.companyCode || 'GCC',
+          companyId: resolvedCompanyId,
+          companyName: resolvedCompanyName,
+          companyCode: resolvedCompanyCode,
           consignor: item.consignor,
           consignee: item.consignee,
           origin: item.origin,
