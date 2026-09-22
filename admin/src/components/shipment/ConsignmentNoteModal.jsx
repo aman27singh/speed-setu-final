@@ -278,33 +278,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static">
       
-      {/* Landscape Print Stylesheet Injection */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4 landscape;
-            margin: 0;
-          }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            width: 100% !important;
-            height: 100% !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .svg-document-wrap {
-            width: 100% !important;
-            height: auto !important;
-            max-width: none !important;
-          }
-        }
-      `}</style>
-
       {/* Screen Wrapper Shell */}
       <div className="bg-white border-2 border-black w-full max-w-[1050px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl">
         
