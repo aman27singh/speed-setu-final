@@ -72,7 +72,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
             .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
             .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
             .static-text { fill: #000000; }
-            .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 800; letter-spacing: 0.3px; }
+            .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
           </style>
         </head>
         <body>
@@ -243,7 +243,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
               .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
               .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
               .static-text { fill: #000000; }
-              .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 800; letter-spacing: 0.3px; }
+              .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
             `}</style>
 
             {/* BACKGROUND */}
@@ -587,100 +587,100 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
             {/* =================================================================== */}
             <g id="DYNAMIC_FIELDS">
               {/* Consignor Data */}
-              <text x="140" y="170" className="dynamic-text" fontSize="13">
+              <text x="140" y="170" className="dynamic-text" fontSize="17">
                 {(shipment.consignor?.name || shipment.companyName || '').toUpperCase()}
               </text>
-              <text x="190" y="215" className="dynamic-text" fontSize="12">
+              <text x="190" y="215" className="dynamic-text" fontSize="15">
                 {(shipment.consignor?.code || shipment.companyCode || '').toUpperCase()}
               </text>
-              <text x="480" y="215" className="dynamic-text" fontSize="12">
+              <text x="480" y="215" className="dynamic-text" fontSize="15">
                 {(shipment.consignor?.gstin || '').toUpperCase()}
               </text>
               <g transform="translate(809, 199)">
                 {consignorPinBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 6} y="17" className="dynamic-text" fontSize="12">
+                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* Consignee Data */}
-              <text x="140" y="275" className="dynamic-text" fontSize="13">
+              <text x="140" y="275" className="dynamic-text" fontSize="17">
                 {(shipment.consignee?.name || '').toUpperCase()}
               </text>
-              <text x="190" y="320" className="dynamic-text" fontSize="12">
+              <text x="190" y="320" className="dynamic-text" fontSize="15">
                 {(shipment.consignee?.code || '').toUpperCase()}
               </text>
-              <text x="480" y="320" className="dynamic-text" fontSize="12">
+              <text x="480" y="320" className="dynamic-text" fontSize="15">
                 {(shipment.consignee?.gstin || '').toUpperCase()}
               </text>
               <g transform="translate(809, 304)">
                 {consigneePinBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 6} y="17" className="dynamic-text" fontSize="12">
+                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* CN Number & Date */}
-              <text x="1080" y="170" className="dynamic-text" fontSize="22">{cnDetails.prefix}</text>
-              <text x="1150" y="170" className="dynamic-text" fontSize="24">
+              <text x="1080" y="170" className="dynamic-text" fontSize="24">{cnDetails.prefix}</text>
+              <text x="1150" y="170" className="dynamic-text" fontSize="28">
                 {cnDetails.number}
               </text>
               <g transform="translate(1103, 196)">
                 {dateBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 28 + 8} y="18" className="dynamic-text" fontSize="14">
+                  <text key={idx} x={idx * 28 + 7} y="19" className="dynamic-text" fontSize="18">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* Mode Checkboxes (renders check mark inside existing fixed checkbox) */}
-              {isAirExpress && <text x="957" y="244" className="dynamic-text" fontSize="14">✓</text>}
-              {isAir && <text x="1067" y="244" className="dynamic-text" fontSize="14">✓</text>}
-              {isTrain && <text x="1132" y="244" className="dynamic-text" fontSize="14">✓</text>}
-              {isRoad && <text x="1212" y="244" className="dynamic-text" fontSize="14">✓</text>}
-              {isFtl && <text x="1292" y="244" className="dynamic-text" fontSize="14">✓</text>}
+              {isAirExpress && <text x="956" y="246" className="dynamic-text" fontSize="18">✓</text>}
+              {isAir && <text x="1066" y="246" className="dynamic-text" fontSize="18">✓</text>}
+              {isTrain && <text x="1131" y="246" className="dynamic-text" fontSize="18">✓</text>}
+              {isRoad && <text x="1211" y="246" className="dynamic-text" fontSize="18">✓</text>}
+              {isFtl && <text x="1291" y="246" className="dynamic-text" fontSize="18">✓</text>}
 
               {/* Routing */}
-              <text x="1010" y="280" className="dynamic-text" fontSize="12">{shipment.origin || ''}</text>
-              <text x="1310" y="280" className="dynamic-text" fontSize="12">{shipment.originCode || ''}</text>
+              <text x="1010" y="280" className="dynamic-text" fontSize="16">{shipment.origin || ''}</text>
+              <text x="1310" y="280" className="dynamic-text" fontSize="15">{shipment.originCode || ''}</text>
 
-              <text x="1010" y="308" className="dynamic-text" fontSize="12">{shipment.destination || ''}</text>
-              <text x="1310" y="308" className="dynamic-text" fontSize="12">{shipment.destCode || ''}</text>
+              <text x="1010" y="308" className="dynamic-text" fontSize="16">{shipment.destination || ''}</text>
+              <text x="1310" y="308" className="dynamic-text" fontSize="15">{shipment.destCode || ''}</text>
 
               {/* Packages & Weights */}
-              <text x="170" y="370" className="dynamic-text" fontSize="12">{shipment.doNumber || shipment.dcpiNumber || ''}</text>
-              <text x="90" y="432" className="dynamic-text" fontSize="13" textAnchor="middle">{shipment.packages || ''}</text>
-              <text x="240" y="432" className="dynamic-text" fontSize="13" textAnchor="middle">{actualW || ''}</text>
-              <text x="390" y="432" className="dynamic-text" fontSize="13" textAnchor="middle">{chargeW || ''}</text>
+              <text x="170" y="370" className="dynamic-text" fontSize="15">{shipment.doNumber || shipment.dcpiNumber || ''}</text>
+              <text x="90" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{shipment.packages || ''}</text>
+              <text x="240" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{actualW || ''}</text>
+              <text x="390" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{chargeW || ''}</text>
 
               {/* Goods Description */}
-              <text x="30" y="480" className="dynamic-text" fontSize="12">{shipment.materialDescription || ''}</text>
+              <text x="30" y="480" className="dynamic-text" fontSize="15">{shipment.materialDescription || ''}</text>
 
               {/* Invoices */}
-              <text x="150" y="555" className="dynamic-text" fontSize="12">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
-              <text x="150" y="583" className="dynamic-text" fontSize="12">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
-              <text x="150" y="611" className="dynamic-text" fontSize="12">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
-              <text x="150" y="639" className="dynamic-text" fontSize="12">{shipment.invoiceDetails?.invoiceQuantity || shipment.packages || ''}</text>
-              <text x="150" y="667" className="dynamic-text" fontSize="12">{shipment.ewayBillNumber || ''}</text>
-              <text x="150" y="687" className="dynamic-text" fontSize="12">{shipment.awbNumber || ''}</text>
+              <text x="150" y="555" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
+              <text x="150" y="583" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
+              <text x="150" y="611" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
+              <text x="150" y="639" className="dynamic-text" fontSize="16">{shipment.invoiceDetails?.invoiceQuantity || shipment.packages || ''}</text>
+              <text x="150" y="667" className="dynamic-text" fontSize="15">{shipment.ewayBillNumber || ''}</text>
+              <text x="150" y="687" className="dynamic-text" fontSize="15">{shipment.awbNumber || ''}</text>
 
               {/* Freight Amounts */}
-              <text x="870" y="424" className="dynamic-text" fontSize="12" textAnchor="end">{basicFreight ? basicFreight.toFixed(0) : ''}</text>
-              <text x="870" y="450" className="dynamic-text" fontSize="12" textAnchor="end">{laborC ? laborC.toFixed(0) : ''}</text>
-              <text x="870" y="502" className="dynamic-text" fontSize="12" textAnchor="end">{pickupC ? pickupC.toFixed(0) : ''}</text>
-              <text x="870" y="580" className="dynamic-text" fontSize="12" textAnchor="end">{packingC ? packingC.toFixed(0) : ''}</text>
-              <text x="870" y="632" className="dynamic-text" fontSize="12" textAnchor="end">{gstAmount ? gstAmount.toFixed(0) : ''}</text>
-              <text x="870" y="688" className="dynamic-text" fontSize="14" textAnchor="end">{grandTotal ? `₹ ${grandTotal.toFixed(0)}` : ''}</text>
+              <text x="870" y="424" className="dynamic-text" fontSize="15" textAnchor="end">{basicFreight ? basicFreight.toFixed(0) : ''}</text>
+              <text x="870" y="450" className="dynamic-text" fontSize="15" textAnchor="end">{laborC ? laborC.toFixed(0) : ''}</text>
+              <text x="870" y="502" className="dynamic-text" fontSize="15" textAnchor="end">{pickupC ? pickupC.toFixed(0) : ''}</text>
+              <text x="870" y="580" className="dynamic-text" fontSize="15" textAnchor="end">{packingC ? packingC.toFixed(0) : ''}</text>
+              <text x="870" y="632" className="dynamic-text" fontSize="15" textAnchor="end">{gstAmount ? gstAmount.toFixed(0) : ''}</text>
+              <text x="870" y="688" className="dynamic-text" fontSize="18" textAnchor="end">{grandTotal ? `₹ ${grandTotal.toFixed(0)}` : ''}</text>
 
               {/* Remarks */}
-              <text x="400" y="738" className="dynamic-text" fontSize="12">{shipment.remarks || ''}</text>
+              <text x="400" y="738" className="dynamic-text" fontSize="15">{shipment.remarks || ''}</text>
 
               {/* Employee Code digit boxes */}
               <g transform="translate(1200, 841)">
                 {empCodeBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 6} y="17" className="dynamic-text" fontSize="12">
+                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
                     {digit}
                   </text>
                 ))}

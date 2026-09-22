@@ -12,7 +12,7 @@
     .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
 
     .static-text { fill: #000000; }
-    .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 800; letter-spacing: 0.3px; }
+    .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
   </style>
 
   <!-- BACKGROUND PAPER -->
@@ -399,56 +399,56 @@
   <!-- =================================================================================== -->
   <g id="DYNAMIC_FIELDS">
     <!-- Consignor Fields -->
-    <text id="field_consignor_name" x="130" y="168" class="dynamic-text" font-size="13">{{consignor_name}}</text>
-    <text id="field_consignor_code" x="190" y="215" class="dynamic-text" font-size="12">{{consignor_code}}</text>
-    <text id="field_consignor_gst" x="480" y="215" class="dynamic-text" font-size="12">{{consignor_gst}}</text>
+    <text id="field_consignor_name" x="140" y="170" class="dynamic-text" font-size="17">{{consignor_name}}</text>
+    <text id="field_consignor_code" x="190" y="215" class="dynamic-text" font-size="15">{{consignor_code}}</text>
+    <text id="field_consignor_gst" x="480" y="215" class="dynamic-text" font-size="15">{{consignor_gst}}</text>
     <g id="field_consignor_pin" transform="translate(805, 213)">
       <!-- Dynamic digit boxes populated via component -->
     </g>
 
     <!-- Consignee Fields -->
-    <text id="field_consignee_name" x="130" y="268" class="dynamic-text" font-size="13">{{consignee_name}}</text>
-    <text id="field_consignee_code" x="190" y="315" class="dynamic-text" font-size="12">{{consignee_code}}</text>
-    <text id="field_consignee_gst" x="480" y="315" class="dynamic-text" font-size="12">{{consignee_gst}}</text>
+    <text id="field_consignee_name" x="140" y="275" class="dynamic-text" font-size="17">{{consignee_name}}</text>
+    <text id="field_consignee_code" x="190" y="320" class="dynamic-text" font-size="15">{{consignee_code}}</text>
+    <text id="field_consignee_gst" x="480" y="320" class="dynamic-text" font-size="15">{{consignee_gst}}</text>
 
     <!-- CN Number & Date -->
-    <text id="field_cn_prefix" x="1040" y="195" class="dynamic-text" font-size="22">SS</text>
-    <text id="field_cn_number" x="1110" y="195" class="dynamic-text" font-size="24">{{cn_number}}</text>
+    <text id="field_cn_prefix" x="1080" y="170" class="dynamic-text" font-size="24">SS</text>
+    <text id="field_cn_number" x="1150" y="170" class="dynamic-text" font-size="28">{{cn_number}}</text>
 
     <!-- From / To Routing -->
-    <text id="field_from_location" x="1005" y="278" class="dynamic-text" font-size="12">{{from_location}}</text>
-    <text id="field_from_code" x="1310" y="278" class="dynamic-text" font-size="12" text-anchor="middle">{{from_code}}</text>
+    <text id="field_from_location" x="1010" y="280" class="dynamic-text" font-size="16">{{from_location}}</text>
+    <text id="field_from_code" x="1310" y="280" class="dynamic-text" font-size="15" text-anchor="middle">{{from_code}}</text>
 
-    <text id="field_to_location" x="1005" y="306" class="dynamic-text" font-size="12">{{to_location}}</text>
-    <text id="field_to_code" x="1310" y="306" class="dynamic-text" font-size="12" text-anchor="middle">{{to_code}}</text>
+    <text id="field_to_location" x="1010" y="308" class="dynamic-text" font-size="16">{{to_location}}</text>
+    <text id="field_to_code" x="1310" y="308" class="dynamic-text" font-size="15" text-anchor="middle">{{to_code}}</text>
 
     <!-- Packages & Weights -->
-    <text id="field_do_number" x="160" y="370" class="dynamic-text" font-size="12">{{do_number}}</text>
-    <text id="field_package_count" x="90" y="432" class="dynamic-text" font-size="13" text-anchor="middle">{{package_count}}</text>
-    <text id="field_actual_weight" x="240" y="432" class="dynamic-text" font-size="13" text-anchor="middle">{{actual_weight}}</text>
-    <text id="field_chargeable_weight" x="390" y="432" class="dynamic-text" font-size="13" text-anchor="middle">{{chargeable_weight}}</text>
+    <text id="field_do_number" x="170" y="370" class="dynamic-text" font-size="15">{{do_number}}</text>
+    <text id="field_package_count" x="90" y="432" class="dynamic-text" font-size="18" text-anchor="middle">{{package_count}}</text>
+    <text id="field_actual_weight" x="240" y="432" class="dynamic-text" font-size="18" text-anchor="middle">{{actual_weight}}</text>
+    <text id="field_chargeable_weight" x="390" y="432" class="dynamic-text" font-size="18" text-anchor="middle">{{chargeable_weight}}</text>
 
     <!-- Description of Goods -->
-    <text id="field_goods_description" x="25" y="475" class="dynamic-text" font-size="12">{{goods_description}}</text>
+    <text id="field_goods_description" x="30" y="480" class="dynamic-text" font-size="15">{{goods_description}}</text>
 
     <!-- Invoice Lines -->
-    <text id="field_invoice_number" x="150" y="552" class="dynamic-text" font-size="12">{{invoice_number}}</text>
-    <text id="field_invoice_date" x="150" y="580" class="dynamic-text" font-size="12">{{invoice_date}}</text>
-    <text id="field_invoice_value" x="150" y="608" class="dynamic-text" font-size="12">{{invoice_value}}</text>
-    <text id="field_invoice_quantity" x="150" y="636" class="dynamic-text" font-size="12">{{invoice_quantity}}</text>
-    <text id="field_eway_bill" x="150" y="664" class="dynamic-text" font-size="12">{{eway_bill}}</text>
-    <text id="field_awb_number" x="150" y="684" class="dynamic-text" font-size="12">{{awb_number}}</text>
+    <text id="field_invoice_number" x="150" y="555" class="dynamic-text" font-size="15">{{invoice_number}}</text>
+    <text id="field_invoice_date" x="150" y="583" class="dynamic-text" font-size="15">{{invoice_date}}</text>
+    <text id="field_invoice_value" x="150" y="611" class="dynamic-text" font-size="15">{{invoice_value}}</text>
+    <text id="field_invoice_quantity" x="150" y="639" class="dynamic-text" font-size="16">{{invoice_quantity}}</text>
+    <text id="field_eway_bill" x="150" y="667" class="dynamic-text" font-size="15">{{eway_bill}}</text>
+    <text id="field_awb_number" x="150" y="687" class="dynamic-text" font-size="15">{{awb_number}}</text>
 
     <!-- Freight Amounts -->
-    <text id="field_basic_freight" x="870" y="424" class="dynamic-text" font-size="12" text-anchor="end">{{basic_freight}}</text>
-    <text id="field_loading_charge" x="870" y="450" class="dynamic-text" font-size="12" text-anchor="end">{{loading_charge}}</text>
-    <text id="field_sl_charges" x="870" y="502" class="dynamic-text" font-size="12" text-anchor="end">{{sl_charges}}</text>
-    <text id="field_other_charges" x="870" y="580" class="dynamic-text" font-size="12" text-anchor="end">{{other_charges}}</text>
-    <text id="field_gst" x="870" y="632" class="dynamic-text" font-size="12" text-anchor="end">{{gst}}</text>
-    <text id="field_grand_total" x="870" y="688" class="dynamic-text" font-size="14" text-anchor="end">{{grand_total}}</text>
+    <text id="field_basic_freight" x="870" y="424" class="dynamic-text" font-size="15" text-anchor="end">{{basic_freight}}</text>
+    <text id="field_loading_charge" x="870" y="450" class="dynamic-text" font-size="15" text-anchor="end">{{loading_charge}}</text>
+    <text id="field_sl_charges" x="870" y="502" class="dynamic-text" font-size="15" text-anchor="end">{{sl_charges}}</text>
+    <text id="field_other_charges" x="870" y="580" class="dynamic-text" font-size="15" text-anchor="end">{{other_charges}}</text>
+    <text id="field_gst" x="870" y="632" class="dynamic-text" font-size="15" text-anchor="end">{{gst}}</text>
+    <text id="field_grand_total" x="870" y="688" class="dynamic-text" font-size="18" text-anchor="end">{{grand_total}}</text>
 
     <!-- Billing Location & Remarks -->
-    <text id="field_billing_location" x="1270" y="586" class="dynamic-text" font-size="11" text-anchor="middle">{{billing_location}}</text>
-    <text id="field_remarks" x="400" y="738" class="dynamic-text" font-size="12">{{remarks}}</text>
+    <text id="field_billing_location" x="1270" y="586" class="dynamic-text" font-size="14" text-anchor="middle">{{billing_location}}</text>
+    <text id="field_remarks" x="400" y="738" class="dynamic-text" font-size="15">{{remarks}}</text>
   </g>
 </svg>
