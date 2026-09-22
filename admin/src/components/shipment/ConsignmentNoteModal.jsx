@@ -40,6 +40,9 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
       return;
     }
 
+    const svgElement = printContent.querySelector('svg');
+    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
+
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -55,15 +58,102 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
       <!DOCTYPE html>
       <html>
         <head>
-          <title></title>
+          <title>Consignment Note - ${shipment.cnNumber || shipment.cn_number || 'SS285'}</title>
           <style>
-            @page { size: A4 landscape; margin: 0mm !important; }
-            @page :left { margin: 0mm !important; }
-            @page :right { margin: 0mm !important; }
-            @page :first { margin: 0mm !important; }
-            html, body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; width: 100% !important; height: 100% !important; }
-            body { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 6mm !important; }
-            svg { width: 100% !important; height: auto !important; max-height: 98vh !important; display: block !important; margin: 0 auto !important; }
+            @page {
+              size: A4 portrait;
+              margin: 3mm !important;
+            }
+            @page :left { margin: 3mm !important; }
+            @page :right { margin: 3mm !important; }
+            @page :first { margin: 3mm !important; }
+            
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              width: 100% !important;
+              height: 100vh !important;
+              overflow: hidden !important;
+              box-sizing: border-box !important;
+              font-family: Arial, Helvetica, sans-serif;
+            }
+            
+            .page-container {
+              width: 100%;
+              height: 99vh;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: center;
+              box-sizing: border-box;
+              padding: 1mm 0;
+            }
+
+            .copy-wrapper {
+              width: 100%;
+              height: 47.5vh;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: flex-start;
+              position: relative;
+              box-sizing: border-box;
+              overflow: hidden;
+            }
+
+            .copy-label-badge {
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              background: #000000;
+              color: #ffffff;
+              padding: 2px 10px;
+              border-radius: 2px;
+              margin-bottom: 2px;
+              align-self: flex-start;
+            }
+
+            .copy-wrapper svg {
+              width: 100% !important;
+              height: auto !important;
+              max-height: 44.5vh !important;
+              display: block !important;
+              margin: 0 auto !important;
+            }
+
+            .cut-line-divider {
+              width: 100%;
+              height: 3vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              position: relative;
+              margin: 1mm 0;
+            }
+
+            .cut-line-dashed {
+              position: absolute;
+              top: 50%;
+              left: 0;
+              right: 0;
+              border-top: 2px dashed #000000;
+              z-index: 1;
+            }
+
+            .cut-line-text {
+              position: relative;
+              z-index: 2;
+              background: #ffffff;
+              padding: 0 14px;
+              font-size: 10px;
+              font-weight: 900;
+              color: #000000;
+              text-transform: uppercase;
+              letter-spacing: 1.5px;
+            }
+
             .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
             .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
             .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
@@ -76,7 +166,25 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
           </style>
         </head>
         <body>
-          ${printContent.innerHTML}
+          <div class="page-container">
+            <!-- TOP COPY: CUSTOMER / CONSIGNOR COPY -->
+            <div class="copy-wrapper">
+              <div class="copy-label-badge">1. CUSTOMER / CONSIGNOR COPY</div>
+              ${svgHtml}
+            </div>
+
+            <!-- DOTTED CUT LINE SEPARATOR -->
+            <div class="cut-line-divider">
+              <div class="cut-line-dashed"></div>
+              <div class="cut-line-text">✂ &nbsp; CUT HERE &nbsp; (CUSTOMER COPY ABOVE &nbsp;|&nbsp; TRANSPORTER COPY BELOW) &nbsp; ✂</div>
+            </div>
+
+            <!-- BOTTOM COPY: TRANSPORTER / OFFICE COPY -->
+            <div class="copy-wrapper">
+              <div class="copy-label-badge">2. TRANSPORTER / OFFICE COPY</div>
+              ${svgHtml}
+            </div>
+          </div>
         </body>
       </html>
     `);

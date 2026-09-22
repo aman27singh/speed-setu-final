@@ -273,8 +273,9 @@ export const ShipmentDetailPage = () => {
           </button>
 
           <button
-            onClick={() => window.print()}
+            onClick={() => setShowCNModal(true)}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
+            title="View & Print Official Consignment Note (2-up A4)"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print CN</span>
