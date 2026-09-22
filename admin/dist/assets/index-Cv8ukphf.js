@@ -639,40 +639,27 @@ These existing records were NOT re-uploaded.`),alert(z),r&&r(),t()}catch(T){g(`B
 
             .copy-wrapper {
               width: 100%;
-              height: 47.5vh;
+              height: 48vh;
               display: flex;
               flex-direction: column;
               align-items: center;
-              justify-content: flex-start;
+              justify-content: center;
               position: relative;
               box-sizing: border-box;
               overflow: hidden;
             }
 
-            .copy-label-badge {
-              font-size: 10px;
-              font-weight: 900;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              background: #000000;
-              color: #ffffff;
-              padding: 2px 10px;
-              border-radius: 2px;
-              margin-bottom: 2px;
-              align-self: flex-start;
-            }
-
             .copy-wrapper svg {
               width: 100% !important;
               height: auto !important;
-              max-height: 44.5vh !important;
+              max-height: 47vh !important;
               display: block !important;
               margin: 0 auto !important;
             }
 
             .cut-line-divider {
               width: 100%;
-              height: 3vh;
+              height: 2vh;
               display: flex;
               align-items: center;
               justify-content: center;
@@ -689,18 +676,6 @@ These existing records were NOT re-uploaded.`),alert(z),r&&r(),t()}catch(T){g(`B
               z-index: 1;
             }
 
-            .cut-line-text {
-              position: relative;
-              z-index: 2;
-              background: #ffffff;
-              padding: 0 14px;
-              font-size: 10px;
-              font-weight: 900;
-              color: #000000;
-              text-transform: uppercase;
-              letter-spacing: 1.5px;
-            }
-
             .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
             .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
             .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
@@ -714,21 +689,18 @@ These existing records were NOT re-uploaded.`),alert(z),r&&r(),t()}catch(T){g(`B
         </head>
         <body>
           <div class="page-container">
-            <!-- TOP COPY: CUSTOMER / CONSIGNOR COPY -->
+            <!-- TOP COPY -->
             <div class="copy-wrapper">
-              <div class="copy-label-badge">1. CUSTOMER / CONSIGNOR COPY</div>
               ${oe}
             </div>
 
             <!-- DOTTED CUT LINE SEPARATOR -->
             <div class="cut-line-divider">
               <div class="cut-line-dashed"></div>
-              <div class="cut-line-text">✂ &nbsp; CUT HERE &nbsp; (CUSTOMER COPY ABOVE &nbsp;|&nbsp; TRANSPORTER COPY BELOW) &nbsp; ✂</div>
             </div>
 
-            <!-- BOTTOM COPY: TRANSPORTER / OFFICE COPY -->
+            <!-- BOTTOM COPY -->
             <div class="copy-wrapper">
-              <div class="copy-label-badge">2. TRANSPORTER / OFFICE COPY</div>
               ${oe}
             </div>
           </div>
