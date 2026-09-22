@@ -48,8 +48,8 @@ import { PlaceholderPage } from './pages/PlaceholderPage';
 import { LoadingState } from './components/common/LoadingState';
 
 // Protected Route Wrapper Component
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, loading, isDriver, hasRole } = useAuth();
 
   if (loading) {
     return (
@@ -63,7 +63,23 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/admin/login" replace />;
   }
 
+  if (allowedRoles && !hasRole(allowedRoles)) {
+    if (isDriver) {
+      return <Navigate to="/admin/trips" replace />;
+    }
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
   return children;
+};
+
+// Driver Index Redirect Helper
+const AdminIndexRedirect = () => {
+  const { isDriver } = useAuth();
+  if (isDriver) {
+    return <Navigate to="/admin/trips" replace />;
+  }
+  return <Navigate to="/admin/dashboard" replace />;
 };
 
 export const AppRoutes = () => {
@@ -86,71 +102,67 @@ export const AppRoutes = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
+        <Route index element={<AdminIndexRedirect />} />
+        <Route path="dashboard" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><DashboardPage /></ProtectedRoute>} />
 
-        {/* CHUNK 2: COMPANY MANAGEMENT MODULE ROUTES */}
-        <Route path="companies" element={<CompaniesPage />} />
-        <Route path="companies/new" element={<CompanyFormPage />} />
-        <Route path="companies/:id" element={<CompanyDetailPage />} />
-        <Route path="companies/:id/edit" element={<CompanyFormPage />} />
+        {/* COMMERCIAL MODULE ROUTES (Super Admin & Admin) */}
+        <Route path="companies" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompaniesPage /></ProtectedRoute>} />
+        <Route path="companies/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyFormPage /></ProtectedRoute>} />
+        <Route path="companies/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyDetailPage /></ProtectedRoute>} />
+        <Route path="companies/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyFormPage /></ProtectedRoute>} />
 
-        {/* CHUNK 3: QUOTATIONS & RATE CARDS MODULE ROUTES */}
-        <Route path="quotations" element={<QuotationsPage />} />
-        <Route path="quotations/new" element={<QuotationFormPage />} />
-        <Route path="quotations/:id" element={<QuotationDetailPage />} />
-        <Route path="quotations/:id/edit" element={<QuotationFormPage />} />
-        <Route path="quotations/:id/new-version" element={<QuotationFormPage />} />
+        <Route path="quotations" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationsPage /></ProtectedRoute>} />
+        <Route path="quotations/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationFormPage /></ProtectedRoute>} />
+        <Route path="quotations/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationDetailPage /></ProtectedRoute>} />
+        <Route path="quotations/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationFormPage /></ProtectedRoute>} />
+        <Route path="quotations/:id/new-version" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationFormPage /></ProtectedRoute>} />
 
-        {/* CHUNK 4 & 5: SHIPMENT & AI DOCUMENT EXTRACTION MODULE ROUTES */}
+        {/* OPERATIONS MODULE ROUTES (All Roles Have Access to Operations / Driver Assigned Trips) */}
         <Route path="shipments" element={<ShipmentsPage />} />
-        <Route path="shipments/new" element={<ShipmentFormPage />} />
-        <Route path="shipments/upload" element={<DocumentExtractionPage />} />
+        <Route path="shipments/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ShipmentFormPage /></ProtectedRoute>} />
+        <Route path="shipments/upload" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><DocumentExtractionPage /></ProtectedRoute>} />
         <Route path="shipments/:id" element={<ShipmentDetailPage />} />
-        <Route path="shipments/:id/edit" element={<ShipmentFormPage />} />
+        <Route path="shipments/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ShipmentFormPage /></ProtectedRoute>} />
 
-        {/* CHUNK 6: TRIP, TRANSPORTER, DRIVER & VEHICLE MANAGEMENT ROUTES */}
         <Route path="trips" element={<TripsPage />} />
-        <Route path="trips/new" element={<TripFormPage />} />
+        <Route path="trips/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><TripFormPage /></ProtectedRoute>} />
         <Route path="trips/:id" element={<TripDetailPage />} />
-        <Route path="trips/:id/edit" element={<TripFormPage />} />
-        <Route path="transporters" element={<TransportersPage />} />
-        <Route path="drivers" element={<DriversPage />} />
-        <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="trips/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><TripFormPage /></ProtectedRoute>} />
+        <Route path="transporters" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><TransportersPage /></ProtectedRoute>} />
+        <Route path="drivers" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><DriversPage /></ProtectedRoute>} />
+        <Route path="vehicles" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><VehiclesPage /></ProtectedRoute>} />
 
-        {/* CHUNK 7: POD & DELIVERY MANAGEMENT ROUTES */}
+        {/* POD & DELIVERY MANAGEMENT ROUTES (All Roles Can View & Upload POD) */}
         <Route path="pod" element={<PODPage />} />
         <Route path="pod/pending" element={<PendingPODPage />} />
         <Route path="pod/:id" element={<PODDetailPage />} />
 
-        {/* CHUNK 8: BILLING & AUTOMATIC INVOICE GENERATION ROUTES */}
-        <Route path="billing" element={<BillingPage />} />
-        <Route path="billing/create" element={<BillingReviewPage />} />
-        <Route path="billing/invoices/:id" element={<InvoiceDetailPage />} />
+        {/* FINANCE MODULE ROUTES (Super Admin & Admin Only) */}
+        <Route path="billing" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><BillingPage /></ProtectedRoute>} />
+        <Route path="billing/create" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><BillingReviewPage /></ProtectedRoute>} />
+        <Route path="billing/invoices/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><InvoiceDetailPage /></ProtectedRoute>} />
 
-        {/* CHUNK 9: PAYMENTS & CUSTOMER RECEIVABLES ROUTES */}
-        <Route path="payments" element={<PaymentsPage />} />
-        <Route path="payments/receivables" element={<ReceivablesPage />} />
-        <Route path="payments/received" element={<PaymentsReceivedPage />} />
-        <Route path="payments/:id" element={<PaymentDetailPage />} />
+        <Route path="payments" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><PaymentsPage /></ProtectedRoute>} />
+        <Route path="payments/receivables" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ReceivablesPage /></ProtectedRoute>} />
+        <Route path="payments/received" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><PaymentsReceivedPage /></ProtectedRoute>} />
+        <Route path="payments/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><PaymentDetailPage /></ProtectedRoute>} />
 
-        {/* CHUNK 10: EXPENSES & PAYABLES MANAGEMENT ROUTES */}
-        <Route path="expenses" element={<ExpensesPage />} />
-        <Route path="expenses/new" element={<ExpenseFormPage />} />
-        <Route path="expenses/:id" element={<ExpenseDetailPage />} />
-        <Route path="payables" element={<PayablesPage />} />
-        <Route path="payables/:id" element={<PayableDetailPage />} />
+        <Route path="expenses" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ExpensesPage /></ProtectedRoute>} />
+        <Route path="expenses/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ExpenseFormPage /></ProtectedRoute>} />
+        <Route path="expenses/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ExpenseDetailPage /></ProtectedRoute>} />
+        <Route path="payables" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><PayablesPage /></ProtectedRoute>} />
+        <Route path="payables/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><PayableDetailPage /></ProtectedRoute>} />
 
-        {/* CHUNK 11: PROFITABILITY, MIS & MANAGEMENT REPORTING ROUTES */}
-        <Route path="reports" element={<ReportsOverviewPage />} />
-        <Route path="reports/shipments" element={<ShipmentProfitabilityPage />} />
-        <Route path="reports/trips" element={<TripProfitabilityPage />} />
-        <Route path="reports/customers" element={<CustomerProfitabilityPage />} />
-        <Route path="reports/routes" element={<RouteAnalysisPage />} />
-        <Route path="reports/monthly-mis" element={<MonthlyMISPage />} />
+        {/* EXECUTIVE REPORTING MODULE ROUTES (Super Admin Only) */}
+        <Route path="reports" element={<ProtectedRoute allowedRoles={['Super Admin']}><ReportsOverviewPage /></ProtectedRoute>} />
+        <Route path="reports/shipments" element={<ProtectedRoute allowedRoles={['Super Admin']}><ShipmentProfitabilityPage /></ProtectedRoute>} />
+        <Route path="reports/trips" element={<ProtectedRoute allowedRoles={['Super Admin']}><TripProfitabilityPage /></ProtectedRoute>} />
+        <Route path="reports/customers" element={<ProtectedRoute allowedRoles={['Super Admin']}><CustomerProfitabilityPage /></ProtectedRoute>} />
+        <Route path="reports/routes" element={<ProtectedRoute allowedRoles={['Super Admin']}><RouteAnalysisPage /></ProtectedRoute>} />
+        <Route path="reports/monthly-mis" element={<ProtectedRoute allowedRoles={['Super Admin']}><MonthlyMISPage /></ProtectedRoute>} />
 
-        {/* System Settings & User Management Module */}
-        <Route path="settings" element={<SettingsPage />} />
+        {/* System Settings & User Management Module (Super Admin Only) */}
+        <Route path="settings" element={<ProtectedRoute allowedRoles={['Super Admin']}><SettingsPage /></ProtectedRoute>} />
       </Route>
 
       {/* Global Fallback Route */}

@@ -354,9 +354,9 @@ export const Header = ({ onToggleSidebar }) => {
             </div>
             <div className="hidden sm:block text-left">
               <span className="block text-xs font-semibold text-slate-800 leading-tight">
-                {user?.name || 'Speed Setu Admin'}
+                {user?.name || 'Speed Setu User'}
               </span>
-              <span className="block text-[10px] text-slate-500 font-medium">
+              <span className="inline-block text-[9px] font-extrabold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded uppercase tracking-wider border border-slate-200 mt-0.5">
                 {user?.role || 'Super Admin'}
               </span>
             </div>
@@ -369,12 +369,15 @@ export const Header = ({ onToggleSidebar }) => {
               <div className="px-4 py-3 border-b border-slate-100">
                 <p className="font-bold text-slate-800">{user?.name || 'Admin User'}</p>
                 <p className="text-slate-500 text-[11px] truncate">{user?.email || 'admin@speedsetu.com'}</p>
+                <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-setu-50 text-setu-700 border border-setu-200">
+                  Role: {user?.role || 'Super Admin'}
+                </span>
               </div>
 
               <div className="py-1 border-b border-slate-100">
                 <div className="px-4 py-1.5 text-slate-600 flex items-center gap-2 hover:bg-slate-50 cursor-pointer">
                   <User className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Profile Settings</span>
+                  <span>Account &amp; Profile</span>
                 </div>
                 <div className="px-4 py-1.5 text-slate-600 flex items-center gap-2 hover:bg-slate-50 cursor-pointer">
                   <Building className="w-3.5 h-3.5 text-slate-400" />
@@ -382,7 +385,7 @@ export const Header = ({ onToggleSidebar }) => {
                 </div>
                 <div className="px-4 py-1.5 text-slate-600 flex items-center gap-2 hover:bg-slate-50 cursor-pointer">
                   <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Admin Access Level 5</span>
+                  <span>Access: {user?.role || 'Super Admin'}</span>
                 </div>
               </div>
 

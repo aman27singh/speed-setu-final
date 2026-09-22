@@ -34,7 +34,9 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        branch: user.branch,
+        driverId: user.driverId
       }
     });
   } catch (error) {

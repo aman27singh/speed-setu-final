@@ -47,10 +47,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const role = user?.role || 'Super Admin';
+  const isSuperAdmin = role === 'Super Admin';
+  const isAdmin = role === 'Admin' || isSuperAdmin;
+  const isDriver = role === 'Driver';
+
+  const hasRole = (allowedRoles) => {
+    if (!allowedRoles || allowedRoles.length === 0) return true;
+    return allowedRoles.includes(role);
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        role,
+        isSuperAdmin,
+        isAdmin,
+        isDriver,
+        hasRole,
         isAuthenticated: !!user,
         loading,
         login,

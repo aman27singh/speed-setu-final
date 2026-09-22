@@ -24,7 +24,13 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
+    enum: ['Super Admin', 'Admin', 'Driver'],
     default: 'Super Admin'
+  },
+  driverId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Driver',
+    default: null
   },
   branch: {
     type: String,
