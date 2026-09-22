@@ -54,6 +54,7 @@ export const ShipmentDetailPage = () => {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCNModal, setShowCNModal] = useState(false);
+  const [autoPrintCN, setAutoPrintCN] = useState(false);
   const [selectedDocForPreview, setSelectedDocForPreview] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [statusLocation, setStatusLocation] = useState('');
@@ -240,7 +241,10 @@ export const ShipmentDetailPage = () => {
         {/* Actions Bar */}
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
-            onClick={() => setShowCNModal(true)}
+            onClick={() => {
+              setAutoPrintCN(false);
+              setShowCNModal(true);
+            }}
             className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
             title="View & Print Official Pickup Document (Consignment Note)"
           >
@@ -273,9 +277,12 @@ export const ShipmentDetailPage = () => {
           </button>
 
           <button
-            onClick={() => setShowCNModal(true)}
+            onClick={() => {
+              setAutoPrintCN(true);
+              setShowCNModal(true);
+            }}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
-            title="View & Print Official Consignment Note (2-up A4)"
+            title="Directly Print Official Consignment Note (2-up A4)"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print CN</span>
@@ -1005,8 +1012,12 @@ export const ShipmentDetailPage = () => {
       {/* CONSIGNMENT NOTE PICKUP DOCUMENT MODAL */}
       <ConsignmentNoteModal
         isOpen={showCNModal}
-        onClose={() => setShowCNModal(false)}
+        onClose={() => {
+          setShowCNModal(false);
+          setAutoPrintCN(false);
+        }}
         shipment={shipment}
+        autoPrint={autoPrintCN}
       />
     </div>
   );

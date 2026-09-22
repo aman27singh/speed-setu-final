@@ -1,10 +1,19 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
 import logoImg from '../../assets/logo1.png';
 
-export const ConsignmentNoteModal = ({ isOpen, onClose, shipment }) => {
+export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
   const printRef = useRef(null);
   const [copyName, setCopyName] = useState('1. Consignor Copy');
+
+  useEffect(() => {
+    if (isOpen && autoPrint && shipment) {
+      const timer = setTimeout(() => {
+        handlePrint();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, autoPrint, shipment]);
 
   if (!isOpen || !shipment) return null;
 
