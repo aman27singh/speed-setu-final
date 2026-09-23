@@ -43,8 +43,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
         ]
       }
     ];
-  } else if (isSuperAdmin) {
-    // Full Unrestricted Navigation for Super Admin
+  } else {
+    // Full Unrestricted Navigation for Super Admin & Admin / Staff
     navGroups = [
       {
         groupLabel: null,
@@ -81,17 +81,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
         items: [
           { name: 'Reports', path: '/admin/reports', icon: BarChart3 },
           { name: 'Settings', path: '/admin/settings', icon: Settings }
-        ]
-      }
-    ];
-  } else {
-    // Simplified Navigation for Limited Staff
-    navGroups = [
-      {
-        groupLabel: null,
-        items: [
-          { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-          { name: 'Shipments', path: '/admin/shipments', icon: Truck }
         ]
       }
     ];

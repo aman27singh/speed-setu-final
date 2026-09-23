@@ -47,15 +47,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const role = user?.role || 'Super Admin';
-  const isSuperAdmin = role === 'Super Admin';
-  const isAdmin = role === 'Admin' || isSuperAdmin;
-  const isDriver = role === 'Driver' || role === 'Fleet Manager' || user?.username?.toLowerCase() === 'driver' || user?.email?.toLowerCase().includes('driver');
+  const rawRole = user?.role || 'Super Admin';
+  const role = rawRole;
+  const normRole = String(rawRole).trim().toLowerCase();
+
+  const isDriver = normRole === 'driver' || normRole === 'fleet manager' || normRole === 'fleet_manager' || user?.username?.toLowerCase() === 'driver' || user?.email?.toLowerCase().includes('driver');
+  const isSuperAdmin = !isDriver && (normRole === 'super admin' || normRole === 'super_admin' || normRole === 'superadmin' || normRole === 'owner' || normRole === 'administrator' || normRole.includes('super admin'));
+  const isAdmin = !isDriver;
 
   const hasRole = (allowedRoles) => {
     if (!allowedRoles || allowedRoles.length === 0) return true;
     if (isDriver && allowedRoles.includes('Driver')) return true;
-    return allowedRoles.includes(role);
+    if (!isDriver) return true;
+    return allowedRoles.some(r => r.toLowerCase() === normRole);
   };
 
   return (
