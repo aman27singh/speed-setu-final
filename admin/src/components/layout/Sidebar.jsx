@@ -17,7 +17,8 @@ import {
   BarChart3,
   Settings,
   ShieldAlert,
-  UserCheck
+  UserCheck,
+  Plus
 } from 'lucide-react';
 
 export const Sidebar = ({ isOpen, onClose }) => {
@@ -37,82 +38,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
         items: [
           { name: 'My Assigned Trips', path: '/admin/trips', icon: MapPin },
           { name: 'Upload ePOD', path: '/admin/pod', icon: FileCheck },
-          { name: 'Assigned Shipments', path: '/admin/shipments', icon: Truck }
-        ]
-      }
-    ];
-  } else if (isSuperAdmin) {
-    // Full Unrestricted Navigation for Super Admin
-    navGroups = [
-      {
-        groupLabel: null,
-        items: [
-          { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard }
-        ]
-      },
-      {
-        groupLabel: 'Operations',
-        items: [
-          { name: 'Shipments', path: '/admin/shipments', icon: Truck },
-          { name: 'Trips', path: '/admin/trips', icon: MapPin },
-          { name: 'POD', path: '/admin/pod', icon: FileCheck }
-        ]
-      },
-      {
-        groupLabel: 'Commercial',
-        items: [
-          { name: 'Companies', path: '/admin/companies', icon: Building2 },
-          { name: 'Quotations & Rate Cards', path: '/admin/quotations', icon: FileSpreadsheet }
-        ]
-      },
-      {
-        groupLabel: 'Finance',
-        items: [
-          { name: 'Billing', path: '/admin/billing', icon: Receipt },
-          { name: 'Payments', path: '/admin/payments', icon: CreditCard },
-          { name: 'Expenses', path: '/admin/expenses', icon: TrendingDown },
-          { name: 'Payables', path: '/admin/payables', icon: DollarSign }
-        ]
-      },
-      {
-        groupLabel: 'Analytics & Management',
-        items: [
-          { name: 'Reports', path: '/admin/reports', icon: BarChart3 },
-          { name: 'Settings', path: '/admin/settings', icon: Settings }
+          { name: 'Assigned Shipments', path: '/admin/shipments', icon: Truck },
+          { name: 'Create Shipment', path: '/admin/shipments/new', icon: Plus }
         ]
       }
     ];
   } else {
-    // Operations & Finance Navigation for Normal Admin
+    // Admin Navigation - Restricted to Dashboard and Shipments only
     navGroups = [
       {
         groupLabel: null,
         items: [
-          { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard }
-        ]
-      },
-      {
-        groupLabel: 'Operations',
-        items: [
-          { name: 'Shipments', path: '/admin/shipments', icon: Truck },
-          { name: 'Trips', path: '/admin/trips', icon: MapPin },
-          { name: 'POD', path: '/admin/pod', icon: FileCheck }
-        ]
-      },
-      {
-        groupLabel: 'Commercial',
-        items: [
-          { name: 'Companies', path: '/admin/companies', icon: Building2 },
-          { name: 'Quotations & Rate Cards', path: '/admin/quotations', icon: FileSpreadsheet }
-        ]
-      },
-      {
-        groupLabel: 'Finance',
-        items: [
-          { name: 'Billing', path: '/admin/billing', icon: Receipt },
-          { name: 'Payments', path: '/admin/payments', icon: CreditCard },
-          { name: 'Expenses', path: '/admin/expenses', icon: TrendingDown },
-          { name: 'Payables', path: '/admin/payables', icon: DollarSign }
+          { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+          { name: 'Shipments', path: '/admin/shipments', icon: Truck }
         ]
       }
     ];

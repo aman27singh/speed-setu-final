@@ -132,49 +132,6 @@ export const LoginPage = () => {
               )}
             </button>
           </form>
-          {/* Quick Demo Role Selector */}
-          <div className="mt-6 pt-5 border-t border-slate-200">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center mb-2.5">
-              Quick Role Test Login (1-Click)
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('aman@speedsetu.com');
-                  setPassword('Aman@1234');
-                }}
-                className="px-2 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded text-[11px] font-bold hover:bg-amber-100 transition-colors flex flex-col items-center gap-0.5"
-              >
-                <span>👑 Super Admin</span>
-                <span className="text-[9px] text-amber-600 font-normal">Full Access</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('admin@speedsetu.com');
-                  setPassword('Admin@1234');
-                }}
-                className="px-2 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 transition-colors flex flex-col items-center gap-0.5"
-              >
-                <span>💼 Normal Admin</span>
-                <span className="text-[9px] text-blue-600 font-normal">Ops & Finance</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('driver@speedsetu.com');
-                  setPassword('Driver@1234');
-                }}
-                className="px-2 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-[11px] font-bold hover:bg-emerald-100 transition-colors flex flex-col items-center gap-0.5"
-              >
-                <span>🚛 Driver</span>
-                <span className="text-[9px] text-emerald-600 font-normal">Trips & POD</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="mt-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
