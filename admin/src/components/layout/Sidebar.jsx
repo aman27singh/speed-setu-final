@@ -43,8 +43,49 @@ export const Sidebar = ({ isOpen, onClose }) => {
         ]
       }
     ];
+  } else if (isSuperAdmin) {
+    // Full Unrestricted Navigation for Super Admin
+    navGroups = [
+      {
+        groupLabel: null,
+        items: [
+          { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard }
+        ]
+      },
+      {
+        groupLabel: 'Operations',
+        items: [
+          { name: 'Shipments', path: '/admin/shipments', icon: Truck },
+          { name: 'Trips', path: '/admin/trips', icon: MapPin },
+          { name: 'POD', path: '/admin/pod', icon: FileCheck }
+        ]
+      },
+      {
+        groupLabel: 'Commercial',
+        items: [
+          { name: 'Companies', path: '/admin/companies', icon: Building2 },
+          { name: 'Quotations & Rate Cards', path: '/admin/quotations', icon: FileSpreadsheet }
+        ]
+      },
+      {
+        groupLabel: 'Finance',
+        items: [
+          { name: 'Billing', path: '/admin/billing', icon: Receipt },
+          { name: 'Payments', path: '/admin/payments', icon: CreditCard },
+          { name: 'Expenses', path: '/admin/expenses', icon: TrendingDown },
+          { name: 'Payables', path: '/admin/payables', icon: DollarSign }
+        ]
+      },
+      {
+        groupLabel: 'Analytics & Management',
+        items: [
+          { name: 'Reports', path: '/admin/reports', icon: BarChart3 },
+          { name: 'Settings', path: '/admin/settings', icon: Settings }
+        ]
+      }
+    ];
   } else {
-    // Admin Navigation - Restricted to Dashboard and Shipments only
+    // Simplified Navigation for Limited Staff
     navGroups = [
       {
         groupLabel: null,
