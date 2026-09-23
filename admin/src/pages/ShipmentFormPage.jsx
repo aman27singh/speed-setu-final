@@ -7,6 +7,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
 import { Modal } from '../components/common/Modal';
 import { ConsignmentNoteModal } from '../components/shipment/ConsignmentNoteModal';
+import { useAuth } from '../context/AuthContext';
 import {
   Package,
   Building2,
@@ -136,6 +137,7 @@ export const ShipmentFormPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [companies, setCompanies] = useState([]);
@@ -502,8 +504,16 @@ export const ShipmentFormPage = () => {
     setSaving(true);
     try {
       const defaultCompany = companies.find((c) => c.id === formData.companyId) || companies[0] || {};
+      const creatorId = user?.id || user?._id || user?.username || user?.email || 'driver-user';
+      const creatorName = user?.name || user?.username || 'Driver User';
+      const creatorRole = user?.role || 'Driver';
+
       const payload = {
         ...formData,
+        createdBy: formData.createdBy || creatorId,
+        createdByName: formData.createdByName || creatorName,
+        createdByRole: formData.createdByRole || creatorRole,
+        driverId: formData.driverId || user?.driverId || (user?.role === 'Driver' ? creatorId : null),
         companyId: formData.companyId || defaultCompany.id || '',
         companyName: formData.companyName || defaultCompany.companyName || '',
         companyCode: formData.companyCode || defaultCompany.companyCode || '',
@@ -518,6 +528,10 @@ export const ShipmentFormPage = () => {
           name: formData.consignee?.name || '',
           city: formData.consignee?.city || '',
           state: formData.consignee?.state || ''
+        },
+        operational: {
+          ...formData.operational,
+          driver: formData.operational?.driver || (user?.role === 'Driver' ? creatorName : '')
         },
         origin: formData.origin || formData.consignor?.city || '',
         destination: formData.destination || formData.consignee?.city || '',

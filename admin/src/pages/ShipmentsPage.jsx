@@ -13,6 +13,7 @@ import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { DocumentUploadModal } from '../components/shipment/DocumentUploadModal';
 import { BulkShipmentImportModal } from '../components/shipment/BulkShipmentImportModal';
+import { useAuth } from '../context/AuthContext';
 import {
   Plus,
   Upload,
@@ -29,6 +30,7 @@ import {
 export const ShipmentsPage = () => {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery } = useSearch();
+  const { user, isDriver } = useAuth();
   const [shipments, setShipments] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,41 @@ export const ShipmentsPage = () => {
         companyService.getCompanies()
       ]);
 
-      setShipments(shipmentsData);
+      let finalShipments = shipmentsData;
+
+      if (isDriver && user) {
+        const driverIdentifiers = [
+          user.id,
+          user._id,
+          user.username,
+          user.email,
+          user.driverId,
+          user.name
+        ]
+          .filter(Boolean)
+          .map((val) => String(val).toLowerCase().trim());
+
+        finalShipments = shipmentsData.filter((s) => {
+          const createdByVal = String(s.createdBy || '').toLowerCase().trim();
+          const driverIdVal = String(s.driverId || '').toLowerCase().trim();
+          const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
+          const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
+
+          const isMatch = driverIdentifiers.some((id) =>
+            id === createdByVal ||
+            id === driverIdVal ||
+            id === createdByNameVal ||
+            (operationalDriverVal && id === operationalDriverVal)
+          );
+
+          const isLegacyDriverShipment = (s.createdByRole === 'Driver') ||
+            (s.operational?.driver && driverIdentifiers.includes(operationalDriverVal));
+
+          return isMatch || isLegacyDriverShipment;
+        });
+      }
+
+      setShipments(finalShipments);
       setCompanies(compData);
     } catch (err) {
       setError(err.message || 'Failed to load shipments records.');
@@ -383,9 +419,13 @@ export const ShipmentsPage = () => {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Shipments Management"
-        description="Manage Consignment Notes (CN), track dispatch status, and monitor linehaul movements."
-        breadcrumbs={['Speed Setu Admin', 'Operations', 'Shipments']}
+        title={isDriver ? 'My Created Shipments' : 'Shipments Management'}
+        description={
+          isDriver
+            ? 'View and manage consignment notes (CN) created by your driver account.'
+            : 'Manage Consignment Notes (CN), track dispatch status, and monitor linehaul movements.'
+        }
+        breadcrumbs={['Speed Setu Admin', 'Operations', isDriver ? 'My Shipments' : 'Shipments']}
         actions={
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
