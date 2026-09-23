@@ -724,7 +724,11 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               <text x="150" y="555" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
               <text x="150" y="583" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
               <text x="150" y="611" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
-              <text x="150" y="639" className="dynamic-text" fontSize="16">{shipment.invoiceDetails?.invoiceQuantity || shipment.packages || ''}</text>
+              <text x="150" y="639" className="dynamic-text" fontSize="16">
+                {shipment.invoiceDetails?.invoiceQuantity !== undefined && shipment.invoiceDetails?.invoiceQuantity !== null && shipment.invoiceDetails?.invoiceQuantity !== ''
+                  ? shipment.invoiceDetails.invoiceQuantity
+                  : ((shipment.commercialInvoices || []).map(i => i.invoiceQuantity).filter((q) => q !== undefined && q !== null && q !== '').join(', ') || '')}
+              </text>
               <text x="150" y="667" className="dynamic-text" fontSize="15">{shipment.ewayBillNumber || ''}</text>
               <text x="150" y="687" className="dynamic-text" fontSize="15">{shipment.awbNumber || ''}</text>
 
