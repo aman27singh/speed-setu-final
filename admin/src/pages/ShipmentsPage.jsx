@@ -31,6 +31,12 @@ export const ShipmentsPage = () => {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery } = useSearch();
   const { user, isDriver } = useAuth();
+  const isDriverAccount = isDriver ||
+    user?.role === 'Driver' ||
+    user?.role === 'Fleet Manager' ||
+    user?.username?.toLowerCase() === 'driver' ||
+    user?.email?.toLowerCase().includes('driver');
+
   const [shipments, setShipments] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +131,7 @@ export const ShipmentsPage = () => {
 
       let finalShipments = shipmentsData;
 
-      if (isDriver && user) {
+      if (isDriverAccount && user) {
         const driverIdentifiers = [
           user.id,
           user._id,
@@ -143,17 +149,15 @@ export const ShipmentsPage = () => {
           const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
           const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
 
-          const isMatch = driverIdentifiers.some((id) =>
-            id === createdByVal ||
-            id === driverIdVal ||
-            id === createdByNameVal ||
-            (operationalDriverVal && id === operationalDriverVal)
+          // Strictly match if creator/driver field is non-empty and present in driverIdentifiers
+          const isCreatorMatch = driverIdentifiers.some((id) =>
+            (createdByVal && createdByVal === id) ||
+            (driverIdVal && driverIdVal === id) ||
+            (createdByNameVal && createdByNameVal === id) ||
+            (operationalDriverVal && operationalDriverVal === id)
           );
 
-          const isLegacyDriverShipment = (s.createdByRole === 'Driver') ||
-            (s.operational?.driver && driverIdentifiers.includes(operationalDriverVal));
-
-          return isMatch || isLegacyDriverShipment;
+          return isCreatorMatch;
         });
       }
 
@@ -419,13 +423,13 @@ export const ShipmentsPage = () => {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title={isDriver ? 'My Created Shipments' : 'Shipments Management'}
+        title={isDriverAccount ? 'My Created Shipments' : 'Shipments Management'}
         description={
-          isDriver
+          isDriverAccount
             ? 'View and manage consignment notes (CN) created by your driver account.'
             : 'Manage Consignment Notes (CN), track dispatch status, and monitor linehaul movements.'
         }
-        breadcrumbs={['Speed Setu Admin', 'Operations', isDriver ? 'My Shipments' : 'Shipments']}
+        breadcrumbs={['Speed Setu Admin', 'Operations', isDriverAccount ? 'My Shipments' : 'Shipments']}
         actions={
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
