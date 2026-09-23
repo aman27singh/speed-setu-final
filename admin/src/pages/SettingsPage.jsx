@@ -233,6 +233,8 @@ export const SettingsPage = () => {
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                       u.role === 'Super Admin'
                         ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                        : u.role === 'Driver'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                         : u.role === 'Operations Manager'
                         ? 'bg-blue-50 text-setu-700 border border-blue-200'
                         : u.role === 'Billing Admin'
@@ -365,6 +367,7 @@ export const SettingsPage = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-setu-600/20"
                 >
                   <option value="Super Admin">Super Admin (Full Control)</option>
+                  <option value="Driver">Driver (Trips, ePOD & Consignments)</option>
                   <option value="Operations Manager">Operations Manager (Shipments & Trips)</option>
                   <option value="Billing Admin">Billing Admin (Invoices & Rates)</option>
                   <option value="Accounts Executive">Accounts Executive (Payments & Payables)</option>
