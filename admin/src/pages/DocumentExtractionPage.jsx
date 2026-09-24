@@ -136,7 +136,29 @@ export const DocumentExtractionPage = () => {
     });
   };
 
+  const getMissingFields = () => {
+    if (!extractionData) return [];
+    const missing = [];
+    if (!extractionData.consignor?.name?.value && !extractionData.consignor?.name) missing.push('Consignor Name');
+    if (!extractionData.consignor?.city?.value && !extractionData.consignor?.city) missing.push('Consignor City');
+    if (!extractionData.consignee?.name?.value && !extractionData.consignee?.name) missing.push('Consignee Name');
+    if (!extractionData.consignee?.city?.value && !extractionData.consignee?.city) missing.push('Consignee City');
+    if (!extractionData.invoice?.invoiceNumber?.value && !extractionData.invoice?.invoiceNumber) missing.push('Invoice Number');
+    if (!extractionData.invoice?.invoiceValue?.value && !extractionData.invoice?.invoiceValue) missing.push('Invoice Value');
+    if (!extractionData.shipment?.packages?.value && !extractionData.shipment?.packages) missing.push('Package Count');
+    if (!extractionData.shipment?.actualWeight?.value && !extractionData.shipment?.actualWeight) missing.push('Actual Weight');
+    return missing;
+  };
+
   const handleConfirmExtraction = async (attachToExistingCN = null) => {
+    const missing = getMissingFields();
+    if (missing.length > 0 && !attachToExistingCN) {
+      const confirmContinue = window.confirm(
+        `⚠️ Required Invoice Details Missing:\n\nThe following ${missing.length} detail(s) could not be extracted automatically:\n• ${missing.join('\n• ')}\n\nClick OK to return and fill in the missing fields, or CANCEL to proceed with default values.`
+      );
+      if (confirmContinue) return;
+    }
+
     setSaving(true);
     try {
       const result = await documentService.confirmExtraction(
@@ -314,6 +336,26 @@ export const DocumentExtractionPage = () => {
       {/* STAGE 3: SPLIT-SCREEN REVIEW INTERFACE */}
       {stage === 'review' && extractionData && (
         <div className="space-y-6">
+          {/* MISSING DETAILS NOTIFICATION BANNER */}
+          {getMissingFields().length > 0 && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs space-y-2 animate-fade-in shadow-xs">
+              <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>Missing Required Invoice Details ({getMissingFields().length} Fields Require Attention)</span>
+              </div>
+              <p className="text-rose-800 font-medium">
+                Some details could not be parsed automatically from the uploaded image. Please review and input the missing values below before creating the Consignment Note (CN).
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {getMissingFields().map((field, idx) => (
+                  <span key={idx} className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-md border border-rose-200 text-[10px]">
+                    ⚠️ {field} missing
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* SAFEGUARDS & WARNING BANNERS */}
           {matchAnalysis?.warnings?.length > 0 && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1">
