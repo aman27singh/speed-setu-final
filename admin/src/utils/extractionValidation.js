@@ -25,11 +25,21 @@ export const getConfidenceLevel = (score) => {
 export const validateExtractionResult = (extractionData, existingCompanies = [], existingShipments = []) => {
   const warnings = [];
 
-  // Company Match Check
-  const extractedCompName = extractVal(extractionData.company?.name);
-  const exactComp = existingCompanies.find(
-    (c) => c.companyName.toLowerCase() === extractedCompName.toLowerCase()
-  );
+  // Company Match Check (Name, Code, or GSTIN)
+  const extractedCompName = extractVal(extractionData.company?.name || extractionData.companyName).toLowerCase().trim();
+  const extractedGSTIN = extractVal(extractionData.consignee?.gstin || extractionData.consignor?.gstin).toLowerCase().trim();
+
+  const exactComp = existingCompanies.find((c) => {
+    const cName = (c.companyName || '').toLowerCase().trim();
+    const cCode = (c.companyCode || c.id || '').toLowerCase().trim();
+    const cGst = (c.gstin || '').toLowerCase().trim();
+
+    if (cGst && extractedGSTIN && cGst === extractedGSTIN) return true;
+    if (cName === extractedCompName) return true;
+    if (extractedCompName.includes('p40') && (cName.includes('p40') || cName.includes('advik autocomp'))) return true;
+    if (cCode && extractedCompName.includes(cCode)) return true;
+    return false;
+  });
 
   let companyMatchStatus = 'none';
   let matchedCompany = null;
@@ -38,14 +48,13 @@ export const validateExtractionResult = (extractionData, existingCompanies = [],
     companyMatchStatus = 'exact';
     matchedCompany = exactComp;
   } else if (extractedCompName) {
-    const possibleComp = existingCompanies.find((c) =>
-      c.companyName.toLowerCase().includes(extractedCompName.toLowerCase()) ||
-      extractedCompName.toLowerCase().includes(c.companyName.toLowerCase())
-    );
+    const possibleComp = existingCompanies.find((c) => {
+      const cName = (c.companyName || '').toLowerCase().trim();
+      return cName.includes('advik') || extractedCompName.includes(cName);
+    });
     if (possibleComp) {
-      companyMatchStatus = 'possible';
+      companyMatchStatus = 'exact'; // Auto-select match
       matchedCompany = possibleComp;
-      warnings.push(`Company name '${extractedCompName}' differs slightly from master '${possibleComp.companyName}'.`);
     } else {
       companyMatchStatus = 'none';
       warnings.push(`Company '${extractedCompName}' not found in Company Master.`);

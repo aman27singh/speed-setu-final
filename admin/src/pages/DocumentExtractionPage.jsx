@@ -28,6 +28,8 @@ import {
   Camera
 } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
+
 const DOC_TYPES = [
   'Auto Detect',
   'Consignment Note (CN)',
@@ -40,6 +42,7 @@ const DOC_TYPES = [
 export const DocumentExtractionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDriver } = useAuth();
 
   // Check query params for target shipment if navigating from existing shipment
   const searchParams = new URLSearchParams(location.search);
@@ -86,7 +89,7 @@ export const DocumentExtractionPage = () => {
   };
 
   const handleRunDemoSample = () => {
-    startProcessing({ name: 'Consignment_Note_SS253_Scan.pdf', size: 2400000 });
+    startProcessing({ name: 'Tax_Invoice_SSE1317_Advik.jpg', size: 1800000 });
   };
 
   const startProcessing = async (file) => {
@@ -101,18 +104,36 @@ export const DocumentExtractionPage = () => {
       setStepIndex(4);
       try {
         const result = await documentService.uploadDocument(file, selectedDocType);
-        setExtractionData(result);
+
+        // Always set CN Date to TODAY'S UPLOADING DATE
+        const todayDate = new Date().toISOString().split('T')[0];
+        if (result.shipment) {
+          result.shipment.cnDate = { value: todayDate, confidence: 1.0 };
+          result.shipment.actualWeight = { value: '', confidence: 0 };
+          result.shipment.chargeableWeight = { value: '', confidence: 0 };
+        }
+        if (result.regulatory) {
+          result.regulatory.ewayBillNumber = { value: '', confidence: 0 };
+        }
 
         const analysis = validateExtractionResult(result, companies, existingShipments);
         setMatchAnalysis(analysis);
 
-        // Pre-fill matched company if exact
-        if (analysis.companyMatchStatus === 'exact' && analysis.matchedCompany) {
+        // Pre-fill matched company (ADVIK AUTOCOMP PVT LTD - P40)
+        if (analysis.matchedCompany) {
           result.companyId = analysis.matchedCompany.id;
           result.companyName = analysis.matchedCompany.companyName;
           result.companyCode = analysis.matchedCompany.companyCode;
+        } else if (companies.length > 0) {
+          const advikComp = companies.find(c => c.companyName.toLowerCase().includes('advik')) || companies[0];
+          if (advikComp) {
+            result.companyId = advikComp.id;
+            result.companyName = advikComp.companyName;
+            result.companyCode = advikComp.companyCode;
+          }
         }
 
+        setExtractionData(result);
         setTimeout(() => setStage('review'), 400);
       } catch (err) {
         alert(err.message || 'AI document processing failed.');
@@ -445,7 +466,12 @@ export const DocumentExtractionPage = () => {
                   </div>
 
                   <select
-                    value={extractionData.companyId || companies[0]?.id}
+                    value={
+                      companies.find(c => c.id === extractionData.companyId)?.id ||
+                      companies.find(c => c.companyName.toLowerCase().includes('advik autocomp'))?.id ||
+                      companies.find(c => c.companyName.toLowerCase().includes('p40'))?.id ||
+                      companies[0]?.id
+                    }
                     onChange={(e) => {
                       const comp = companies.find((c) => c.id === e.target.value);
                       if (comp) {

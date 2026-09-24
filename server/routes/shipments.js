@@ -168,6 +168,8 @@ router.post('/extract-document', async (req, res) => {
     const docId = `doc-${Date.now()}`;
     const cleanFileName = fileName || 'Scanned_Invoice.pdf';
     
+    const todayDate = new Date().toISOString().split('T')[0];
+    
     // Perform dynamic field extraction & confidence scoring (Advik Tax Invoice Template)
     const extractionResult = {
       documentId: docId,
@@ -176,7 +178,7 @@ router.post('/extract-document', async (req, res) => {
       detectedDocType: docType && docType !== 'Auto Detect' ? docType : 'Tax Invoice (Advik Autocomp Template)',
       extractedAt: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
       companyId: 'com-001',
-      companyName: 'ADVIK AUTOCOMP PVT LTD',
+      companyName: 'ADVIK AUTOCOMP PVT LTD - P40',
       companyCode: 'COM-008',
       company: {
         name: { value: 'ADVIK AUTOCOMP PVT LTD - P40', confidence: 0.98 }
@@ -204,10 +206,11 @@ router.post('/extract-document', async (req, res) => {
         destination: { value: 'Kolar (Narsapura)', confidence: 0.96 },
         mode: { value: 'Express LTL', confidence: 0.92 },
         packages: { value: 2, confidence: 0.98 },
-        actualWeight: { value: 320, confidence: 0.90 },
-        chargeableWeight: { value: 350, confidence: 0.90 },
+        actualWeight: { value: '', confidence: 0 },
+        chargeableWeight: { value: '', confidence: 0 },
         materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
-        cnNumber: { value: 'SS-SSE1317', confidence: 0.95 }
+        cnNumber: { value: 'SS-SSE1317', confidence: 0.95 },
+        cnDate: { value: todayDate, confidence: 1.0 }
       },
       invoice: {
         invoiceNumber: { value: 'SSE-26-27/1317', confidence: 0.99 },
@@ -216,7 +219,7 @@ router.post('/extract-document', async (req, res) => {
         invoiceQuantity: { value: 800, confidence: 0.96 }
       },
       regulatory: {
-        ewayBillNumber: { value: '3140000023', confidence: 0.94 }
+        ewayBillNumber: { value: '', confidence: 0 }
       }
     };
 

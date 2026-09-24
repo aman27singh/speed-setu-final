@@ -2,6 +2,8 @@ import { apiRequest, simulateDelay } from './apiClient';
 import { shipmentService } from './shipmentService';
 import Tesseract from 'tesseract.js';
 
+const todayDateStr = new Date().toISOString().split('T')[0];
+
 const mockSampleExtractions = [
   {
     documentId: 'doc-sample-1',
@@ -10,7 +12,7 @@ const mockSampleExtractions = [
     detectedDocType: 'Tax Invoice (Advik Autocomp Template)',
     extractedAt: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
     companyId: 'com-001',
-    companyName: 'ADVIK AUTOCOMP PVT LTD',
+    companyName: 'ADVIK AUTOCOMP PVT LTD - P40',
     companyCode: 'COM-008',
     company: {
       name: { value: 'ADVIK AUTOCOMP PVT LTD - P40', confidence: 0.98 }
@@ -38,10 +40,11 @@ const mockSampleExtractions = [
       destination: { value: 'Kolar (Narsapura Plant)', confidence: 0.96 },
       mode: { value: 'Express LTL', confidence: 0.92 },
       packages: { value: 2, confidence: 0.98 },
-      actualWeight: { value: 320, confidence: 0.92 },
-      chargeableWeight: { value: 350, confidence: 0.90 },
+      actualWeight: { value: '', confidence: 0 },
+      chargeableWeight: { value: '', confidence: 0 },
       materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
-      cnNumber: { value: 'SS-SSE1317', confidence: 0.95 }
+      cnNumber: { value: 'SS-SSE1317', confidence: 0.95 },
+      cnDate: { value: todayDateStr, confidence: 1.0 }
     },
     invoice: {
       invoiceNumber: { value: 'SSE-26-27/1317', confidence: 0.99 },
@@ -50,7 +53,7 @@ const mockSampleExtractions = [
       invoiceQuantity: { value: 800, confidence: 0.96 }
     },
     regulatory: {
-      ewayBillNumber: { value: '3140000023', confidence: 0.94 }
+      ewayBillNumber: { value: '', confidence: 0 }
     }
   }
 ];
