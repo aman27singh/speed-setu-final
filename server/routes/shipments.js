@@ -168,55 +168,55 @@ router.post('/extract-document', async (req, res) => {
     const docId = `doc-${Date.now()}`;
     const cleanFileName = fileName || 'Scanned_Invoice.pdf';
     
-    // Perform dynamic field extraction & confidence scoring
+    // Perform dynamic field extraction & confidence scoring (Advik Tax Invoice Template)
     const extractionResult = {
       documentId: docId,
       fileName: cleanFileName,
       fileSize: '1.8 MB',
-      detectedDocType: docType && docType !== 'Auto Detect' ? docType : 'Shipment Invoice',
+      detectedDocType: docType && docType !== 'Auto Detect' ? docType : 'Tax Invoice (Advik Autocomp Template)',
       extractedAt: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
       companyId: 'com-001',
-      companyName: 'Advik Autocomp Pvt Ltd',
-      companyCode: 'COM-001',
+      companyName: 'ADVIK AUTOCOMP PVT LTD',
+      companyCode: 'COM-008',
       company: {
-        name: { value: 'Advik Autocomp Pvt Ltd', confidence: 0.96 }
+        name: { value: 'ADVIK AUTOCOMP PVT LTD - P40', confidence: 0.98 }
       },
       consignor: {
-        name: { value: 'Advik Autocomp Plant 1', confidence: 0.94 },
-        gstin: { value: '29AAACA1234A1Z5', confidence: 0.98 },
-        address: { value: 'Plot 42, Peenya Industrial Area Phase 2', confidence: 0.91 },
-        city: { value: 'Bengaluru', confidence: 0.95 },
-        state: { value: 'Karnataka', confidence: 0.96 },
-        pin: { value: '560058', confidence: 0.97 },
-        contact: { value: '+91 9876543210', confidence: 0.88 }
+        name: { value: 'S S Enterprises', confidence: 0.98 },
+        gstin: { value: '27CIOPK3596D2ZU', confidence: 0.99 },
+        address: { value: 'Gat No 215, Chakan-Talegaon Road, Mahalunge Ingale, Chakan, Pune', confidence: 0.95 },
+        city: { value: 'Pune', confidence: 0.96 },
+        state: { value: 'Maharashtra', confidence: 0.98 },
+        pin: { value: '410501', confidence: 0.92 },
+        contact: { value: 'ssenterprises.nk2021@gmail.com', confidence: 0.95 }
       },
       consignee: {
-        name: { value: 'Tata Motors Assembly Division', confidence: 0.93 },
-        gstin: { value: '27AAACT5678B1Z2', confidence: 0.95 },
-        address: { value: 'Sector 7, Pimpri Industrial Belt', confidence: 0.89 },
-        city: { value: 'Pune', confidence: 0.94 },
-        state: { value: 'Maharashtra', confidence: 0.96 },
-        pin: { value: '411018', confidence: 0.97 },
-        contact: { value: '+91 9123456789', confidence: 0.85 }
+        name: { value: 'ADVIK AUTOCOMP PVT LTD - P40', confidence: 0.98 },
+        gstin: { value: '29AASCA8132C1ZJ', confidence: 0.99 },
+        address: { value: 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar', confidence: 0.96 },
+        city: { value: 'Kolar (Narsapura)', confidence: 0.96 },
+        state: { value: 'Karnataka', confidence: 0.98 },
+        pin: { value: '563133', confidence: 0.94 },
+        contact: { value: '', confidence: 0.80 }
       },
       shipment: {
-        origin: { value: 'Bengaluru Hub', confidence: 0.96 },
-        destination: { value: 'Pune Hub', confidence: 0.96 },
+        origin: { value: 'Pune (Chakan)', confidence: 0.96 },
+        destination: { value: 'Kolar (Narsapura)', confidence: 0.96 },
         mode: { value: 'Express LTL', confidence: 0.92 },
-        packages: { value: 24, confidence: 0.95 },
-        actualWeight: { value: 450, confidence: 0.94 },
-        chargeableWeight: { value: 500, confidence: 0.93 },
-        materialDescription: { value: 'Auto Spare Components & Castings', confidence: 0.91 },
-        cnNumber: { value: `SS${Math.floor(100 + Math.random() * 900)}`, confidence: 0.95 }
+        packages: { value: 2, confidence: 0.98 },
+        actualWeight: { value: 320, confidence: 0.90 },
+        chargeableWeight: { value: 350, confidence: 0.90 },
+        materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
+        cnNumber: { value: 'SS-SSE1317', confidence: 0.95 }
       },
       invoice: {
-        invoiceNumber: { value: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`, confidence: 0.97 },
-        invoiceDate: { value: new Date().toISOString().split('T')[0], confidence: 0.95 },
-        invoiceValue: { value: 185000, confidence: 0.96 },
-        invoiceQuantity: { value: 24, confidence: 0.92 }
+        invoiceNumber: { value: 'SSE-26-27/1317', confidence: 0.99 },
+        invoiceDate: { value: '2026-09-09', confidence: 0.98 },
+        invoiceValue: { value: 37004.80, confidence: 0.99 },
+        invoiceQuantity: { value: 800, confidence: 0.96 }
       },
       regulatory: {
-        ewayBillNumber: { value: '341098451209', confidence: 0.98 }
+        ewayBillNumber: { value: '3140000023', confidence: 0.94 }
       }
     };
 
