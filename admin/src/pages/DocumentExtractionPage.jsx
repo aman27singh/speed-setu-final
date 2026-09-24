@@ -665,8 +665,9 @@ export const DocumentExtractionPage = () => {
                       </div>
                       <input
                         type="number"
-                        value={extractionData.shipment?.packages?.value || 0}
+                        value={extractionData.shipment?.packages?.value ?? ''}
                         onChange={(e) => handleFieldChange('shipment', 'packages', e.target.value)}
+                        placeholder="e.g. 0"
                         className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold"
                       />
                     </div>

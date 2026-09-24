@@ -30,16 +30,16 @@ const mockSampleExtractions = [
       name: { value: 'ADVIK AUTOCOMP PVT LTD - P40', confidence: 0.98 },
       gstin: { value: '29AASCA8132C1ZJ', confidence: 0.99 },
       address: { value: 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar', confidence: 0.96 },
-      city: { value: 'Kolar (Narsapura)', confidence: 0.96 },
+      city: { value: 'Narsapura', confidence: 0.96 },
       state: { value: 'Karnataka', confidence: 0.98 },
       pin: { value: '563133', confidence: 0.94 },
       contact: { value: '', confidence: 0.80 }
     },
     shipment: {
-      origin: { value: 'Pune (Chakan Hub)', confidence: 0.96 },
-      destination: { value: 'Kolar (Narsapura Plant)', confidence: 0.96 },
+      origin: { value: 'Pune', confidence: 0.96 },
+      destination: { value: 'Narsapura', confidence: 0.96 },
       mode: { value: 'Express LTL', confidence: 0.92 },
-      packages: { value: 2, confidence: 0.98 },
+      packages: { value: '', confidence: 0 },
       actualWeight: { value: '', confidence: 0 },
       chargeableWeight: { value: '', confidence: 0 },
       materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
@@ -102,7 +102,8 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
 
     // 5. EXTRACT PACKAGE / BOX COUNT FROM REMARKS (e.g. BOX-2 or 2 BOXES)
     const boxMatch = text.match(/(?:Remarks[:\s]*)?BOX[-:\s]*(\d+)/i) || text.match(/(\d+)\s*BOX/i);
-    const packages = boxMatch ? parseInt(boxMatch[1], 10) : 2;
+    const packages = boxMatch ? parseInt(boxMatch[1], 10) : '';
+    const pkgConfidence = boxMatch ? 0.98 : 0;
 
     // 6. EXTRACT HSN CODE & MATERIAL DESCRIPTION
     const hsnMatch = text.match(/\b(87\d{6})\b/);
@@ -122,8 +123,8 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
       consigneeName = 'ADVIK AUTOCOMP PVT LTD - P40';
     }
 
-    const originCity = text.includes('PUNE') || text.includes('CHAKAN') ? 'Pune (Chakan)' : 'Pune';
-    const destCity = text.includes('KOLAR') || text.includes('NARSAPURA') ? 'Kolar (Narsapura)' : 'Kolar';
+    const originCity = 'Pune';
+    const destCity = 'Narsapura';
 
     return {
       documentId: docId,
@@ -160,7 +161,7 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
         origin: { value: originCity, confidence: 0.96 },
         destination: { value: destCity, confidence: 0.96 },
         mode: { value: 'Express LTL', confidence: 0.92 },
-        packages: { value: packages, confidence: 0.98 },
+        packages: { value: packages, confidence: pkgConfidence },
         actualWeight: { value: 320, confidence: 0.90 },
         chargeableWeight: { value: 350, confidence: 0.90 },
         materialDescription: { value: materialDesc, confidence: 0.96 },
@@ -286,16 +287,16 @@ export const documentService = {
         name: finalData.consignee?.name?.value || finalData.consignee?.name || 'ADVIK AUTOCOMP PVT LTD - P40',
         gstin: finalData.consignee?.gstin?.value || finalData.consignee?.gstin || '29AASCA8132C1ZJ',
         address: finalData.consignee?.address?.value || finalData.consignee?.address || 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar',
-        city: finalData.consignee?.city?.value || finalData.consignee?.city || 'Kolar (Narsapura)',
+        city: finalData.consignee?.city?.value || finalData.consignee?.city || 'Narsapura',
         state: finalData.consignee?.state?.value || finalData.consignee?.state || 'Karnataka',
         pin: finalData.consignee?.pin?.value || finalData.consignee?.pin || '563133',
         contact: finalData.consignee?.contact?.value || finalData.consignee?.contact || ''
       },
 
-      origin: finalData.shipment?.origin?.value || finalData.shipment?.origin || 'Pune (Chakan)',
-      destination: finalData.shipment?.destination?.value || finalData.shipment?.destination || 'Kolar (Narsapura)',
+      origin: finalData.shipment?.origin?.value || finalData.shipment?.origin || 'Pune',
+      destination: finalData.shipment?.destination?.value || finalData.shipment?.destination || 'Narsapura',
       mode: finalData.shipment?.mode?.value || finalData.shipment?.mode || 'Express LTL',
-      packages: parseInt(finalData.shipment?.packages?.value || finalData.shipment?.packages || 2, 10),
+      packages: parseInt(finalData.shipment?.packages?.value || finalData.shipment?.packages || 0, 10) || 0,
       actualWeight: parseFloat(finalData.shipment?.actualWeight?.value || finalData.shipment?.actualWeight || 320),
       chargeableWeight: parseFloat(finalData.shipment?.chargeableWeight?.value || finalData.shipment?.chargeableWeight || 350),
       materialDescription: finalData.shipment?.materialDescription?.value || finalData.shipment?.materialDescription || 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos',
