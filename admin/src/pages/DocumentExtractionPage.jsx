@@ -394,9 +394,26 @@ export const DocumentExtractionPage = () => {
 
           {/* SPLIT SCREEN GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* LEFT PANE: DOCUMENT PREVIEWER */}
-            <div className="h-full">
-              <DocumentPreviewer fileName={extractionData.fileName} fileType={extractionData.fileType} />
+            {/* LEFT PANE: DOCUMENT PREVIEWER & RAW OCR TEXT */}
+            <div className="h-full space-y-4">
+              <DocumentPreviewer
+                fileName={extractionData.fileName}
+                fileType={extractionData.fileType}
+                initialUrl={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
+                url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
+              />
+
+              {extractionData.rawOcrText && (
+                <details className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-slate-300 text-xs">
+                  <summary className="font-bold text-setu-400 cursor-pointer text-[11px] uppercase tracking-wider flex items-center justify-between">
+                    <span>📜 View Raw OCR Image Text</span>
+                    <span className="text-[10px] font-normal text-slate-400">Extracted by Tesseract OCR</span>
+                  </summary>
+                  <pre className="mt-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-[11px] text-emerald-400 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                    {extractionData.rawOcrText}
+                  </pre>
+                </details>
+              )}
             </div>
 
             {/* RIGHT PANE: EDITABLE EXTRACTED FORM WITH CONFIDENCE BADGES */}

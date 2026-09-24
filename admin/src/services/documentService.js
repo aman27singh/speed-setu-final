@@ -1,5 +1,6 @@
 import { apiRequest, simulateDelay } from './apiClient';
 import { shipmentService } from './shipmentService';
+import Tesseract from 'tesseract.js';
 
 const mockSampleExtractions = [
   {
@@ -54,6 +55,128 @@ const mockSampleExtractions = [
   }
 ];
 
+/**
+ * Optical Character Recognition (OCR) Engine powered by Tesseract.js
+ * Parses raw text from uploaded image/photo and extracts invoice & consignment fields.
+ */
+export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
+  const docId = `doc-${Date.now()}`;
+  const fileName = file?.name || 'Uploaded_Invoice_Photo.jpg';
+  const fileSize = file?.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : '1.5 MB';
+
+  try {
+    console.log('[Tesseract OCR Engine] Initializing image recognition for:', fileName);
+    const result = await Tesseract.recognize(file, 'eng', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          console.log(`[Tesseract OCR] Progress: ${Math.round((m.progress || 0) * 100)}%`);
+        }
+      }
+    });
+
+    const text = result?.data?.text || '';
+    console.log('[Tesseract OCR Engine] Raw Extracted Image Text:\n', text);
+
+    // 1. Extract Indian GSTINs (15 alphanumeric characters)
+    const gstinMatches = text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b/gi) || [];
+    const consignorGST = gstinMatches[0] || '';
+    const consigneeGST = gstinMatches[1] || '';
+
+    // 2. Extract Invoice Number
+    const invMatch = text.match(/(?:INV|INVOICE|BILL|TAX INVOICE|NO|NUM|NUMBER)[:.#\s]*([A-Z0-9/-]{3,20})/i);
+    const invoiceNo = invMatch ? invMatch[1].trim() : '';
+
+    // 3. Extract Invoice Date
+    const dateMatch = text.match(/(?:DATE|INV DATE|INVOICE DATE)[:.\s]*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+    const invoiceDate = dateMatch ? dateMatch[1].trim() : new Date().toISOString().split('T')[0];
+
+    // 4. Extract Invoice Amount / Value
+    const valMatch = text.match(/(?:TOTAL|GRAND TOTAL|NET AMOUNT|AMOUNT|VALUE|VAL|RS|INR)[:.:\s]*₹?\s*([\d,]+(?:\.\d{2})?)/i);
+    const invoiceVal = valMatch ? parseFloat(valMatch[1].replace(/,/g, '')) : '';
+
+    // 5. Extract Packages Count
+    const pkgMatch = text.match(/(?:PKGS|PACKAGES|BOXES|QTY|QUANTITY|ITEMS|CARTONS)[:.\s]*(\d+)/i);
+    const packages = pkgMatch ? parseInt(pkgMatch[1], 10) : '';
+
+    // 6. Extract Weight
+    const wtMatch = text.match(/(?:WEIGHT|WT|GROSS WT|NET WT)[:.\s]*([\d.]+)\s*(?:KG|KGS|TON)?/i);
+    const weight = wtMatch ? parseFloat(wtMatch[1]) : '';
+
+    // 7. Extract E-Way Bill Number
+    const ewayMatch = text.match(/(?:EWAY|E-WAY|EWAY BILL|E-WAY BILL)[:.\s]*(\d{12})/i);
+    const ewayNo = ewayMatch ? ewayMatch[1].trim() : '';
+
+    // 8. Extract Company / Consignor / Consignee Name candidates from text lines
+    const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 3);
+    const companyKeywords = /(PVT|LTD|LIMITED|LOGISTICS|INDUSTRIES|CORP|MOTORS|AUTO|WORKS|ENTERPRISES|INFRA)/i;
+    const matchingLines = lines.filter((l) => companyKeywords.test(l));
+
+    const consignorName = matchingLines[0] || (lines[0] || '');
+    const consigneeName = matchingLines[1] || (lines[1] || '');
+
+    // 9. Extract Origin & Destination Cities
+    const cityKeywords = /(BENGALURU|BANGALORE|PUNE|MUMBAI|DELHI|GURGAON|NOIDA|CHENNAI|HYDERABAD|AHMEDABAD|JAIPUR|SURAT|KOLKATA)/gi;
+    const cities = text.match(cityKeywords) || [];
+    const originCity = cities[0] ? cities[0] : '';
+    const destCity = cities[1] ? cities[1] : '';
+
+    return {
+      documentId: docId,
+      fileName,
+      fileSize,
+      rawOcrText: text,
+      detectedDocType: docType === 'Auto Detect' ? 'Shipment Invoice' : docType,
+      extractedAt: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+      companyId: 'com-001',
+      companyName: consignorName || 'Advik Autocomp Pvt Ltd',
+      companyCode: 'COM-001',
+      company: {
+        name: { value: consignorName || 'Advik Autocomp Pvt Ltd', confidence: consignorName ? 0.85 : 0 }
+      },
+      consignor: {
+        name: { value: consignorName, confidence: consignorName ? 0.88 : 0 },
+        gstin: { value: consignorGST, confidence: consignorGST ? 0.95 : 0 },
+        address: { value: '', confidence: 0 },
+        city: { value: originCity, confidence: originCity ? 0.90 : 0 },
+        state: { value: '', confidence: 0 },
+        pin: { value: '', confidence: 0 },
+        contact: { value: '', confidence: 0 }
+      },
+      consignee: {
+        name: { value: consigneeName, confidence: consigneeName ? 0.85 : 0 },
+        gstin: { value: consigneeGST, confidence: consigneeGST ? 0.95 : 0 },
+        address: { value: '', confidence: 0 },
+        city: { value: destCity, confidence: destCity ? 0.90 : 0 },
+        state: { value: '', confidence: 0 },
+        pin: { value: '', confidence: 0 },
+        contact: { value: '', confidence: 0 }
+      },
+      shipment: {
+        origin: { value: originCity, confidence: originCity ? 0.90 : 0 },
+        destination: { value: destCity, confidence: destCity ? 0.90 : 0 },
+        mode: { value: 'Express LTL', confidence: 0.92 },
+        packages: { value: packages, confidence: packages ? 0.90 : 0 },
+        actualWeight: { value: weight, confidence: weight ? 0.90 : 0 },
+        chargeableWeight: { value: weight ? weight * 1.1 : '', confidence: weight ? 0.85 : 0 },
+        materialDescription: { value: '', confidence: 0 },
+        cnNumber: { value: `SS${Math.floor(100 + Math.random() * 900)}`, confidence: 0.95 }
+      },
+      invoice: {
+        invoiceNumber: { value: invoiceNo, confidence: invoiceNo ? 0.95 : 0 },
+        invoiceDate: { value: invoiceDate, confidence: invoiceDate ? 0.92 : 0 },
+        invoiceValue: { value: invoiceVal, confidence: invoiceVal ? 0.92 : 0 },
+        invoiceQuantity: { value: packages, confidence: packages ? 0.90 : 0 }
+      },
+      regulatory: {
+        ewayBillNumber: { value: ewayNo, confidence: ewayNo ? 0.98 : 0 }
+      }
+    };
+  } catch (err) {
+    console.warn('[Tesseract OCR Engine] Error during image recognition:', err);
+    return null;
+  }
+}
+
 let extractionsStore = [];
 
 export const documentService = {
@@ -64,8 +187,18 @@ export const documentService = {
     const fileName = file?.name || 'Uploaded_Document.pdf';
     const fileSize = file?.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : '1.5 MB';
 
+    // 1. Run real Tesseract OCR on uploaded image file
+    if (file && (file instanceof File || file instanceof Blob) && file.type?.startsWith('image/')) {
+      console.log('[Document Service] Running real Tesseract OCR engine on image file...');
+      const ocrResult = await parseInvoiceImageWithOCR(file, docType);
+      if (ocrResult) {
+        extractionsStore = [ocrResult, ...extractionsStore];
+        return ocrResult;
+      }
+    }
+
+    // 2. Fallback to backend REST OCR endpoint
     try {
-      // Call backend REST API OCR endpoint
       const result = await apiRequest('/shipments/extract-document', {
         method: 'POST',
         body: JSON.stringify({ fileName, docType })
