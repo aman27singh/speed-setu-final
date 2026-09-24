@@ -18,7 +18,9 @@ import {
   Settings,
   ShieldAlert,
   UserCheck,
-  Plus
+  Plus,
+  Camera,
+  Sparkles
 } from 'lucide-react';
 
 export const Sidebar = ({ isOpen, onClose }) => {
@@ -37,6 +39,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         groupLabel: 'Driver Portal',
         items: [
           { name: 'My Assigned Trips', path: '/admin/trips', icon: MapPin },
+          { name: 'Scan Invoice (Create CN)', path: '/admin/shipments/upload', icon: Camera },
           { name: 'Upload ePOD', path: '/admin/pod', icon: FileCheck },
           { name: 'Assigned Shipments', path: '/admin/shipments', icon: Truck },
           { name: 'Create Shipment', path: '/admin/shipments/new', icon: Plus }

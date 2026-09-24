@@ -120,7 +120,7 @@ export const AppRoutes = () => {
         {/* OPERATIONS MODULE ROUTES (All Roles Have Access to Operations / Driver Assigned Trips) */}
         <Route path="shipments" element={<ShipmentsPage />} />
         <Route path="shipments/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><ShipmentFormPage /></ProtectedRoute>} />
-        <Route path="shipments/upload" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><DocumentExtractionPage /></ProtectedRoute>} />
+        <Route path="shipments/upload" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><DocumentExtractionPage /></ProtectedRoute>} />
         <Route path="shipments/:id" element={<ShipmentDetailPage />} />
         <Route path="shipments/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><ShipmentFormPage /></ProtectedRoute>} />
 

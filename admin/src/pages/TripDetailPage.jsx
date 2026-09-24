@@ -25,7 +25,8 @@ import {
   Printer,
   DollarSign,
   AlertCircle,
-  X
+  X,
+  Camera
 } from 'lucide-react';
 
 export const TripDetailPage = () => {
@@ -162,6 +163,14 @@ export const TripDetailPage = () => {
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Update Status</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/admin/shipments/upload')}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
+          >
+            <Camera className="w-3.5 h-3.5 text-setu-600" />
+            <span>Scan Invoice</span>
           </button>
 
           <button

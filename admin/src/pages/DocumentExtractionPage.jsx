@@ -24,7 +24,8 @@ import {
   X,
   AlertCircle,
   Sparkles,
-  User
+  User,
+  Camera
 } from 'lucide-react';
 
 const DOC_TYPES = [
@@ -213,8 +214,17 @@ export const DocumentExtractionPage = () => {
               </select>
             </div>
 
-            {/* Drag and Drop Zone */}
-            <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-8 bg-slate-50 hover:bg-blue-50/20 transition-all space-y-4">
+            {/* Camera & File Upload Dropzone */}
+            <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-6 sm:p-8 bg-slate-50 hover:bg-blue-50/20 transition-all space-y-5">
+              {/* File Inputs */}
+              <input
+                type="file"
+                id="cameraUploadInput"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
               <input
                 type="file"
                 id="docUploadInput"
@@ -222,13 +232,31 @@ export const DocumentExtractionPage = () => {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <label htmlFor="docUploadInput" className="cursor-pointer space-y-3 block">
-                <UploadCloud className="w-12 h-12 text-setu-600 mx-auto" />
-                <div>
-                  <span className="text-sm font-bold text-slate-900 block">Drag & drop or Click to Browse Files</span>
-                  <span className="text-xs text-slate-500 font-mono">JPG • PNG • PDF • XLSX • CSV (Max 25MB)</span>
-                </div>
-              </label>
+
+              {/* Action Buttons: Camera Photo vs Browse Files */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+                <label
+                  htmlFor="cameraUploadInput"
+                  className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-setu-600 hover:bg-setu-700 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+                >
+                  <Camera className="w-8 h-8" />
+                  <div className="text-center">
+                    <span className="text-sm font-bold block">Take Invoice Photo</span>
+                    <span className="text-[11px] text-setu-100 font-medium">Use Mobile / Device Camera</span>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="docUploadInput"
+                  className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-white border border-slate-300 hover:border-setu-600 text-slate-800 rounded-xl shadow-xs transition-all hover:scale-[1.02]"
+                >
+                  <UploadCloud className="w-8 h-8 text-slate-600" />
+                  <div className="text-center">
+                    <span className="text-sm font-bold block">Browse Document</span>
+                    <span className="text-[11px] text-slate-500 font-mono">JPG, PNG, PDF, XLSX</span>
+                  </div>
+                </label>
+              </div>
 
               <div className="pt-3 border-t border-slate-200">
                 <button

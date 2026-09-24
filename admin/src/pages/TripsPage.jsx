@@ -10,7 +10,7 @@ import { SearchBar } from '../components/common/SearchBar';
 import { FilterBar } from '../components/common/FilterBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
-import { Plus, Eye, Edit, Truck, MapPin, Package } from 'lucide-react';
+import { Plus, Eye, Edit, Truck, MapPin, Package, Camera } from 'lucide-react';
 
 export const TripsPage = () => {
   const navigate = useNavigate();
@@ -158,13 +158,22 @@ export const TripsPage = () => {
         description="Manage linehaul transport movements, driver assignments, and assigned consignment notes."
         breadcrumbs={['Speed Setu Admin', 'Operations', 'Trips']}
         actions={
-          <button
-            onClick={() => navigate('/admin/trips/new')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Trip</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/admin/shipments/upload')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 rounded-md shadow-xs transition-colors"
+            >
+              <Camera className="w-4 h-4 text-setu-600" />
+              <span>Scan Invoice (Create CN)</span>
+            </button>
+            <button
+              onClick={() => navigate('/admin/trips/new')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Trip</span>
+            </button>
+          </div>
         }
       />
 
