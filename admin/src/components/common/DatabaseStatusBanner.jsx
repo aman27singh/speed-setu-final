@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
+import { BASE_URL } from '../../services/apiClient';
 
 export const DatabaseStatusBanner = () => {
   const [hasError, setHasError] = useState(false);
@@ -7,17 +8,9 @@ export const DatabaseStatusBanner = () => {
   const [isChecking, setIsChecking] = useState(false);
 
   const checkHealth = async () => {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const apiUrl = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:5050/api' : null);
-
-    if (!apiUrl) {
-      setHasError(false);
-      return;
-    }
-
     setIsChecking(true);
     try {
-      const res = await fetch(`${apiUrl}/health`);
+      const res = await fetch(`${BASE_URL}/health`);
       if (res.ok) {
         const data = await res.json();
         if (data.connected) {

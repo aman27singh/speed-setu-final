@@ -44,8 +44,20 @@ import { CustomerProfitabilityPage } from './pages/CustomerProfitabilityPage';
 import { RouteAnalysisPage } from './pages/RouteAnalysisPage';
 import { MonthlyMISPage } from './pages/MonthlyMISPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 import { LoadingState } from './components/common/LoadingState';
+import { ServerWarmingScreen } from './components/common/ServerWarmingScreen';
+
+// Server Ready Guard to wait for Render Backend cold start
+const ServerReadyGuard = ({ children }) => {
+  const [isServerReady, setIsServerReady] = React.useState(false);
+  const { isDriver } = useAuth();
+
+  if (!isServerReady) {
+    return <ServerWarmingScreen onReady={() => setIsServerReady(true)} isDriver={isDriver} />;
+  }
+
+  return children;
+};
 
 // Protected Route Wrapper Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -191,7 +203,9 @@ export default function App() {
       <AuthProvider>
         <SearchProvider>
           <SpaRedirectHandler />
-          <AppRoutes />
+          <ServerReadyGuard>
+            <AppRoutes />
+          </ServerReadyGuard>
         </SearchProvider>
       </AuthProvider>
     </BrowserRouter>
