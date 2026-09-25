@@ -43,6 +43,7 @@ export const DocumentExtractionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isDriver } = useAuth();
+  const isDriverAccount = isDriver || (user?.role && String(user.role).toLowerCase().includes('driver'));
 
   // Check query params for target shipment if navigating from existing shipment
   const searchParams = new URLSearchParams(location.search);
@@ -250,9 +251,13 @@ export const DocumentExtractionPage = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <PageHeader
-        title="AI Document Extraction Studio"
-        description="Extract Consignment Notes, invoices, and e-way bills with AI OCR assistant."
-        breadcrumbs={['Speed Setu Admin', 'Operations', 'AI Document Extraction']}
+        title={isDriverAccount ? 'Scan Invoice (Create CN)' : 'AI Document Extraction Studio'}
+        description={
+          isDriverAccount
+            ? 'Take a photo of the tax invoice to create Consignment Note.'
+            : 'Extract Consignment Notes, invoices, and e-way bills with AI OCR assistant.'
+        }
+        breadcrumbs={!isDriverAccount ? ['Speed Setu Admin', 'Operations', 'AI Document Extraction'] : undefined}
         actions={
           <button
             type="button"
@@ -277,125 +282,159 @@ export const DocumentExtractionPage = () => {
 
       {/* STAGE 1: UPLOAD DROPZONE */}
       {stage === 'upload' && (
-        <div className="max-w-3xl mx-auto space-y-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-xs text-center space-y-6">
+        <div className="max-w-xl mx-auto space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Upload Shipment Document for AI Extraction</h3>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                {isDriverAccount ? 'Take Tax Invoice Photo' : 'Upload Shipment Document for AI Extraction'}
+              </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Upload a scanned CN, tax invoice or e-way bill to extract structured fields automatically.
+                {isDriverAccount
+                  ? 'Take a photo of the invoice with your phone camera.'
+                  : 'Upload a scanned CN, tax invoice or e-way bill to extract structured fields automatically.'}
               </p>
             </div>
 
-            {/* Document Type Selector */}
-            <div className="max-w-md mx-auto text-left">
-              <label className="block font-bold text-slate-700 uppercase tracking-wider text-xs mb-1">
-                Document Category
-              </label>
-              <select
-                value={selectedDocType}
-                onChange={(e) => setSelectedDocType(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
-              >
-                {DOC_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+            {/* Document Type Selector (Admin Only) */}
+            {!isDriverAccount && (
+              <div className="max-w-md mx-auto text-left">
+                <label className="block font-bold text-slate-700 uppercase tracking-wider text-xs mb-1">
+                  Document Category
+                </label>
+                <select
+                  value={selectedDocType}
+                  onChange={(e) => setSelectedDocType(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
+                >
+                  {DOC_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-            {/* Camera & File Upload Dropzone */}
-            <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-6 sm:p-8 bg-slate-50 hover:bg-blue-50/20 transition-all space-y-5">
-              {/* File Inputs */}
-              <input
-                type="file"
-                id="cameraUploadInput"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <input
-                type="file"
-                id="docUploadInput"
-                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            {/* File Inputs */}
+            <input
+              type="file"
+              id="cameraUploadInput"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <input
+              type="file"
+              id="docUploadInput"
+              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
 
-              {/* Action Buttons: Camera Photo vs Browse Files */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+            {/* Action Buttons */}
+            {isDriverAccount ? (
+              <div className="space-y-3 pt-2">
                 <label
                   htmlFor="cameraUploadInput"
-                  className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-setu-600 hover:bg-setu-700 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+                  className="cursor-pointer flex flex-col items-center justify-center gap-2.5 p-6 bg-setu-600 hover:bg-setu-700 text-white rounded-2xl shadow-md active:scale-95 transition-all"
                 >
-                  <Camera className="w-8 h-8" />
+                  <Camera className="w-10 h-10" />
                   <div className="text-center">
-                    <span className="text-sm font-bold block">Take Invoice Photo</span>
-                    <span className="text-[11px] text-setu-100 font-medium">Use Mobile / Device Camera</span>
+                    <span className="text-base font-bold block">📷 Take Invoice Photo</span>
+                    <span className="text-xs text-setu-100 font-medium">Use Mobile / Device Camera</span>
                   </div>
                 </label>
 
                 <label
                   htmlFor="docUploadInput"
-                  className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-white border border-slate-300 hover:border-setu-600 text-slate-800 rounded-xl shadow-xs transition-all hover:scale-[1.02]"
+                  className="cursor-pointer flex items-center justify-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors"
                 >
-                  <UploadCloud className="w-8 h-8 text-slate-600" />
-                  <div className="text-center">
-                    <span className="text-sm font-bold block">Browse Document</span>
-                    <span className="text-[11px] text-slate-500 font-mono">JPG, PNG, PDF, XLSX</span>
-                  </div>
+                  <UploadCloud className="w-4 h-4 text-setu-600" />
+                  <span>Choose file from phone gallery</span>
                 </label>
               </div>
+            ) : (
+              <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-6 sm:p-8 bg-slate-50 hover:bg-blue-50/20 transition-all space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+                  <label
+                    htmlFor="cameraUploadInput"
+                    className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-setu-600 hover:bg-setu-700 text-white rounded-xl shadow-sm transition-all hover:scale-[1.02]"
+                  >
+                    <Camera className="w-8 h-8" />
+                    <div className="text-center">
+                      <span className="text-sm font-bold block">Take Invoice Photo</span>
+                      <span className="text-[11px] text-setu-100 font-medium">Use Mobile / Device Camera</span>
+                    </div>
+                  </label>
 
-              <div className="pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={handleRunDemoSample}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg shadow-xs transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>⚡ Try Demo AI Extraction Sample (Consignment_Note_SS253.pdf)</span>
-                </button>
+                  <label
+                    htmlFor="docUploadInput"
+                    className="cursor-pointer flex flex-col items-center justify-center gap-2 p-5 bg-white border border-slate-300 hover:border-setu-600 text-slate-800 rounded-xl shadow-xs transition-all hover:scale-[1.02]"
+                  >
+                    <UploadCloud className="w-8 h-8 text-slate-600" />
+                    <div className="text-center">
+                      <span className="text-sm font-bold block">Browse Document</span>
+                      <span className="text-[11px] text-slate-500 font-mono">JPG, PNG, PDF, XLSX</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={handleRunDemoSample}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg shadow-xs transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <span>⚡ Try Demo AI Extraction Sample (Consignment_Note_SS253.pdf)</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {/* STAGE 2: PROCESSING STEPPER */}
       {stage === 'processing' && (
-        <div className="max-w-lg mx-auto bg-white border border-slate-200 rounded-xl p-8 shadow-xs text-center space-y-6">
+        <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-5 shadow-xs">
           <RefreshCw className="w-10 h-10 text-setu-600 mx-auto animate-spin" />
 
           <div>
-            <h3 className="text-base font-bold text-slate-900">AI Vision Processing Document...</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Reading bounding boxes, OCR text and company matching</p>
+            <h3 className="text-base font-bold text-slate-900">
+              {isDriverAccount ? 'Scanning Invoice...' : 'AI Vision Processing Document...'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isDriverAccount ? 'Reading details from photo, please wait...' : 'Reading bounding boxes, OCR text and company matching'}
+            </p>
           </div>
 
-          <div className="space-y-3 text-xs text-left max-w-xs mx-auto border-t border-slate-100 pt-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 1 ? 'text-emerald-600' : 'text-slate-300'}`} />
-              <span className={stepIndex >= 1 ? 'font-semibold text-slate-900' : 'text-slate-400'}>Document uploaded</span>
-            </div>
+          {!isDriverAccount && (
+            <div className="space-y-3 text-xs text-left max-w-xs mx-auto border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 1 ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span className={stepIndex >= 1 ? 'font-semibold text-slate-900' : 'text-slate-400'}>Document uploaded</span>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 2 ? 'text-emerald-600' : 'text-slate-300'}`} />
-              <span className={stepIndex >= 2 ? 'font-semibold text-slate-900' : 'text-slate-400'}>
-                Document type detected ({selectedDocType})
-              </span>
-            </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 2 ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span className={stepIndex >= 2 ? 'font-semibold text-slate-900' : 'text-slate-400'}>
+                  Document type detected ({selectedDocType})
+                </span>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 3 ? 'text-emerald-600' : 'text-slate-300'}`} />
-              <span className={stepIndex >= 3 ? 'font-semibold text-slate-900' : 'text-slate-400'}>Reading document & OCR</span>
-            </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 3 ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span className={stepIndex >= 3 ? 'font-semibold text-slate-900' : 'text-slate-400'}>Reading document & OCR</span>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 4 ? 'text-emerald-600' : 'text-slate-300'}`} />
-              <span className={stepIndex >= 4 ? 'font-semibold text-slate-900' : 'text-slate-400'}>
-                Extracting & validating fields
-              </span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 ${stepIndex >= 4 ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span className={stepIndex >= 4 ? 'font-semibold text-slate-900' : 'text-slate-400'}>
+                  Extracting & validating fields
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -422,8 +461,8 @@ export const DocumentExtractionPage = () => {
             </div>
           )}
 
-          {/* SAFEGUARDS & WARNING BANNERS */}
-          {matchAnalysis?.warnings?.length > 0 && (
+          {/* SAFEGUARDS & WARNING BANNERS (Admin Only) */}
+          {!isDriverAccount && matchAnalysis?.warnings?.length > 0 && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs space-y-1">
               <div className="flex items-center gap-2 font-bold text-amber-900 text-sm mb-1">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -469,7 +508,7 @@ export const DocumentExtractionPage = () => {
                 url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
               />
 
-              {extractionData.rawOcrText && (
+              {!isDriverAccount && extractionData.rawOcrText && (
                 <details className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-slate-300 text-xs">
                   <summary className="font-bold text-setu-400 cursor-pointer text-[11px] uppercase tracking-wider flex items-center justify-between">
                     <span>📜 View Raw OCR Image Text</span>
