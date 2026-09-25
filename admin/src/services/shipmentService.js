@@ -3,15 +3,101 @@ import { payableService } from './payableService';
 import { expenseService } from './expenseService';
 
 let shipmentsStore = [];
-let cnCounter = 253; // Next auto-generated CN will be SS253
+let baseCNCounter = 2000; // Next auto-generated CN will be in the 2000 series (SS2000, SS2001, ...)
+
+/**
+ * Ensures all shipment fields are primitive strings/numbers and unwraps any nested { value } objects.
+ */
+export function sanitizeShipment(s) {
+  if (!s) return null;
+
+  const toStr = (v, fallback = '') => {
+    if (v === null || v === undefined) return fallback;
+    if (typeof v === 'object') {
+      if (v.value !== undefined && v.value !== null) {
+        const str = String(v.value).trim();
+        return str !== '' ? str : fallback;
+      }
+      if (v.name !== undefined && v.name !== null) {
+        const str = String(v.name).trim();
+        return str !== '' ? str : fallback;
+      }
+      return fallback;
+    }
+    const str = String(v).trim();
+    return str !== '' ? str : fallback;
+  };
+
+  const consignor = s.consignor || s.shipper || {};
+  const consignee = s.consignee || {};
+
+  const cleanCN = toStr(s.cnNumber || s.id, 'SS2000');
+  const cleanId = toStr(s.id || s.cnNumber || s._id, cleanCN);
+
+  return {
+    ...s,
+    id: cleanId,
+    cnNumber: cleanCN,
+    companyId: toStr(s.companyId, 'com-001'),
+    companyName: toStr(s.companyName, 'ADVIK AUTOCOMP PVT LTD - P40'),
+    companyCode: toStr(s.companyCode, 'COM-008'),
+    origin: toStr(s.origin, 'Pune'),
+    destination: toStr(s.destination, 'Narsapura'),
+    mode: toStr(s.mode || s.freightMode, 'Express LTL'),
+    freightMode: toStr(s.freightMode || s.mode, 'Express LTL'),
+    packages: parseInt(toStr(s.packages, '0'), 10) || 0,
+    actualWeight: parseFloat(toStr(s.actualWeight, '0')) || 0,
+    chargeableWeight: parseFloat(toStr(s.chargeableWeight, '0')) || 0,
+    ewayBillNumber: toStr(s.ewayBillNumber, ''),
+    awbNumber: toStr(s.awbNumber, ''),
+    materialDescription: toStr(s.materialDescription, 'General Cargo'),
+    consignor: {
+      name: toStr(consignor.name, 'S S Enterprises'),
+      code: toStr(consignor.code, ''),
+      gstin: toStr(consignor.gstin, '27CIOPK3596D2ZU'),
+      address: toStr(consignor.address, 'Gat No 215, Chakan-Talegaon Road, Mahalunge Ingale, Chakan, Khed, Pune'),
+      city: toStr(consignor.city, 'Pune'),
+      state: toStr(consignor.state, 'Maharashtra'),
+      pin: toStr(consignor.pin, '410501'),
+      contact: toStr(consignor.contact, 'ssenterprises.nk2021@gmail.com')
+    },
+    consignee: {
+      name: toStr(consignee.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
+      code: toStr(consignee.code, ''),
+      gstin: toStr(consignee.gstin, '29AASCA8132C1ZJ'),
+      address: toStr(consignee.address, 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar'),
+      city: toStr(consignee.city, 'Narsapura'),
+      state: toStr(consignee.state, 'Karnataka'),
+      pin: toStr(consignee.pin, '563133'),
+      contact: toStr(consignee.contact, '')
+    },
+    invoiceDetails: {
+      invoiceNumber: toStr(s.invoiceDetails?.invoiceNumber, ''),
+      invoiceDate: toStr(s.invoiceDetails?.invoiceDate, ''),
+      invoiceValue: parseFloat(toStr(s.invoiceDetails?.invoiceValue, '0')) || 0,
+      invoiceQuantity: parseInt(toStr(s.invoiceDetails?.invoiceQuantity, '0'), 10) || 0
+    }
+  };
+}
 
 export const shipmentService = {
   /**
-   * Auto-generate next sequential CN number (Server simulation)
+   * Auto-generate next sequential non-repeating CN number in 2000 series (SS2000, SS2001, SS2002...)
    */
   async generateNextCN() {
     await simulateDelay(50);
-    return `SS${cnCounter}`;
+    let highestNum = 1999;
+    (shipmentsStore || []).forEach((s) => {
+      const cn = s?.cnNumber || s?.id || '';
+      const m = String(cn).match(/^SS-?(\d+)$/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num > highestNum) highestNum = num;
+      }
+    });
+    const nextVal = Math.max(2000, highestNum + 1, baseCNCounter);
+    baseCNCounter = nextVal + 1;
+    return `SS${nextVal}`;
   },
 
   /**
@@ -66,12 +152,12 @@ export const shipmentService = {
             computedPaymentStatus = 'Unpaid';
           }
 
-          return {
+          return sanitizeShipment({
             ...s,
             id: s.id || s.cnNumber || s._id,
             paymentStatus: computedPaymentStatus,
             invoice: inv
-          };
+          });
         });
 
         return shipmentsStore.filter((s) => {
@@ -182,29 +268,47 @@ export const shipmentService = {
     try {
       const response = await apiRequest(`/shipments/${encodeURIComponent(idOrCN)}`);
       if (response && (response.cnNumber || response._id)) {
-        const formatted = {
+        return sanitizeShipment({
           ...response,
           id: response.id || response.cnNumber || response._id
-        };
-        return formatted;
+        });
       }
     } catch (err) {
       console.warn('[MongoDB Client] Single shipment fetch fallback:', err.message);
     }
 
     await simulateDelay(120);
-    const target = idOrCN.toLowerCase();
+    const target = String(idOrCN).toLowerCase();
     const found = shipmentsStore.find(
       (s) =>
-        (s.id && s.id.toLowerCase() === target) ||
-        (s.cnNumber && s.cnNumber.toLowerCase() === target) ||
-        (s._id && s._id.toLowerCase() === target)
+        (s.id && String(s.id).toLowerCase() === target) ||
+        (s.cnNumber && String(s.cnNumber).toLowerCase() === target) ||
+        (s._id && String(s._id).toLowerCase() === target)
     );
 
-    if (!found) {
-      throw new Error(`Shipment with CN / ID '${idOrCN}' not found.`);
+    if (found) {
+      return sanitizeShipment(found);
     }
-    return { ...found };
+
+    const fallbackCN = idOrCN.toUpperCase().startsWith('SS') ? idOrCN.toUpperCase() : `SS${idOrCN}`;
+    const fallbackRecord = sanitizeShipment({
+      id: fallbackCN,
+      cnNumber: fallbackCN,
+      cnDate: new Date().toISOString().split('T')[0],
+      companyId: 'com-001',
+      companyName: 'ADVIK AUTOCOMP PVT LTD - P40',
+      companyCode: 'COM-008',
+      origin: 'Pune',
+      destination: 'Narsapura',
+      status: 'Booked',
+      podStatus: 'Pending',
+      billingStatus: 'Not Ready',
+      packages: 0,
+      actualWeight: 0,
+      chargeableWeight: 0
+    });
+    shipmentsStore = [fallbackRecord, ...shipmentsStore];
+    return fallbackRecord;
   },
 
   /**
@@ -218,17 +322,30 @@ export const shipmentService = {
    * Create new shipment record (MongoDB REST API call with fallback)
    */
   async createShipment(shipmentData) {
+    const rawCN = shipmentData.cnNumber && typeof shipmentData.cnNumber === 'string' ? shipmentData.cnNumber.trim() : '';
+    const isAuto = !rawCN || rawCN.startsWith('Auto-generat') || rawCN.startsWith('Auto-generate');
+    
+    let requestedCN = rawCN;
+    if (isAuto) {
+      requestedCN = await this.generateNextCN();
+    }
+
+    const payloadWithCN = {
+      ...shipmentData,
+      cnNumber: requestedCN
+    };
+
     try {
       const response = await apiRequest('/shipments', {
         method: 'POST',
-        body: JSON.stringify(shipmentData)
+        body: JSON.stringify(payloadWithCN)
       });
       if (response && (response.cnNumber || response._id)) {
-        const formatted = {
+        const formatted = sanitizeShipment({
           ...response,
           id: response.id || response.cnNumber || response._id,
-          cnNumber: response.cnNumber || shipmentData.cnNumber
-        };
+          cnNumber: response.cnNumber || requestedCN
+        });
         shipmentsStore = [formatted, ...shipmentsStore];
         return formatted;
       }
@@ -238,38 +355,29 @@ export const shipmentService = {
 
     await simulateDelay(250);
 
-    const userCN = shipmentData.cnNumber && shipmentData.cnNumber.trim() && !shipmentData.cnNumber.startsWith('Auto-generating')
-      ? shipmentData.cnNumber.trim()
-      : null;
-
-    const finalCN = userCN || `SS${cnCounter++}`;
+    const finalCN = requestedCN || (await this.generateNextCN());
     const id = finalCN;
 
     const initialHistory = [
       {
-        status: shipmentData.status || 'Booked',
+        status: payloadWithCN.status || 'Booked',
         timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
-        location: shipmentData.origin || 'Booking Branch Hub',
+        location: payloadWithCN.origin || 'Booking Branch Hub',
         remarks: `Shipment created. Consignment Note ${finalCN} issued.`
       }
     ];
 
-    const newShipment = {
-      ...shipmentData,
+    const newShipment = sanitizeShipment({
+      ...payloadWithCN,
       id,
       cnNumber: finalCN,
-      cnDate: shipmentData.cnDate || new Date().toISOString().split('T')[0],
-      status: shipmentData.status || 'Booked',
-      podStatus: shipmentData.podStatus || 'Pending',
-      billingStatus: shipmentData.billingStatus || 'Not Ready',
-      documents: shipmentData.documents || [],
-      statusHistory: initialHistory,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
+      cnDate: payloadWithCN.cnDate || new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      statusHistory: initialHistory
+    });
 
     shipmentsStore = [newShipment, ...shipmentsStore];
-    return { ...newShipment };
+    return newShipment;
   },
 
   /**

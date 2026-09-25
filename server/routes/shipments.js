@@ -58,14 +58,20 @@ router.get('/:idOrCN', async (req, res) => {
 // POST /api/shipments — Create shipment
 router.post('/', async (req, res) => {
   try {
-    let finalCN = req.body.cnNumber && req.body.cnNumber.trim();
-    if (!finalCN || finalCN.startsWith('Auto-generating')) {
-      const counter = await Counter.findByIdAndUpdate(
-        'cn_seq',
-        { $inc: { seq: 1 } },
-        { new: true, upsert: true }
-      );
-      finalCN = `SS${counter.seq}`;
+    let finalCN = req.body.cnNumber && typeof req.body.cnNumber === 'string' ? req.body.cnNumber.trim() : '';
+    if (!finalCN || finalCN.startsWith('Auto-generat') || finalCN.startsWith('Auto-generate')) {
+      const existingSSShipments = await Shipment.find({ cnNumber: /^SS-?\d+$/i }).select('cnNumber').lean().catch(() => []);
+      let maxNum = 1999;
+      (existingSSShipments || []).forEach((s) => {
+        const match = String(s.cnNumber || '').match(/^SS-?(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      const nextSeq = Math.max(2000, maxNum + 1);
+      finalCN = `SS${nextSeq}`;
+      await Counter.findByIdAndUpdate('cn_seq', { seq: nextSeq }, { upsert: true }).catch(() => null);
     }
 
     const cnDate = req.body.cnDate || req.body.bookingDate || new Date().toISOString().split('T')[0];

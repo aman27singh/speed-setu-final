@@ -267,48 +267,71 @@ export const documentService = {
       extractionsStore[idx].extractionStatus = 'Confirmed';
     }
 
+    const getStr = (field, fallback = '') => {
+      if (field === null || field === undefined) return fallback;
+      if (typeof field === 'object') {
+        if (field.value !== undefined && field.value !== null) {
+          const str = String(field.value).trim();
+          return str !== '' ? str : fallback;
+        }
+        if (field.name !== undefined && field.name !== null) {
+          const str = String(field.name).trim();
+          return str !== '' ? str : fallback;
+        }
+        return fallback;
+      }
+      const str = String(field).trim();
+      return str !== '' ? str : fallback;
+    };
+
+    let extractedCN = getStr(finalData.shipment?.cnNumber);
+    if (!extractedCN || extractedCN.startsWith('Auto-generat') || extractedCN.startsWith('Auto-generate')) {
+      extractedCN = await shipmentService.generateNextCN();
+    }
+
     // Transform extracted fields into official shipment payload
     const shipmentPayload = {
-      companyId: finalData.companyId || 'com-001',
-      companyName: finalData.companyName || finalData.company?.name?.value || 'ADVIK AUTOCOMP PVT LTD',
-      companyCode: finalData.companyCode || 'COM-008',
+      cnNumber: extractedCN,
+      companyId: getStr(finalData.companyId, 'com-001'),
+      companyName: getStr(finalData.companyName || finalData.company?.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
+      companyCode: getStr(finalData.companyCode, 'COM-008'),
 
       consignor: {
-        name: finalData.consignor?.name?.value || finalData.consignor?.name || 'S S Enterprises',
-        gstin: finalData.consignor?.gstin?.value || finalData.consignor?.gstin || '27CIOPK3596D2ZU',
-        address: finalData.consignor?.address?.value || finalData.consignor?.address || 'Gat No 215, Chakan-Talegaon Road, Mahalunge Ingale, Chakan, Khed, Pune',
-        city: finalData.consignor?.city?.value || finalData.consignor?.city || 'Pune',
-        state: finalData.consignor?.state?.value || finalData.consignor?.state || 'Maharashtra',
-        pin: finalData.consignor?.pin?.value || finalData.consignor?.pin || '410501',
-        contact: finalData.consignor?.contact?.value || finalData.consignor?.contact || 'ssenterprises.nk2021@gmail.com'
+        name: getStr(finalData.consignor?.name, 'S S Enterprises'),
+        gstin: getStr(finalData.consignor?.gstin, '27CIOPK3596D2ZU'),
+        address: getStr(finalData.consignor?.address, 'Gat No 215, Chakan-Talegaon Road, Mahalunge Ingale, Chakan, Khed, Pune'),
+        city: getStr(finalData.consignor?.city, 'Pune'),
+        state: getStr(finalData.consignor?.state, 'Maharashtra'),
+        pin: getStr(finalData.consignor?.pin, '410501'),
+        contact: getStr(finalData.consignor?.contact, 'ssenterprises.nk2021@gmail.com')
       },
 
       consignee: {
-        name: finalData.consignee?.name?.value || finalData.consignee?.name || 'ADVIK AUTOCOMP PVT LTD - P40',
-        gstin: finalData.consignee?.gstin?.value || finalData.consignee?.gstin || '29AASCA8132C1ZJ',
-        address: finalData.consignee?.address?.value || finalData.consignee?.address || 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar',
-        city: finalData.consignee?.city?.value || finalData.consignee?.city || 'Narsapura',
-        state: finalData.consignee?.state?.value || finalData.consignee?.state || 'Karnataka',
-        pin: finalData.consignee?.pin?.value || finalData.consignee?.pin || '563133',
-        contact: finalData.consignee?.contact?.value || finalData.consignee?.contact || ''
+        name: getStr(finalData.consignee?.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
+        gstin: getStr(finalData.consignee?.gstin, '29AASCA8132C1ZJ'),
+        address: getStr(finalData.consignee?.address, 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar'),
+        city: getStr(finalData.consignee?.city, 'Narsapura'),
+        state: getStr(finalData.consignee?.state, 'Karnataka'),
+        pin: getStr(finalData.consignee?.pin, '563133'),
+        contact: getStr(finalData.consignee?.contact, '')
       },
 
-      origin: finalData.shipment?.origin?.value || finalData.shipment?.origin || 'Pune',
-      destination: finalData.shipment?.destination?.value || finalData.shipment?.destination || 'Narsapura',
-      mode: finalData.shipment?.mode?.value || finalData.shipment?.mode || 'Express LTL',
-      packages: parseInt(finalData.shipment?.packages?.value || finalData.shipment?.packages || 0, 10) || 0,
-      actualWeight: parseFloat(finalData.shipment?.actualWeight?.value || finalData.shipment?.actualWeight || 320),
-      chargeableWeight: parseFloat(finalData.shipment?.chargeableWeight?.value || finalData.shipment?.chargeableWeight || 350),
-      materialDescription: finalData.shipment?.materialDescription?.value || finalData.shipment?.materialDescription || 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos',
+      origin: getStr(finalData.shipment?.origin, 'Pune'),
+      destination: getStr(finalData.shipment?.destination, 'Narsapura'),
+      mode: getStr(finalData.shipment?.mode, 'Express LTL'),
+      packages: parseInt(getStr(finalData.shipment?.packages, '0'), 10) || 0,
+      actualWeight: parseFloat(getStr(finalData.shipment?.actualWeight, '0')) || 0,
+      chargeableWeight: parseFloat(getStr(finalData.shipment?.chargeableWeight, '0')) || 0,
+      materialDescription: getStr(finalData.shipment?.materialDescription, 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos'),
 
       invoiceDetails: {
-        invoiceNumber: finalData.invoice?.invoiceNumber?.value || finalData.invoice?.invoiceNumber || 'SSE-26-27/1317',
-        invoiceDate: finalData.invoice?.invoiceDate?.value || finalData.invoice?.invoiceDate || '2026-09-09',
-        invoiceValue: parseFloat(finalData.invoice?.invoiceValue?.value || finalData.invoice?.invoiceValue || 37004.80),
-        invoiceQuantity: parseInt(finalData.invoice?.invoiceQuantity?.value || finalData.invoice?.invoiceQuantity || 800, 10)
+        invoiceNumber: getStr(finalData.invoice?.invoiceNumber, 'SSE-26-27/1317'),
+        invoiceDate: getStr(finalData.invoice?.invoiceDate, '2026-09-09'),
+        invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '37004.80')) || 0,
+        invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '800'), 10) || 0
       },
 
-      ewayBillNumber: finalData.regulatory?.ewayBillNumber?.value || finalData.regulatory?.ewayBillNumber || '3140000023',
+      ewayBillNumber: getStr(finalData.regulatory?.ewayBillNumber, ''),
       status: 'Booked',
       podStatus: 'Pending',
       billingStatus: 'Not Ready',

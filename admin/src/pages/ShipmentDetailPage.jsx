@@ -101,16 +101,10 @@ export const ShipmentDetailPage = () => {
   const fetchShipment = async () => {
     setLoading(true);
     try {
-      let data;
-      try {
-        data = await shipmentService.getShipment(id);
-      } catch (err) {
-        // Fallback to static mock generator if not in master service list
-        data = getShipmentDetailByCN(id);
-      }
+      const data = await shipmentService.getShipment(id);
       setShipment(data);
-      setNewStatus(data.status);
-      setStatusLocation(data.operational?.currentLocation || data.origin);
+      setNewStatus(data.status || 'Booked');
+      setStatusLocation(typeof data.operational?.currentLocation === 'string' ? data.operational.currentLocation : (data.origin || ''));
       setStatusDriver(data.operational?.driver || '');
       setStatusVehicle(data.operational?.vehicle || '');
       setStatusTransporterType(data.operational?.transporterType || 'Market Driver');
@@ -124,6 +118,7 @@ export const ShipmentDetailPage = () => {
         console.warn('[Shipment Details] Billing calculation fallback:', e.message);
       }
     } catch (err) {
+      console.error('[Shipment Details] Fetch error:', err);
       alert(err.message || 'Failed to load shipment profile.');
       navigate('/admin/shipments');
     } finally {
