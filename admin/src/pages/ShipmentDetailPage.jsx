@@ -233,6 +233,11 @@ export const ShipmentDetailPage = () => {
                 {shipment.companyName || 'General Logistics Customer'}
               </span>
 
+              <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-800 font-bold border border-blue-200 flex items-center gap-1 shrink-0">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                <span>Created by: {shipment.createdByName || shipment.createdBy || shipment.operational?.driver || 'Admin'}</span>
+              </span>
+
               <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={shipment.status || 'Booked'} />
                 <StatusBadge status={shipment.podStatus || 'Pending'} />

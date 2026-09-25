@@ -24,7 +24,8 @@ import {
   Package,
   X,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  User
 } from 'lucide-react';
 
 export const ShipmentsPage = () => {
@@ -138,9 +139,7 @@ export const ShipmentsPage = () => {
           user.username,
           user.email,
           user.driverId,
-          user.name,
-          'driver',
-          'driver account'
+          user.name
         ]
           .filter(Boolean)
           .map((val) => String(val).toLowerCase().trim());
@@ -151,15 +150,12 @@ export const ShipmentsPage = () => {
           const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
           const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
 
-          const hasNoOwner = !createdByVal && !driverIdVal && !createdByNameVal && !operationalDriverVal;
-
-          const isCreatorMatch = hasNoOwner || driverIdentifiers.some((id) =>
+          // Strictly match if shipment was explicitly created by or assigned to THIS SPECIFIC DRIVER
+          const isCreatorMatch = driverIdentifiers.some((id) =>
             (createdByVal && createdByVal === id) ||
             (driverIdVal && driverIdVal === id) ||
             (createdByNameVal && createdByNameVal === id) ||
-            (operationalDriverVal && operationalDriverVal === id) ||
-            (createdByVal && createdByVal.includes('driver')) ||
-            (createdByNameVal && createdByNameVal.includes('driver'))
+            (operationalDriverVal && operationalDriverVal === id)
           );
 
           return isCreatorMatch;
@@ -339,6 +335,29 @@ export const ShipmentsPage = () => {
       render: (row) => <StatusBadge status={row.podStatus} />
     },
     ...(!isDriverAccount ? [
+      {
+        header: 'Created By',
+        accessor: 'createdByName',
+        render: (row) => {
+          const creatorName = row.createdByName || row.operational?.driver || row.createdBy || 'Admin / System';
+          const isDriverCN = String(row.createdBy || '').toLowerCase().includes('driver') ||
+                             String(row.createdByName || '').toLowerCase().includes('driver') ||
+                             !!row.driverId;
+          return (
+            <div className="text-xs">
+              <span className={`inline-flex items-center gap-1 font-semibold ${isDriverCN ? 'text-blue-700 font-bold' : 'text-slate-800'}`}>
+                <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate max-w-[120px]" title={creatorName}>{creatorName}</span>
+              </span>
+              {isDriverCN && (
+                <span className="text-[9px] font-bold text-blue-600 block uppercase tracking-wider">
+                  Driver CN
+                </span>
+              )}
+            </div>
+          );
+        }
+      },
       {
         header: 'Billing',
         accessor: 'billingStatus',
