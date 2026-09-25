@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { expenseService } from '../services/expenseService';
 import { formatINR, formatDate } from '../utils/formatters';

@@ -1,3 +1,4 @@
+import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Share2, Check, FileText } from 'lucide-react';
 import logoImg from '../../assets/logo1.png';
 
