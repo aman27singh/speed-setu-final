@@ -258,7 +258,7 @@ export const ShipmentDetailPage = () => {
             title="View, Print & Share Official Pickup Document (Consignment Note)"
           >
             <FileText className="w-4 h-4 text-slate-900 flex-shrink-0" />
-            <span className="truncate">Pickup CN</span>
+            <span className="truncate">Print CN</span>
           </button>
 
           {/* 2. Update Status */}
