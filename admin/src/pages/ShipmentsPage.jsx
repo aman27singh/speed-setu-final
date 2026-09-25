@@ -138,7 +138,9 @@ export const ShipmentsPage = () => {
           user.username,
           user.email,
           user.driverId,
-          user.name
+          user.name,
+          'driver',
+          'driver account'
         ]
           .filter(Boolean)
           .map((val) => String(val).toLowerCase().trim());
@@ -149,12 +151,15 @@ export const ShipmentsPage = () => {
           const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
           const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
 
-          // Strictly match if creator/driver field is non-empty and present in driverIdentifiers
-          const isCreatorMatch = driverIdentifiers.some((id) =>
+          const hasNoOwner = !createdByVal && !driverIdVal && !createdByNameVal && !operationalDriverVal;
+
+          const isCreatorMatch = hasNoOwner || driverIdentifiers.some((id) =>
             (createdByVal && createdByVal === id) ||
             (driverIdVal && driverIdVal === id) ||
             (createdByNameVal && createdByNameVal === id) ||
-            (operationalDriverVal && operationalDriverVal === id)
+            (operationalDriverVal && operationalDriverVal === id) ||
+            (createdByVal && createdByVal.includes('driver')) ||
+            (createdByNameVal && createdByNameVal.includes('driver'))
           );
 
           return isCreatorMatch;

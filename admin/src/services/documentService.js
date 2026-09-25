@@ -316,9 +316,23 @@ export const documentService = {
       extractedCN = await shipmentService.generateNextCN();
     }
 
+    let activeUser = finalData.user || null;
+    if (!activeUser) {
+      try {
+        const saved = localStorage.getItem('speed_setu_user') || localStorage.getItem('user');
+        if (saved) activeUser = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const creatorId = activeUser?.id || activeUser?._id || activeUser?.username || 'driver';
+    const creatorName = activeUser?.name || activeUser?.username || 'Driver';
+
     // Transform extracted fields into official shipment payload
     const shipmentPayload = {
       cnNumber: extractedCN,
+      createdBy: creatorId,
+      createdByName: creatorName,
+      driverId: creatorId,
       companyId: getStr(finalData.companyId, 'com-001'),
       companyName: getStr(finalData.companyName || finalData.company?.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
       companyCode: getStr(finalData.companyCode, 'COM-008'),
@@ -362,6 +376,12 @@ export const documentService = {
       status: 'Booked',
       podStatus: 'Pending',
       billingStatus: 'Not Ready',
+
+      operational: {
+        driver: creatorName,
+        transporter: 'Speed Setu Fleet',
+        transporterType: 'Market Driver'
+      },
 
       documents: [
         {

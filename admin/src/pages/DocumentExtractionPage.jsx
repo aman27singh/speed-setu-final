@@ -42,7 +42,7 @@ const DOC_TYPES = [
 export const DocumentExtractionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDriver } = useAuth();
+  const { user, isDriver } = useAuth();
 
   // Check query params for target shipment if navigating from existing shipment
   const searchParams = new URLSearchParams(location.search);
@@ -226,7 +226,10 @@ export const DocumentExtractionPage = () => {
     try {
       const result = await documentService.confirmExtraction(
         extractionData.documentId,
-        extractionData,
+        {
+          ...extractionData,
+          user
+        },
         attachToExistingCN || targetShipmentId
       );
 
