@@ -372,6 +372,18 @@ export const documentService = {
         invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '800'), 10) || 0
       },
 
+      commercialInvoices: finalData.commercialInvoices && finalData.commercialInvoices.length > 0
+        ? finalData.commercialInvoices
+        : [
+            {
+              invoiceNumber: getStr(finalData.invoice?.invoiceNumber, 'SSE-26-27/1317'),
+              invoiceDate: getStr(finalData.invoice?.invoiceDate, '2026-09-09'),
+              invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '37004.80')) || 0,
+              invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '800'), 10) || 0,
+              ewayBillNumber: getStr(finalData.regulatory?.ewayBillNumber, '')
+            }
+          ],
+
       ewayBillNumber: getStr(finalData.regulatory?.ewayBillNumber, ''),
       status: 'Booked',
       podStatus: 'Pending',

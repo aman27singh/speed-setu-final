@@ -54,6 +54,11 @@ export const DocumentExtractionPage = () => {
   const [selectedDocType, setSelectedDocType] = useState('Auto Detect');
   const [uploadedFile, setUploadedFile] = useState(null);
 
+  // Multiple Invoice Modal states
+  const [showMultiInvoiceModal, setShowMultiInvoiceModal] = useState(false);
+  const [pendingAttachTarget, setPendingAttachTarget] = useState(null);
+  const [extraInvoices, setExtraInvoices] = useState([]);
+
   // Stepper state
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -214,7 +219,7 @@ export const DocumentExtractionPage = () => {
     return missing;
   };
 
-  const handleConfirmExtraction = async (attachToExistingCN = null) => {
+  const handleConfirmExtraction = (attachToExistingCN = null) => {
     const missing = getMissingFields();
     if (missing.length > 0 && !attachToExistingCN) {
       const confirmContinue = window.confirm(
@@ -223,26 +228,56 @@ export const DocumentExtractionPage = () => {
       if (confirmContinue) return;
     }
 
+    setPendingAttachTarget(attachToExistingCN);
+    setShowMultiInvoiceModal(true);
+  };
+
+  const executeFinalShipmentCreation = async (invoicesList) => {
+    setShowMultiInvoiceModal(false);
     setSaving(true);
     try {
+      const primaryInv = {
+        invoiceNumber: String(extractionData.invoice?.invoiceNumber?.value || extractionData.invoice?.invoiceNumber || '').trim(),
+        invoiceDate: String(extractionData.invoice?.invoiceDate?.value || extractionData.invoice?.invoiceDate || '').trim(),
+        invoiceValue: parseFloat(extractionData.invoice?.invoiceValue?.value || extractionData.invoice?.invoiceValue || 0) || 0,
+        invoiceQuantity: parseInt(extractionData.invoice?.invoiceQuantity?.value || extractionData.invoice?.invoiceQuantity || 0, 10) || 0,
+        ewayBillNumber: String(extractionData.regulatory?.ewayBillNumber?.value || extractionData.regulatory?.ewayBillNumber || '').trim()
+      };
+
+      const finalInvoices = invoicesList && invoicesList.length > 0 ? invoicesList : [primaryInv];
+
+      // Sum values & quantities across all attached commercial invoices
+      const totalVal = finalInvoices.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0);
+      const totalQty = finalInvoices.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0);
+      const joinedNumbers = finalInvoices.map((i) => i.invoiceNumber).filter(Boolean).join(', ');
+
+      const payload = {
+        ...extractionData,
+        commercialInvoices: finalInvoices,
+        invoice: {
+          ...extractionData.invoice,
+          invoiceNumber: { value: joinedNumbers || primaryInv.invoiceNumber, confidence: 1.0 },
+          invoiceValue: { value: totalVal || primaryInv.invoiceValue, confidence: 1.0 },
+          invoiceQuantity: { value: totalQty || primaryInv.invoiceQuantity, confidence: 1.0 }
+        },
+        user
+      };
+
       const result = await documentService.confirmExtraction(
         extractionData.documentId,
-        {
-          ...extractionData,
-          user
-        },
-        attachToExistingCN || targetShipmentId
+        payload,
+        pendingAttachTarget || targetShipmentId
       );
 
       if (result.actionTaken === 'updated') {
-        setToastMessage(`Document successfully attached to existing shipment ${attachToExistingCN || targetShipmentId}!`);
-        setTimeout(() => navigate(`/admin/shipments/${attachToExistingCN || targetShipmentId}`), 1000);
+        setToastMessage(`Document & ${finalInvoices.length} commercial invoice(s) attached to existing shipment ${pendingAttachTarget || targetShipmentId}!`);
+        setTimeout(() => navigate(`/admin/shipments/${pendingAttachTarget || targetShipmentId}`), 1000);
       } else {
-        setToastMessage(`New shipment ${result.cnNumber} created from extracted document!`);
+        setToastMessage(`Shipment ${result.cnNumber} created with ${finalInvoices.length} commercial invoice(s)!`);
         setTimeout(() => navigate(`/admin/shipments/${result.id}`), 1000);
       }
     } catch (err) {
-      alert(err.message || 'Failed to confirm extraction.');
+      alert(err.message || 'Failed to create shipment with multiple invoices.');
     } finally {
       setSaving(false);
     }
@@ -863,6 +898,220 @@ export const DocumentExtractionPage = () => {
           </div>
         </div>
       )}
+      {/* MULTIPLE INVOICES CHECK MODAL */}
+      <Modal
+        isOpen={showMultiInvoiceModal}
+        onClose={() => setShowMultiInvoiceModal(false)}
+        title={`Multiple Invoices Check — CN ${extractionData?.shipment?.cnNumber?.value || ''}`}
+      >
+        <div className="space-y-5">
+          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs space-y-1">
+            <div className="flex items-center gap-2 font-bold text-blue-900 text-sm">
+              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Are there additional invoice numbers under this Consignment Note?</span>
+            </div>
+            <p className="text-blue-800 font-medium">
+              A single CN can have multiple tax invoices attached. Review the primary scanned invoice below and add any additional invoice numbers before creating the shipment.
+            </p>
+          </div>
+
+          {/* Primary Scanned Invoice Card */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+            <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">
+              Primary Invoice #1 (Scanned Document)
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-slate-900">
+              <div>
+                <span className="text-[10px] text-slate-400 block">Invoice Number</span>
+                <span className="font-bold">{extractionData?.invoice?.invoiceNumber?.value || 'SSE-26-27/1317'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Date</span>
+                <span className="font-semibold">{extractionData?.invoice?.invoiceDate?.value || '2026-09-09'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Value (₹)</span>
+                <span className="font-bold text-emerald-700">₹{extractionData?.invoice?.invoiceValue?.value || '37,004.80'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Quantity</span>
+                <span className="font-bold">{extractionData?.invoice?.invoiceQuantity?.value || '800'} Pcs</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Invoices Section */}
+          {extraInvoices.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <span className="text-xs font-bold text-slate-800 block uppercase tracking-wider">
+                Additional Invoices ({extraInvoices.length})
+              </span>
+
+              {extraInvoices.map((inv, idx) => (
+                <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl space-y-3 relative shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 text-xs font-mono">Additional Invoice #{idx + 2}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExtraInvoices(extraInvoices.filter((_, i) => i !== idx))}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                      title="Remove Invoice"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                    <div>
+                      <label className="font-bold text-slate-700 block text-[11px] mb-0.5">Invoice Number *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. SSE-26-27/1318"
+                        value={inv.invoiceNumber}
+                        onChange={(e) => {
+                          const updated = [...extraInvoices];
+                          updated[idx].invoiceNumber = e.target.value;
+                          setExtraInvoices(updated);
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block text-[11px] mb-0.5">Invoice Date</label>
+                      <input
+                        type="date"
+                        value={inv.invoiceDate}
+                        onChange={(e) => {
+                          const updated = [...extraInvoices];
+                          updated[idx].invoiceDate = e.target.value;
+                          setExtraInvoices(updated);
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block text-[11px] mb-0.5">Invoice Value (₹)</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 24898"
+                        value={inv.invoiceValue}
+                        onChange={(e) => {
+                          const updated = [...extraInvoices];
+                          updated[idx].invoiceValue = e.target.value;
+                          setExtraInvoices(updated);
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-xs text-emerald-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block text-[11px] mb-0.5">Quantity (Pcs/Nos)</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 500"
+                        value={inv.invoiceQuantity}
+                        onChange={(e) => {
+                          const updated = [...extraInvoices];
+                          updated[idx].invoiceQuantity = e.target.value;
+                          setExtraInvoices(updated);
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-xs"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="font-bold text-slate-700 block text-[11px] mb-0.5">E-Way Bill Number (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 3140000024"
+                        value={inv.ewayBillNumber}
+                        onChange={(e) => {
+                          const updated = [...extraInvoices];
+                          updated[idx].ewayBillNumber = e.target.value;
+                          setExtraInvoices(updated);
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add Invoice Button */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0];
+                setExtraInvoices([
+                  ...extraInvoices,
+                  {
+                    invoiceNumber: '',
+                    invoiceDate: today,
+                    invoiceValue: '',
+                    invoiceQuantity: '',
+                    ewayBillNumber: ''
+                  }
+                ]);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-lg transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Another Invoice Number</span>
+            </button>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                const primaryInv = {
+                  invoiceNumber: String(extractionData?.invoice?.invoiceNumber?.value || extractionData?.invoice?.invoiceNumber || '').trim(),
+                  invoiceDate: String(extractionData?.invoice?.invoiceDate?.value || extractionData?.invoice?.invoiceDate || '').trim(),
+                  invoiceValue: parseFloat(extractionData?.invoice?.invoiceValue?.value || extractionData?.invoice?.invoiceValue || 0) || 0,
+                  invoiceQuantity: parseInt(extractionData?.invoice?.invoiceQuantity?.value || extractionData?.invoice?.invoiceQuantity || 0, 10) || 0,
+                  ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
+                };
+                executeFinalShipmentCreation([primaryInv]);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors text-center cursor-pointer"
+            >
+              No More Invoices — Create Shipment
+            </button>
+
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                const primaryInv = {
+                  invoiceNumber: String(extractionData?.invoice?.invoiceNumber?.value || extractionData?.invoice?.invoiceNumber || '').trim(),
+                  invoiceDate: String(extractionData?.invoice?.invoiceDate?.value || extractionData?.invoice?.invoiceDate || '').trim(),
+                  invoiceValue: parseFloat(extractionData?.invoice?.invoiceValue?.value || extractionData?.invoice?.invoiceValue || 0) || 0,
+                  invoiceQuantity: parseInt(extractionData?.invoice?.invoiceQuantity?.value || extractionData?.invoice?.invoiceQuantity || 0, 10) || 0,
+                  ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
+                };
+
+                const validExtras = extraInvoices.filter((i) => i.invoiceNumber.trim() !== '');
+                const allInvoices = [primaryInv, ...validExtras];
+                executeFinalShipmentCreation(allInvoices);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {saving
+                  ? 'Creating Shipment...'
+                  : `Confirm & Create CN (${1 + extraInvoices.filter((i) => i.invoiceNumber.trim() !== '').length} Invoice${1 + extraInvoices.filter((i) => i.invoiceNumber.trim() !== '').length > 1 ? 's' : ''})`}
+              </span>
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
