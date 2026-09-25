@@ -10,7 +10,8 @@ import { SearchBar } from '../components/common/SearchBar';
 import { FilterBar } from '../components/common/FilterBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
-import { Plus, Eye, Edit, Truck, MapPin, Package, Camera } from 'lucide-react';
+import { EmptyState } from '../components/common/EmptyState';
+import { Plus, Eye, Edit, Truck, MapPin, Package, Camera, ArrowRight } from 'lucide-react';
 
 export const TripsPage = () => {
   const navigate = useNavigate();
@@ -231,14 +232,94 @@ export const TripsPage = () => {
         <LoadingState message="Loading Linehaul Trips..." />
       ) : error ? (
         <ErrorState message={error} onRetry={fetchTripsData} />
+      ) : trips.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-lg p-6 text-center">
+          <EmptyState title="No trips found" description="Try adjusting your search query or status filters." />
+        </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={trips}
-          onRowClick={(row) => navigate(`/admin/trips/${row.id}`)}
-          emptyMessage="No trips found"
-          emptySubtext="Try adjusting your search query or status filters."
-        />
+        <>
+          {/* Mobile Cards (Visible on screens < 768px) */}
+          <div className="space-y-3 md:hidden">
+            {trips.map((row) => (
+              <div
+                key={row.id || row.tripNumber}
+                onClick={() => navigate(`/admin/trips/${row.id}`)}
+                className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs active:bg-slate-50 transition-colors cursor-pointer space-y-3"
+              >
+                {/* Header: Trip Number + Date + Status */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div>
+                    <span className="font-bold text-setu-600 font-mono text-sm block">
+                      {row.tripNumber}
+                    </span>
+                    <span className="font-mono text-slate-500 text-[11px] block">{formatDate(row.tripDate)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <StatusBadge status={row.status || 'Planned'} />
+                  </div>
+                </div>
+
+                {/* Route */}
+                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Route</span>
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
+                    <MapPin className="w-3.5 h-3.5 text-setu-600 shrink-0" />
+                    <span>{row.origin}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>{row.destination}</span>
+                  </div>
+                </div>
+
+                {/* Vehicle & Driver Details */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Vehicle</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">
+                      {row.vehicleNumber || 'Pending'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Driver</span>
+                    <span className="font-semibold text-slate-800 text-xs">
+                      {row.driverName || 'Unassigned'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-setu-50 text-setu-700 border border-setu-100">
+                    {row.shipmentIds ? (Array.isArray(row.shipmentIds) ? row.shipmentIds.length : 1) : 0} Shipments
+                  </span>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/admin/trips/${row.id}`);
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-lg hover:bg-setu-100 transition-colors flex items-center gap-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Trip</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View (Visible on md and larger) */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={trips}
+              onRowClick={(row) => navigate(`/admin/trips/${row.id}`)}
+              emptyMessage="No trips found"
+              emptySubtext="Try adjusting your search query or status filters."
+            />
+          </div>
+        </>
       )}
     </div>
   );

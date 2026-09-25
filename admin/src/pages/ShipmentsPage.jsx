@@ -11,6 +11,7 @@ import { SearchBar } from '../components/common/SearchBar';
 import { FilterBar } from '../components/common/FilterBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
+import { EmptyState } from '../components/common/EmptyState';
 import { DocumentUploadModal } from '../components/shipment/DocumentUploadModal';
 import { BulkShipmentImportModal } from '../components/shipment/BulkShipmentImportModal';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +26,8 @@ import {
   X,
   FileText,
   FileSpreadsheet,
-  User
+  User,
+  ArrowRight
 } from 'lucide-react';
 
 export const ShipmentsPage = () => {
@@ -625,19 +627,131 @@ export const ShipmentsPage = () => {
         </div>
       )}
 
-      {/* Main Shipments Table */}
+      {/* Main Shipments Table (Desktop Table + Mobile Cards) */}
       {loading ? (
         <LoadingState message="Loading Speed Setu Consignment Notes..." />
       ) : error ? (
         <ErrorState message={error} onRetry={fetchData} />
+      ) : shipments.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-lg p-6 text-center">
+          <EmptyState title="No shipments found" description="Try adjusting your search query, status, or date filters." />
+        </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={shipments}
-          onRowClick={(row) => navigate(`/admin/shipments/${row.id}`)}
-          emptyMessage="No shipments found"
-          emptySubtext="Try adjusting your search query, status, or date filters."
-        />
+        <>
+          {/* Mobile Cards (Visible on mobile screens < 768px) */}
+          <div className="space-y-3 md:hidden">
+            {shipments.map((row) => {
+              const rowId = row.id || row.cnNumber || row._id;
+              const isSelected = selectedIds.includes(rowId);
+              const creatorName = row.createdByName || row.operational?.driver || row.createdBy || 'Admin';
+              const isDriverCN = String(row.createdBy || '').toLowerCase().includes('driver') ||
+                                 String(row.createdByName || '').toLowerCase().includes('driver') ||
+                                 !!row.driverId;
+
+              return (
+                <div
+                  key={rowId}
+                  onClick={() => navigate(`/admin/shipments/${row.id}`)}
+                  className={`bg-white border ${isSelected ? 'border-setu-500 ring-1 ring-setu-500' : 'border-slate-200'} rounded-xl p-3.5 shadow-xs active:bg-slate-50 transition-colors cursor-pointer space-y-3`}
+                >
+                  {/* Card Header: Selection + CN Number + Date */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectRow(rowId, e)}
+                          className="w-4 h-4 rounded text-setu-600 focus:ring-setu-500 cursor-pointer accent-setu-600"
+                        />
+                      </div>
+                      <div>
+                        <span className="font-bold text-setu-600 font-mono text-sm block">
+                          {row.cnNumber}
+                        </span>
+                        {row.awbNumber && (
+                          <span className="text-[10px] text-slate-500 font-mono block">AWB: {row.awbNumber}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="font-mono text-slate-600 text-[11px] block">{formatDate(row.cnDate)}</span>
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                        {row.mode || 'Express LTL'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Route & Consignee */}
+                  <div className="flex items-center justify-between text-xs gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Route</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-800 text-xs truncate">
+                        <span>{row.origin || row.consignor?.city || 'Origin'}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-setu-500 shrink-0" />
+                        <span>{row.destination || row.consignee?.city || 'Destination'}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Packages</span>
+                      <span className="font-bold text-slate-900 text-xs">{row.packages || 0} Boxes</span>
+                    </div>
+                  </div>
+
+                  {/* Customer / Company */}
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <div className="truncate max-w-[200px]">
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Client / Consignee</span>
+                      <span className="font-semibold text-slate-800 truncate block">
+                        {row.companyName || row.consigneeName || 'Logistics Client'}
+                      </span>
+                    </div>
+
+                    {!isDriverAccount && (
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Created By</span>
+                        <span className={`text-[11px] font-bold ${isDriverCN ? 'text-blue-700' : 'text-slate-700'}`}>
+                          {creatorName}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Badges & Actions Footer */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={row.status} />
+                      <StatusBadge status={row.podStatus} />
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => navigate(`/admin/shipments/${row.id}`)}
+                        className="px-3 py-1.5 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded-lg hover:bg-setu-100 active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (Visible on md and larger) */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={shipments}
+              onRowClick={(row) => navigate(`/admin/shipments/${row.id}`)}
+              emptyMessage="No shipments found"
+              emptySubtext="Try adjusting your search query, status, or date filters."
+            />
+          </div>
+        </>
       )}
 
       {/* Document Upload Modal */}

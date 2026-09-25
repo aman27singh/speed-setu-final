@@ -11,6 +11,7 @@ import { SearchBar } from '../components/common/SearchBar';
 import { FilterBar } from '../components/common/FilterBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
+import { EmptyState } from '../components/common/EmptyState';
 import { PODUploadModal } from '../components/pod/PODUploadModal';
 import {
   FileCheck,
@@ -390,18 +391,104 @@ export const PODPage = () => {
       )}
 
       {/* POD MASTER TABLE */}
+      {/* POD MASTER TABLE (Desktop Table + Mobile Cards) */}
       {loading ? (
         <LoadingState message="Loading Proof of Delivery Master Records..." />
       ) : error ? (
         <ErrorState message={error} onRetry={fetchPODData} />
+      ) : pods.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-lg p-6 text-center">
+          <EmptyState title="No POD records found" description="Try adjusting your search query or status filters." />
+        </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={pods}
-          onRowClick={(row) => navigate(`/admin/pod/${row.cnNumber}`)}
-          emptyMessage="No POD records found"
-          emptySubtext="Try adjusting your search query or status filters."
-        />
+        <>
+          {/* Mobile Cards (Visible on screens < 768px) */}
+          <div className="space-y-3 md:hidden">
+            {pods.map((row) => {
+              const cnKey = row.cnNumber || row.id;
+              const isSelected = selectedCNs.includes(cnKey);
+
+              return (
+                <div
+                  key={cnKey}
+                  onClick={() => navigate(`/admin/pod/${row.cnNumber}`)}
+                  className={`bg-white border ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-slate-200'} rounded-xl p-3.5 shadow-xs active:bg-slate-50 transition-colors cursor-pointer space-y-3`}
+                >
+                  {/* Card Header: Selection + CN Number + Status */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectRow(cnKey, e)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                        />
+                      </div>
+                      <div>
+                        <span className="font-bold text-setu-600 font-mono text-sm block">
+                          {row.cnNumber}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">Date: {formatDate(row.cnDate)}</span>
+                      </div>
+                    </div>
+
+                    <StatusBadge status={row.podStatus || row.status || 'Pending'} />
+                  </div>
+
+                  {/* Consignee & Destination */}
+                  <div className="flex items-center justify-between text-xs gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Consignee</span>
+                      <span className="font-bold text-slate-800 text-xs truncate block">
+                        {row.consigneeName || row.companyName || 'Consignee'}
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Destination</span>
+                      <span className="font-bold text-slate-900 text-xs">{row.destination || '-'}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs gap-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => navigate(`/admin/pod/${row.cnNumber}`)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-1"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Details</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setTargetShipmentId(row.id);
+                        setTargetCN(row.cnNumber);
+                        setShowUploadModal(true);
+                      }}
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs active:scale-95 transition-all flex items-center gap-1"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{row.podStatus === 'Uploaded' || row.podStatus === 'Verified' ? 'Re-upload POD' : '📷 Upload POD'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (Visible on md and larger) */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={pods}
+              onRowClick={(row) => navigate(`/admin/pod/${row.cnNumber}`)}
+              emptyMessage="No POD records found"
+              emptySubtext="Try adjusting your search query or status filters."
+            />
+          </div>
+        </>
       )}
 
       {/* QUICK UPLOAD MODAL */}
