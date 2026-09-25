@@ -25,7 +25,9 @@ import {
   AlertCircle,
   Sparkles,
   User,
-  Camera
+  Camera,
+  Plus,
+  Trash2
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
