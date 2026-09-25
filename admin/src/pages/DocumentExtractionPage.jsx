@@ -134,45 +134,8 @@ export const DocumentExtractionPage = () => {
           const nextCN = await shipmentService.generateNextCN();
           result.shipment.cnNumber = { value: nextCN, confidence: 1.0 };
         }
-        if (result.regulatory) {
-          result.regulatory.ewayBillNumber = { value: '', confidence: 0 };
-        }
 
-        // Sanitize and guardrail Invoice Value & Quantity for Advik Tax Invoices
         if (!result.invoice) result.invoice = {};
-
-        const is1472 = file?.name?.includes('1472') ||
-                       file?.name?.includes('B747') ||
-                       result.rawOcrText?.includes('1472') ||
-                       result.rawOcrText?.includes('B747') ||
-                       result.invoice.invoiceNumber?.value?.includes('1472');
-
-        if (is1472) {
-          result.invoice.invoiceNumber = { value: 'SSE-26-27/1472', confidence: 0.99 };
-          result.invoice.invoiceDate = { value: '24-Sep-26', confidence: 0.98 };
-          result.invoice.invoiceValue = { value: 24898.00, confidence: 0.99 };
-          result.invoice.invoiceQuantity = { value: 500, confidence: 0.96 };
-          result.shipment.materialDescription = { value: '1 B747 LEVER LH (HSN: 87141090)', confidence: 0.96 };
-          result.shipment.packages = { value: '', confidence: 0 };
-          result.shipment.actualWeight = { value: '', confidence: 0 };
-          result.shipment.chargeableWeight = { value: '', confidence: 0 };
-        } else {
-          // If invoice quantity was misparsed as 500000 or 800000 due to decimal dot stripping
-          if (result.invoice.invoiceQuantity?.value) {
-            const rawQStr = String(result.invoice.invoiceQuantity.value);
-            if (rawQStr.startsWith('5000')) {
-              result.invoice.invoiceQuantity = { value: 500, confidence: 0.96 };
-            } else if (rawQStr.startsWith('8000')) {
-              result.invoice.invoiceQuantity = { value: 800, confidence: 0.96 };
-            }
-          }
-          if (!result.invoice.invoiceNumber?.value) {
-            result.invoice.invoiceNumber = { value: 'SSE-26-27/1317', confidence: 0.99 };
-          }
-          if (!result.invoice.invoiceDate?.value) {
-            result.invoice.invoiceDate = { value: '9-Sep-26', confidence: 0.98 };
-          }
-        }
 
         const analysis = validateExtractionResult(result, companies, existingShipments);
         setMatchAnalysis(analysis);
@@ -246,10 +209,10 @@ export const DocumentExtractionPage = () => {
     setScanningExtraInvoice(true);
     try {
       const result = await documentService.uploadDocument(file, 'Shipment Invoice');
-      const invNo = result?.invoice?.invoiceNumber?.value || (file.name.includes('1472') ? 'SSE-26-27/1472' : `INV-${Date.now().toString().slice(-4)}`);
-      const invDate = result?.invoice?.invoiceDate?.value || '24-Sep-26';
-      const invVal = result?.invoice?.invoiceValue?.value ?? (file.name.includes('1472') ? 24898 : 37004.8);
-      const invQty = result?.invoice?.invoiceQuantity?.value ?? (file.name.includes('1472') ? 500 : 800);
+      const invNo = result?.invoice?.invoiceNumber?.value || '';
+      const invDate = result?.invoice?.invoiceDate?.value || '';
+      const invVal = result?.invoice?.invoiceValue?.value !== undefined && result?.invoice?.invoiceValue?.value !== null ? result.invoice.invoiceValue.value : '';
+      const invQty = result?.invoice?.invoiceQuantity?.value !== undefined && result?.invoice?.invoiceQuantity?.value !== null ? result.invoice.invoiceQuantity.value : '';
       const eway = result?.regulatory?.ewayBillNumber?.value || '';
 
       const newExtra = {
