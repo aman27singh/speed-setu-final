@@ -646,27 +646,27 @@ View Details: ${window.location.href}`},c=async()=>{const ae=r.cnNumber||r.cn_nu
         <head>
           <title>Consignment Note Single - ${r.cnNumber||r.cn_number||"SS2004"}</title>
           <style>
-            @page { size: A4 portrait; margin: 4mm !important; }
+            @page { size: A4 landscape; margin: 4mm !important; }
             html, body {
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
-              width: 100% !important;
+              width: 100vw !important;
               height: 100vh !important;
               box-sizing: border-box !important;
               font-family: Arial, Helvetica, sans-serif;
             }
             .single-container {
-              width: 100%;
+              width: 100vw;
               height: 98vh;
               display: flex;
               align-items: center;
               justify-content: center;
             }
             .single-container svg {
-              width: 100% !important;
+              width: 98vw !important;
               height: auto !important;
-              max-height: 96vh !important;
+              max-height: 95vh !important;
               display: block !important;
               margin: 0 auto !important;
             }
