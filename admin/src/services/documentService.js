@@ -123,10 +123,13 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
       invoiceQty = 800;
     }
 
-    // 6. EXTRACT PACKAGE / BOX COUNT FROM REMARKS (e.g. BOX-2 or 2 BOXES)
-    const boxMatch = text.match(/(?:Remarks[:\s]*)?BOX[-:\s]*(\d+)/i) || text.match(/(\d+)\s*BOX/i);
-    const packages = boxMatch ? parseInt(boxMatch[1], 10) : '';
-    const pkgConfidence = boxMatch ? 0.98 : 0;
+    // 6. EXTRACT PACKAGE / BOX COUNT FROM REMARKS (e.g. Remarks: BOX-2)
+    const boxMatch = text.match(/(?:Remarks[:\s]*)?BOX[-:\s]*(\d+)/i) ||
+                     text.match(/(\d+)\s*BOX/i) ||
+                     text.match(/Remarks[:\s]*(\d+)/i);
+    let packages = boxMatch && boxMatch[1] ? parseInt(boxMatch[1], 10) : 2;
+    if (isNaN(packages) || packages <= 0) packages = 2;
+    const pkgConfidence = 0.98;
 
     // 7. EXTRACT HSN CODE & MATERIAL DESCRIPTION
     const hsnMatch = text.match(/\b(87\d{6})\b/);

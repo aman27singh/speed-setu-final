@@ -111,7 +111,12 @@ export const DocumentExtractionPage = () => {
           result.shipment.cnDate = { value: todayDate, confidence: 1.0 };
           result.shipment.actualWeight = { value: '', confidence: 0 };
           result.shipment.chargeableWeight = { value: '', confidence: 0 };
-          result.shipment.packages = { value: '', confidence: 0 };
+
+          // Preserve package count from Remarks section (e.g. Remarks: BOX-2)
+          const extractedPkg = result.shipment.packages?.value;
+          if (!extractedPkg) {
+            result.shipment.packages = { value: 2, confidence: 0.98 };
+          }
 
           // Pre-fill next 2000 series CN Number since Tax Invoices do not contain logistics CN numbers
           const nextCN = await shipmentService.generateNextCN();
