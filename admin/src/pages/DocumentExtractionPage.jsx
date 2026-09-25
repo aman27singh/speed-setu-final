@@ -295,24 +295,6 @@ export const DocumentExtractionPage = () => {
               </p>
             </div>
 
-            {/* Document Type Selector (Admin Only) */}
-            {!isDriverAccount && (
-              <div className="max-w-md mx-auto text-left">
-                <label className="block font-bold text-slate-700 uppercase tracking-wider text-xs mb-1">
-                  Document Category
-                </label>
-                <select
-                  value={selectedDocType}
-                  onChange={(e) => setSelectedDocType(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
-                >
-                  {DOC_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* File Inputs */}
             <input
               type="file"
@@ -353,7 +335,7 @@ export const DocumentExtractionPage = () => {
                 </label>
               </div>
             ) : (
-              <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-6 sm:p-8 bg-slate-50 hover:bg-blue-50/20 transition-all space-y-5">
+              <div className="border-2 border-dashed border-slate-300 hover:border-setu-600 rounded-2xl p-6 sm:p-8 bg-slate-50 hover:bg-blue-50/20 transition-all">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
                   <label
                     htmlFor="cameraUploadInput"
@@ -376,17 +358,6 @@ export const DocumentExtractionPage = () => {
                       <span className="text-[11px] text-slate-500 font-mono">JPG, PNG, PDF, XLSX</span>
                     </div>
                   </label>
-                </div>
-
-                <div className="pt-3 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={handleRunDemoSample}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg shadow-xs transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4 text-purple-600" />
-                    <span>⚡ Try Demo AI Extraction Sample (Consignment_Note_SS253.pdf)</span>
-                  </button>
                 </div>
               </div>
             )}
