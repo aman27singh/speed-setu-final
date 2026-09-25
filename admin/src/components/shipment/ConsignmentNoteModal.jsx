@@ -254,6 +254,31 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     }, 300);
   };
 
+  // Formatting helpers for exact digit arrays
+  const formatDateBoxes = (dateStr) => {
+    if (!dateStr) return Array(8).fill('');
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return Array(8).fill('');
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear());
+    return `${day}${month}${year}`.split('').slice(0, 8);
+  };
+
+  const formatPinBoxes = (pinStr) => {
+    const pin = (pinStr || '').replace(/\D/g, '');
+    const arr = pin.split('');
+    while (arr.length < 6) arr.push('');
+    return arr.slice(0, 6);
+  };
+
+  const formatEmpCodeBoxes = (empStr) => {
+    const code = (empStr || '').replace(/[^a-zA-Z0-9]/g, '');
+    const arr = code.split('');
+    while (arr.length < 6) arr.push('');
+    return arr.slice(0, 6);
+  };
+
   // Helper to parse dynamic user-filled CN / LR / Waybill number
   const parseCnNumber = (shipmentObj) => {
     const raw = String(
