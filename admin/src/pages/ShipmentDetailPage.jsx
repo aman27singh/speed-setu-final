@@ -246,57 +246,61 @@ export const ShipmentDetailPage = () => {
           </div>
         </div>
 
-        {/* Actions Bar */}
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        {/* Actions Bar - Uniform Equal-Sized Buttons Grid */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+          {/* 1. Pickup Document (CN) */}
           <button
             onClick={() => {
               setAutoPrintCN(false);
               setShowCNModal(true);
             }}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-lg shadow-sm transition-all active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-xs transition-all active:scale-95 h-12 sm:h-10 cursor-pointer"
             title="View, Print & Share Official Pickup Document (Consignment Note)"
           >
-            <FileText className="w-4 h-4 text-slate-900" />
-            <span>Pickup Document (CN)</span>
+            <FileText className="w-4 h-4 text-slate-900 flex-shrink-0" />
+            <span className="truncate">Pickup CN</span>
           </button>
 
+          {/* 2. Update Status */}
           <button
             onClick={() => setShowStatusModal(true)}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-sm transition-all active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-xs transition-all active:scale-95 h-12 sm:h-10 cursor-pointer"
           >
-            <RefreshCw className="w-4 h-4" />
-            <span>Update Status</span>
+            <RefreshCw className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">Update Status</span>
           </button>
 
+          {/* 3. Upload Document */}
           <button
             onClick={() => setShowUploadModal(true)}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-xs transition-all active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 shadow-xs transition-all active:scale-95 h-12 sm:h-10 cursor-pointer"
           >
-            <Upload className="w-4 h-4 text-setu-600" />
-            <span>Upload Document</span>
+            <Upload className="w-4 h-4 text-setu-600 flex-shrink-0" />
+            <span className="truncate">Upload Doc</span>
           </button>
 
-          {!isDriver && (
-            <button
-              onClick={() => navigate(`/admin/shipments/${shipment.id || shipment.cnNumber}/edit`)}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex-1 sm:flex-initial cursor-pointer"
-            >
-              <Edit className="w-3.5 h-3.5" />
-              <span>Edit</span>
-            </button>
-          )}
-
+          {/* 4. Print 2-Up CN */}
           <button
             onClick={() => {
               setAutoPrintCN(true);
               setShowCNModal(true);
             }}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-xs transition-all active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 shadow-xs transition-all active:scale-95 h-12 sm:h-10 cursor-pointer"
             title="Directly Print Official Consignment Note (2-up A4)"
           >
-            <Printer className="w-4 h-4 text-slate-700" />
-            <span>Print CN</span>
+            <Printer className="w-4 h-4 text-slate-700 flex-shrink-0" />
+            <span className="truncate">Print 2-Up CN</span>
           </button>
+
+          {!isDriver && (
+            <button
+              onClick={() => navigate(`/admin/shipments/${shipment.id || shipment.cnNumber}/edit`)}
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-3 py-2.5 sm:py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors h-12 sm:h-10 cursor-pointer"
+            >
+              <Edit className="w-4 h-4 flex-shrink-0" />
+              <span>Edit Shipment</span>
+            </button>
+          )}
         </div>
       </div>
 
