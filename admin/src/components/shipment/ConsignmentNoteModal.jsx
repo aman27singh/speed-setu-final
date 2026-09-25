@@ -9,7 +9,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   useEffect(() => {
     if (isOpen && autoPrint && shipment) {
       const timer = setTimeout(() => {
-        handlePrint();
+        handlePrintSplit();
       }, 300);
       return () => clearTimeout(timer);
     }
@@ -17,60 +17,65 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
   if (!isOpen || !shipment) return null;
 
-  const handleShare = async () => {
+  const getShareText = (isSplit = false) => {
     const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
     const consignorName = shipment.consignor?.name || 'Shipper';
     const consigneeName = shipment.consignee?.name || 'Receiver';
-    const shareText = `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nStatus: ${shipment.status || 'Booked'}\nView details: ${window.location.href}`;
+    const layoutType = isSplit ? 'Split 2-in-1 Duplicate CN (2 Copies/A4)' : 'Single Page CN';
+    return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}\nView Details: ${window.location.href}`;
+  };
+
+  const handleShareSingle = async () => {
+    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
+    const shareText = getShareText(false);
 
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `Consignment Note ${cnNo}`,
-          text: shareText,
-          url: window.location.href
-        });
+        await navigator.share({ title: `Consignment Note ${cnNo}`, text: shareText, url: window.location.href });
         return;
-      } catch (err) {
-        console.log('Share canceled or failed:', err);
-      }
+      } catch (err) {}
     }
 
     try {
       await navigator.clipboard.writeText(shareText);
-      setCopiedToast(true);
-      setTimeout(() => setCopiedToast(false), 2500);
-    } catch (err) {
-      alert(`Consignment Note ${cnNo}\nConsignor: ${consignorName}\nConsignee: ${consigneeName}`);
+      setCopiedToast('single');
+      setTimeout(() => setCopiedToast(null), 2500);
+    } catch (e) {}
+  };
+
+  const handleShareSplit = async () => {
+    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
+    const shareText = getShareText(true);
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Consignment Note ${cnNo} (2-Up Split)`, text: shareText, url: window.location.href });
+        return;
+      } catch (err) {}
     }
+
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopiedToast('split');
+      setTimeout(() => setCopiedToast(null), 2500);
+    } catch (e) {}
   };
 
-  // Formatting helpers for exact digit arrays
-  const formatDateBoxes = (dateStr) => {
-    if (!dateStr) return Array(8).fill('');
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return Array(8).fill('');
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = String(d.getFullYear());
-    return `${day}${month}${year}`.split('').slice(0, 8);
-  };
+  // Shared CSS styles for iframe print generation
+  const printStyles = `
+    .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
+    .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
+    .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
+    .font-serif-title { font-family: "Times New Roman", Times, serif; font-weight: 900; }
+    .font-sans-bold { font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
+    .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
+    .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
+    .static-text { fill: #000000; }
+    .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
+  `;
 
-  const formatPinBoxes = (pinStr) => {
-    const pin = (pinStr || '').replace(/\D/g, '');
-    const arr = pin.split('');
-    while (arr.length < 6) arr.push('');
-    return arr.slice(0, 6);
-  };
-
-  const formatEmpCodeBoxes = (empStr) => {
-    const code = (empStr || '').replace(/[^a-zA-Z0-9]/g, '');
-    const arr = code.split('');
-    while (arr.length < 6) arr.push('');
-    return arr.slice(0, 6);
-  };
-
-  const handlePrint = () => {
+  // 1. Single Page CN Print / PDF Download
+  const handlePrintSingle = () => {
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
@@ -95,16 +100,82 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Consignment Note - ${shipment.cnNumber || shipment.cn_number || 'SS285'}</title>
+          <title>Consignment Note Single - ${shipment.cnNumber || shipment.cn_number || 'SS2004'}</title>
           <style>
-            @page {
-              size: A4 portrait;
-              margin: 3mm !important;
+            @page { size: A4 portrait; margin: 4mm !important; }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              width: 100% !important;
+              height: 100vh !important;
+              box-sizing: border-box !important;
+              font-family: Arial, Helvetica, sans-serif;
             }
-            @page :left { margin: 3mm !important; }
-            @page :right { margin: 3mm !important; }
-            @page :first { margin: 3mm !important; }
-            
+            .single-container {
+              width: 100%;
+              height: 98vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .single-container svg {
+              width: 100% !important;
+              height: auto !important;
+              max-height: 96vh !important;
+              display: block !important;
+              margin: 0 auto !important;
+            }
+            ${printStyles}
+          </style>
+        </head>
+        <body>
+          <div class="single-container">
+            ${svgHtml}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      setTimeout(() => {
+        try { if (document.body.contains(iframe)) document.body.removeChild(iframe); } catch (e) {}
+      }, 1000);
+    }, 300);
+  };
+
+  // 2. Split 2-in-1 Duplicate CN Print / PDF Download (2 per A4 Sheet with cut line)
+  const handlePrintSplit = () => {
+    const printContent = printRef.current;
+    if (!printContent) {
+      window.print();
+      return;
+    }
+
+    const svgElement = printContent.querySelector('svg');
+    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Consignment Note Split 2-Up - ${shipment.cnNumber || shipment.cn_number || 'SS2004'}</title>
+          <style>
+            @page { size: A4 portrait; margin: 3mm !important; }
             html, body {
               margin: 0 !important;
               padding: 0 !important;
@@ -115,7 +186,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               box-sizing: border-box !important;
               font-family: Arial, Helvetica, sans-serif;
             }
-            
             .page-container {
               width: 100%;
               height: 99vh;
@@ -126,7 +196,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               box-sizing: border-box;
               padding: 1mm 0;
             }
-
             .copy-wrapper {
               width: 100%;
               height: 48vh;
@@ -138,7 +207,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               box-sizing: border-box;
               overflow: hidden;
             }
-
             .copy-wrapper svg {
               width: 100% !important;
               height: auto !important;
@@ -146,7 +214,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               display: block !important;
               margin: 0 auto !important;
             }
-
             .cut-line-divider {
               width: 100%;
               height: 2vh;
@@ -156,7 +223,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               position: relative;
               margin: 1mm 0;
             }
-
             .cut-line-dashed {
               position: absolute;
               top: 50%;
@@ -165,34 +231,14 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               border-top: 2px dashed #000000;
               z-index: 1;
             }
-
-            .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
-            .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
-            .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
-            .font-serif-title { font-family: "Times New Roman", Times, serif; font-weight: 900; }
-            .font-sans-bold { font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
-            .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
-            .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
-            .static-text { fill: #000000; }
-            .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
+            ${printStyles}
           </style>
         </head>
         <body>
           <div class="page-container">
-            <!-- TOP COPY -->
-            <div class="copy-wrapper">
-              ${svgHtml}
-            </div>
-
-            <!-- DOTTED CUT LINE SEPARATOR -->
-            <div class="cut-line-divider">
-              <div class="cut-line-dashed"></div>
-            </div>
-
-            <!-- BOTTOM COPY -->
-            <div class="copy-wrapper">
-              ${svgHtml}
-            </div>
+            <div class="copy-wrapper">${svgHtml}</div>
+            <div class="cut-line-divider"><div class="cut-line-dashed"></div></div>
+            <div class="copy-wrapper">${svgHtml}</div>
           </div>
         </body>
       </html>
@@ -203,11 +249,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     setTimeout(() => {
       iframe.contentWindow.print();
       setTimeout(() => {
-        try {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        } catch (e) {}
+        try { if (document.body.contains(iframe)) document.body.removeChild(iframe); } catch (e) {}
       }, 1000);
     }, 300);
   };
@@ -282,63 +324,87 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       <div className="bg-white rounded-2xl border border-slate-700 w-full max-w-[1050px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl relative">
         
         {/* Screen Control Toolbar (Hidden on Print) */}
-        <div className="no-print flex items-center justify-between px-3 sm:px-5 py-3 bg-slate-900 text-white border-b border-slate-800 shadow-md">
+        <div className="no-print bg-slate-900 text-white border-b border-slate-800 shadow-md p-3 sm:p-4">
           
-          {/* Left: Title & CN Badge */}
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-setu-600/20 border border-setu-500/30 flex items-center justify-center text-setu-400 flex-shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center space-x-2">
-                <h2 className="text-sm font-bold text-white truncate">Consignment Note (CN)</h2>
-                <span className="px-2 py-0.5 text-[11px] font-extrabold rounded bg-amber-400 text-slate-900 shadow-xs">
-                  {shipment.cnNumber || 'SS2004'}
-                </span>
+          {/* Top Header Row */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-setu-600/20 border border-setu-500/30 flex items-center justify-center text-setu-400 flex-shrink-0">
+                <FileText className="w-4 h-4" />
               </div>
-              <p className="text-[11px] text-slate-400 truncate">Official Speed Setu Lorry Receipt</p>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-sm font-bold text-white truncate">Consignment Note (CN)</h2>
+                  <span className="px-2 py-0.5 text-[11px] font-extrabold rounded bg-amber-400 text-slate-900 shadow-xs flex-shrink-0">
+                    {shipment.cnNumber || 'SS2004'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 truncate">Speed Setu Official Lorry Receipt</p>
+              </div>
             </div>
-          </div>
 
-          {/* Right: Only 2 Actions (1. Print/Download, 2. Share) + Close */}
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            {/* 1. Print / Download Button */}
-            <button
-              onClick={handlePrint}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-setu-600 hover:bg-setu-500 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-              title="Print or Save as PDF"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print / Download</span>
-            </button>
-
-            {/* 2. Share Button */}
-            <button
-              onClick={handleShare}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-              title="Share CN via WhatsApp / System Share"
-            >
-              {copiedToast ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">Link Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5 text-setu-400" />
-                  <span>Share</span>
-                </>
-              )}
-            </button>
-
-            {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-1 cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex-shrink-0"
               title="Close preview"
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+
+          {/* Action Buttons Row: Option 1 (Single) and Option 2 (Split 2-in-1 Duplicate) */}
+          <div className="pt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Option 1 Card: Single Page CN */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
+              <div className="min-w-0 mr-2">
+                <span className="text-[11px] font-bold text-slate-200 block truncate">1. Single Page CN</span>
+                <span className="text-[10px] text-slate-400 block truncate">Normal 1 copy</span>
+              </div>
+              <div className="flex items-center space-x-1.5 flex-shrink-0">
+                <button
+                  onClick={handlePrintSingle}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-setu-600 hover:bg-setu-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Print or Save Single Page CN"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  onClick={handleShareSingle}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Share Single Page CN"
+                >
+                  {copiedToast === 'single' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
+                  <span>Share</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2 Card: Split 2-in-1 Duplicate CN */}
+            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
+              <div className="min-w-0 mr-2">
+                <span className="text-[11px] font-bold text-amber-400 block truncate">2. Split 2-in-1 Duplicate</span>
+                <span className="text-[10px] text-slate-400 block truncate">2 copies per A4 sheet</span>
+              </div>
+              <div className="flex items-center space-x-1.5 flex-shrink-0">
+                <button
+                  onClick={handlePrintSplit}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Print 2 Copies on 1 A4 Sheet"
+                >
+                  <Printer className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Print 2-Up</span>
+                </button>
+                <button
+                  onClick={handleShareSplit}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Share Split 2-in-1 Duplicate CN"
+                >
+                  {copiedToast === 'split' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
+                  <span>Share</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
