@@ -463,8 +463,8 @@ export const ShipmentsPage = () => {
         }
         breadcrumbs={['Speed Setu Admin', 'Operations', isDriverAccount ? 'My Shipments' : 'Shipments']}
         actions={
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {!isDriverAccount && (
+          !isDriverAccount ? (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setShowImportModal(true)}
                 className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-md shadow-2xs transition-colors flex-1 sm:flex-initial"
@@ -473,24 +473,24 @@ export const ShipmentsPage = () => {
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                 <span>Import Excel / CSV</span>
               </button>
-            )}
 
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
-            >
-              <Upload className="w-4 h-4 text-setu-600" />
-              <span>Upload Document</span>
-            </button>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
+              >
+                <Upload className="w-4 h-4 text-setu-600" />
+                <span>Upload Document</span>
+              </button>
 
-            <button
-              onClick={() => navigate('/admin/shipments/new')}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors flex-1 sm:flex-initial"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Shipment</span>
-            </button>
-          </div>
+              <button
+                onClick={() => navigate('/admin/shipments/new')}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors flex-1 sm:flex-initial"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Shipment</span>
+              </button>
+            </div>
+          ) : null
         }
       />
 
@@ -504,96 +504,98 @@ export const ShipmentsPage = () => {
         </div>
       )}
 
-      {/* Search & Multi-Filter Controls Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-center gap-3">
-          <div className="w-full md:flex-1">
-            <SearchBar
-              value={search}
-              onChange={handleSearchChange}
-              placeholder="Search CN number, company, consignor, consignee, origin, destination, invoice..."
-            />
+      {/* Search & Multi-Filter Controls Bar (Admin Only) */}
+      {!isDriverAccount && (
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-col md:flex-row items-center gap-3">
+            <div className="w-full md:flex-1">
+              <SearchBar
+                value={search}
+                onChange={handleSearchChange}
+                placeholder="Search CN number, company, consignor, consignee, origin, destination, invoice..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
+              {/* Company Filter */}
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+              >
+                <option value="All">All Companies</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.companyName} ({c.companyCode})</option>
+                ))}
+              </select>
+
+              {/* Mode Filter */}
+              <select
+                value={modeFilter}
+                onChange={(e) => setModeFilter(e.target.value)}
+                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+              >
+                <option value="All">All Modes</option>
+                {modeOptions.slice(1).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+
+              {/* POD Status Filter */}
+              <select
+                value={podStatusFilter}
+                onChange={(e) => setPodStatusFilter(e.target.value)}
+                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+              >
+                <option value="All">POD Status</option>
+                {podOptions.slice(1).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+
+              {/* Payment Status Filter */}
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+              >
+                <option value="All">Payment Status</option>
+                {paymentOptions.slice(1).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setCompanyFilter('All');
+                  setStatusFilter('All');
+                  setModeFilter('All');
+                  setPodStatusFilter('All');
+                  setBillingStatusFilter('All');
+                  setPaymentStatusFilter('All');
+                }}
+                className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
+              >
+                Reset
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
-            {/* Company Filter */}
-            <select
-              value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
-            >
-              <option value="All">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.companyName} ({c.companyCode})</option>
-              ))}
-            </select>
-
-            {/* Mode Filter */}
-            <select
-              value={modeFilter}
-              onChange={(e) => setModeFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
-            >
-              <option value="All">All Modes</option>
-              {modeOptions.slice(1).map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-
-            {/* POD Status Filter */}
-            <select
-              value={podStatusFilter}
-              onChange={(e) => setPodStatusFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
-            >
-              <option value="All">POD Status</option>
-              {podOptions.slice(1).map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-
-            {/* Payment Status Filter */}
-            <select
-              value={paymentStatusFilter}
-              onChange={(e) => setPaymentStatusFilter(e.target.value)}
-              className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
-            >
-              <option value="All">Payment Status</option>
-              {paymentOptions.slice(1).map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={() => {
-                setSearch('');
-                setCompanyFilter('All');
-                setStatusFilter('All');
-                setModeFilter('All');
-                setPodStatusFilter('All');
-                setBillingStatusFilter('All');
-                setPaymentStatusFilter('All');
-              }}
-              className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
-            >
-              Reset
-            </button>
+          <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="overflow-x-auto max-w-full pb-1">
+              <FilterBar
+                options={statusFilterOptions}
+                activeFilter={statusFilter}
+                onSelectFilter={setStatusFilter}
+              />
+            </div>
+            <span className="text-slate-500 font-medium shrink-0 text-[11px] sm:text-xs">
+              Showing <strong>{shipments.length}</strong> Consignment Notes
+            </span>
           </div>
         </div>
-
-        <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="overflow-x-auto max-w-full pb-1">
-            <FilterBar
-              options={statusFilterOptions}
-              activeFilter={statusFilter}
-              onSelectFilter={setStatusFilter}
-            />
-          </div>
-          <span className="text-slate-500 font-medium shrink-0 text-[11px] sm:text-xs">
-            Showing <strong>{shipments.length}</strong> Consignment Notes
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Multi-Selection Bulk Actions Floating Banner */}
       {selectedIds.length > 0 && (
