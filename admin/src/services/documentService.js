@@ -43,7 +43,7 @@ const mockSampleExtractions = [
       actualWeight: { value: '', confidence: 0 },
       chargeableWeight: { value: '', confidence: 0 },
       materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
-      cnNumber: { value: 'SS-SSE1317', confidence: 0.95 },
+      cnNumber: { value: '', confidence: 0 },
       cnDate: { value: todayDateStr, confidence: 1.0 }
     },
     invoice: {
@@ -165,7 +165,7 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
         actualWeight: { value: 320, confidence: 0.90 },
         chargeableWeight: { value: 350, confidence: 0.90 },
         materialDescription: { value: materialDesc, confidence: 0.96 },
-        cnNumber: { value: `SS-${invoiceNo.replace(/[^A-Z0-9]/gi, '')}`, confidence: 0.95 }
+        cnNumber: { value: '', confidence: 0 }
       },
       invoice: {
         invoiceNumber: { value: invoiceNo, confidence: 0.99 },

@@ -111,6 +111,11 @@ export const DocumentExtractionPage = () => {
           result.shipment.cnDate = { value: todayDate, confidence: 1.0 };
           result.shipment.actualWeight = { value: '', confidence: 0 };
           result.shipment.chargeableWeight = { value: '', confidence: 0 };
+          result.shipment.packages = { value: '', confidence: 0 };
+
+          // Pre-fill next 2000 series CN Number since Tax Invoices do not contain logistics CN numbers
+          const nextCN = await shipmentService.generateNextCN();
+          result.shipment.cnNumber = { value: nextCN, confidence: 1.0 };
         }
         if (result.regulatory) {
           result.regulatory.ewayBillNumber = { value: '', confidence: 0 };
@@ -166,8 +171,6 @@ export const DocumentExtractionPage = () => {
     if (!extractionData.consignee?.city?.value && !extractionData.consignee?.city) missing.push('Consignee City');
     if (!extractionData.invoice?.invoiceNumber?.value && !extractionData.invoice?.invoiceNumber) missing.push('Invoice Number');
     if (!extractionData.invoice?.invoiceValue?.value && !extractionData.invoice?.invoiceValue) missing.push('Invoice Value');
-    if (!extractionData.shipment?.packages?.value && !extractionData.shipment?.packages) missing.push('Package Count');
-    if (!extractionData.shipment?.actualWeight?.value && !extractionData.shipment?.actualWeight) missing.push('Actual Weight');
     return missing;
   };
 

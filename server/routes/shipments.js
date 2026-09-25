@@ -215,7 +215,7 @@ router.post('/extract-document', async (req, res) => {
         actualWeight: { value: '', confidence: 0 },
         chargeableWeight: { value: '', confidence: 0 },
         materialDescription: { value: 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos', confidence: 0.96 },
-        cnNumber: { value: 'SS-SSE1317', confidence: 0.95 },
+        cnNumber: { value: '', confidence: 0 },
         cnDate: { value: todayDate, confidence: 1.0 }
       },
       invoice: {
