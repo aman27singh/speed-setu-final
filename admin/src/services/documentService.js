@@ -113,6 +113,41 @@ function createEmptyExtraction(fileName = 'Tax_Invoice_Scan.jpg', fileSize = '')
   };
 }
 
+function parseIndianWordsToNumber(wordsStr) {
+  if (!wordsStr) return null;
+  const clean = wordsStr.toLowerCase().replace(/inr|rupees|only|paise|and/g, ' ').trim();
+  const wordMap = {
+    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+    ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+    seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+    sixty: 60, seventy: 70, eighty: 80, ninety: 90
+  };
+
+  const tokens = clean.split(/\s+/);
+  let total = 0;
+  let current = 0;
+
+  for (let token of tokens) {
+    if (wordMap[token] !== undefined) {
+      current += wordMap[token];
+    } else if (token === 'hundred') {
+      current = current > 0 ? current * 100 : 100;
+    } else if (token === 'thousand') {
+      total += (current > 0 ? current : 1) * 1000;
+      current = 0;
+    } else if (token === 'lakh' || token === 'lakhs') {
+      total += (current > 0 ? current : 1) * 100000;
+      current = 0;
+    } else if (token === 'crore' || token === 'crores') {
+      total += (current > 0 ? current : 1) * 10000000;
+      current = 0;
+    }
+  }
+
+  total += current;
+  return total > 0 ? total : null;
+}
+
 /**
  * Advanced Optical Character Recognition (OCR) & Layout Parsing Engine
  * Specially tuned for Tally ERP Tax Invoices (Advik Autocomp / SS Enterprises format).
@@ -162,21 +197,45 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
     let invoiceVal = '';
     let invValConfidence = 0;
 
-    const totalMatch = text.match(/(?:Total|Amount Chargeable|Grand Total|Billed Amount)[:.\s]*₹?\s*([\d,]+\.\d{2})/i) ||
-                       text.match(/₹\s*([\d,]+\.\d{2})/);
-    if (totalMatch) {
-      const parsed = parseFloat(totalMatch[1].replace(/,/g, ''));
-      if (!isNaN(parsed) && parsed > 0) {
-        invoiceVal = parsed;
-        invValConfidence = 0.98;
+    // Strategy A: Parse "Amount Chargeable (in words)" line if present
+    const wordsMatch = text.match(/Amount Chargeable \(in words\)[\s\S]*?INR\s+([A-Za-z\s]+?)(?:Only|\n|$)/i) ||
+                       text.match(/INR\s+([A-Za-z\s]+?)(?:Only|paise|\n|$)/i);
+    if (wordsMatch && wordsMatch[1]) {
+      const parsedFromWords = parseIndianWordsToNumber(wordsMatch[1]);
+      if (parsedFromWords && parsedFromWords > 100) {
+        let paise = 0;
+        const paiseMatch = text.match(/(\w+)\s*paise/i);
+        if (paiseMatch) {
+          const pNum = parseIndianWordsToNumber(paiseMatch[1]);
+          if (pNum && pNum < 100) paise = pNum / 100;
+        }
+        invoiceVal = parsedFromWords + paise;
+        invValConfidence = 0.99;
       }
     }
 
+    // Strategy B: Explicit match for Amount Chargeable / Total line in table
     if (!invoiceVal) {
-      const amountMatches = [...text.matchAll(/[\d,]{3,}\.\d{2}/g)].map(m => parseFloat(m[0].replace(/,/g, ''))).filter(n => !isNaN(n) && n > 100);
+      const totalMatch = text.match(/(?:Amount Chargeable|Grand Total|Total Billed|Billed Amount)[:.\s]*₹?\s*([\d,]+\.\d{2})/i) ||
+                         text.match(/Total\s+[\d,.]+\s*(?:Nos|Pcs)?\s*₹?\s*([\d,]+\.\d{2})/i) ||
+                         text.match(/₹\s*([\d,]+\.\d{2})/);
+      if (totalMatch) {
+        const parsed = parseFloat(totalMatch[1].replace(/,/g, ''));
+        if (!isNaN(parsed) && parsed > 100) {
+          invoiceVal = parsed;
+          invValConfidence = 0.98;
+        }
+      }
+    }
+
+    // Strategy C: Pick maximum valid currency value from document
+    if (!invoiceVal) {
+      const amountMatches = [...text.matchAll(/[\d,]{3,}\.\d{2}/g)]
+        .map(m => parseFloat(m[0].replace(/,/g, '')))
+        .filter(n => !isNaN(n) && n > 100 && n < 10000000);
       if (amountMatches.length > 0) {
         invoiceVal = Math.max(...amountMatches);
-        invValConfidence = 0.88;
+        invValConfidence = 0.90;
       }
     }
 
@@ -184,15 +243,37 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
     let invoiceQty = '';
     let invQtyConfidence = 0;
 
-    const totalQtyMatch = text.match(/Total\s+([\d,]+(?:\.\d+)?)\s*(?:Nos|Pcs|PCS|NOS)?/i) ||
-                          text.match(/([\d,]+(?:\.\d+)?)\s*(?:Nos|Pcs|PCS|NOS)/i) ||
-                          text.match(/(?:Total|Qty|Quantity)[:.\s]*([\d,]+(?:\.\d+)?)/i);
-    if (totalQtyMatch) {
-      const rawQtyStr = totalQtyMatch[1].replace(/,/g, '');
-      const parsedQty = Math.round(parseFloat(rawQtyStr));
-      if (!isNaN(parsedQty) && parsedQty > 0) {
-        invoiceQty = parsedQty;
-        invQtyConfidence = 0.95;
+    const qtyPatterns = [
+      /Total\s+([\d,]+(?:\.\d{1,3})?)\s*(?:Nos|Pcs|PCS|NOS)/i,
+      /([\d,]+(?:\.\d{3}))\s*(?:Nos|Pcs|PCS|NOS)/i,
+      /([\d,]+)\s*(?:Nos|Pcs|PCS|NOS)/i,
+      /(?:Total|Qty|Quantity)[:.\s]*([\d,]+(?:\.\d+)?)/i
+    ];
+
+    for (const pattern of qtyPatterns) {
+      const qMatch = text.match(pattern);
+      if (qMatch && qMatch[1]) {
+        let qStr = qMatch[1].replace(/,/g, '');
+        if (qStr.includes('.')) {
+          const parts = qStr.split('.');
+          if (parts[1] === '000' || parts[1] === '00' || parts[1] === '0') {
+            qStr = parts[0];
+          } else {
+            qStr = parts[0];
+          }
+        }
+
+        let parsedQty = parseInt(qStr, 10);
+        if (!isNaN(parsedQty)) {
+          if (parsedQty > 50000 && parsedQty % 1000 === 0) {
+            parsedQty = parsedQty / 1000;
+          }
+          if (parsedQty > 0 && parsedQty !== 18 && parsedQty !== 10) {
+            invoiceQty = parsedQty;
+            invQtyConfidence = 0.98;
+            break;
+          }
+        }
       }
     }
 
