@@ -11,6 +11,7 @@ import { Modal } from '../components/common/Modal';
 import { StatusTimeline } from '../components/shipment/StatusTimeline';
 import { DocumentUploadModal } from '../components/shipment/DocumentUploadModal';
 import { ConsignmentNoteModal } from '../components/shipment/ConsignmentNoteModal';
+import { useAuth } from '../context/AuthContext';
 import {
   Package,
   Building2,
@@ -44,6 +45,7 @@ import {
 export const ShipmentDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isDriver } = useAuth();
 
   const [shipment, setShipment] = useState(null);
   const [billingCalculation, setBillingCalculation] = useState(null);
@@ -176,16 +178,23 @@ export const ShipmentDetailPage = () => {
     return '';
   };
 
-  const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'trip', label: 'Trip' },
-    { id: 'pod', label: `POD (${shipment.podStatus || 'Pending'})` },
-    { id: 'billing', label: `Billing (${shipment.billingStatus || 'Not Ready'})` },
-    { id: 'payments', label: 'Payments' },
-    { id: 'expenses', label: 'Expenses' },
-    { id: 'documents', label: `Documents (${(shipment.documents || []).length})` },
-    { id: 'activity', label: 'Activity Log' },
-  ];
+  const tabs = isDriver
+    ? [
+        { id: 'overview', label: 'Overview' },
+        { id: 'pod', label: `POD (${shipment.podStatus || 'Pending'})` },
+        { id: 'documents', label: `Documents (${(shipment.documents || []).length})` },
+        { id: 'activity', label: 'Activity Log' }
+      ]
+    : [
+        { id: 'overview', label: 'Overview' },
+        { id: 'trip', label: 'Trip' },
+        { id: 'pod', label: `POD (${shipment.podStatus || 'Pending'})` },
+        { id: 'billing', label: `Billing (${shipment.billingStatus || 'Not Ready'})` },
+        { id: 'payments', label: 'Payments' },
+        { id: 'expenses', label: 'Expenses' },
+        { id: 'documents', label: `Documents (${(shipment.documents || []).length})` },
+        { id: 'activity', label: 'Activity Log' }
+      ];
 
   return (
     <div className="space-y-6 pb-12">
@@ -227,7 +236,7 @@ export const ShipmentDetailPage = () => {
               <div className="flex flex-wrap items-center gap-1.5">
                 <StatusBadge status={shipment.status || 'Booked'} />
                 <StatusBadge status={shipment.podStatus || 'Pending'} />
-                <StatusBadge status={shipment.billingStatus || 'Not Ready'} />
+                {!isDriver && <StatusBadge status={shipment.billingStatus || 'Not Ready'} />}
               </div>
             </div>
           </div>
@@ -263,13 +272,15 @@ export const ShipmentDetailPage = () => {
             <span>Upload Document</span>
           </button>
 
-          <button
-            onClick={() => navigate(`/admin/shipments/${shipment.id || shipment.cnNumber}/edit`)}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
-          >
-            <Edit className="w-3.5 h-3.5" />
-            <span>Edit</span>
-          </button>
+          {!isDriver && (
+            <button
+              onClick={() => navigate(`/admin/shipments/${shipment.id || shipment.cnNumber}/edit`)}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
+            >
+              <Edit className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -289,7 +300,7 @@ export const ShipmentDetailPage = () => {
       <StatusTimeline currentStatus={shipment.status} statusHistory={shipment.statusHistory} />
 
       {/* SUMMARY METRICS STRIP */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4 font-sans">
+      <div className={`bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs grid grid-cols-2 sm:grid-cols-3 ${isDriver ? 'lg:grid-cols-5' : 'lg:grid-cols-7'} gap-3 sm:gap-4 font-sans`}>
         <div>
           <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Booking Date</span>
           <span className="text-xs font-bold text-slate-900 font-mono">
@@ -314,35 +325,39 @@ export const ShipmentDetailPage = () => {
           </span>
         </div>
 
-        <div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Billing Status</span>
-          <StatusBadge status={shipment.billingStatus || 'Not Ready'} />
-        </div>
+        {!isDriver && (
+          <>
+            <div>
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Billing Status</span>
+              <StatusBadge status={shipment.billingStatus || 'Not Ready'} />
+            </div>
 
-        <div>
-          <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Payment Status</span>
-          {shipment.paymentStatus === 'Paid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Paid
-            </span>
-          ) : shipment.paymentStatus === 'Partially Paid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Partially Paid
-            </span>
-          ) : shipment.paymentStatus === 'Unpaid' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              Unpaid
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-              Unbilled
-            </span>
-          )}
-        </div>
+            <div>
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Payment Status</span>
+              {shipment.paymentStatus === 'Paid' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Paid
+                </span>
+              ) : shipment.paymentStatus === 'Partially Paid' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Partially Paid
+                </span>
+              ) : shipment.paymentStatus === 'Unpaid' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  Unpaid
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                  Unbilled
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
         <div>
           <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Current Location</span>
@@ -475,105 +490,109 @@ export const ShipmentDetailPage = () => {
               </div>
 
               {/* CALCULATED LINE ITEMS & FREIGHT CHARGES CARD */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                  Calculated Line Items & Freight Charges
-                </span>
+              {!isDriver && (
+                <>
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                      Calculated Line Items & Freight Charges
+                    </span>
 
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2.5">
-                  {billingCalculation?.lineItems && billingCalculation.lineItems.length > 0 ? (
-                    <>
-                      {billingCalculation.lineItems.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-start pb-1.5 border-b border-slate-200/80 gap-3">
-                          <div>
-                            <span className="font-bold text-slate-800 block text-xs">{item.name || item.description}</span>
-                            {item.description && item.description !== item.name && (
-                              <span className="text-[10px] text-slate-500 font-mono block leading-tight">{item.description}</span>
-                            )}
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2.5">
+                      {billingCalculation?.lineItems && billingCalculation.lineItems.length > 0 ? (
+                        <>
+                          {billingCalculation.lineItems.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-start pb-1.5 border-b border-slate-200/80 gap-3">
+                              <div>
+                                <span className="font-bold text-slate-800 block text-xs">{item.name || item.description}</span>
+                                {item.description && item.description !== item.name && (
+                                  <span className="text-[10px] text-slate-500 font-mono block leading-tight">{item.description}</span>
+                                )}
+                              </div>
+                              <span className="font-mono font-bold text-slate-900 shrink-0 text-xs">{formatINR(item.amount)}</span>
+                            </div>
+                          ))}
+
+                          <div className="pt-1 space-y-1 font-mono text-xs">
+                            <div className="flex justify-between text-slate-600">
+                              <span>Taxable Subtotal:</span>
+                              <strong className="text-slate-900">{formatINR(billingCalculation.subTotal || billingCalculation.taxableAmount)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600">
+                              <span>GST ({billingCalculation.gstRate || 18}% IGST):</span>
+                              <strong className="text-slate-900">{formatINR(billingCalculation.gstAmount)}</strong>
+                            </div>
+                            <div className="flex justify-between pt-1.5 border-t border-slate-300 font-bold text-sm">
+                              <span className="text-slate-900">Grand Total Billed Value:</span>
+                              <span className="text-setu-700">{formatINR(billingCalculation.grandTotal)}</span>
+                            </div>
                           </div>
-                          <span className="font-mono font-bold text-slate-900 shrink-0 text-xs">{formatINR(item.amount)}</span>
+                        </>
+                      ) : (
+                        <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>No Active Quotation / Rate Card Found</span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            No rate card exists in MongoDB for <strong>{shipment.companyName || 'this company'}</strong>. Create a Quotation in <em>Commercial → Quotations</em> to configure freight rates and automated charges.
+                          </p>
                         </div>
-                      ))}
-
-                      <div className="pt-1 space-y-1 font-mono text-xs">
-                        <div className="flex justify-between text-slate-600">
-                          <span>Taxable Subtotal:</span>
-                          <strong className="text-slate-900">{formatINR(billingCalculation.subTotal || billingCalculation.taxableAmount)}</strong>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>GST ({billingCalculation.gstRate || 18}% IGST):</span>
-                          <strong className="text-slate-900">{formatINR(billingCalculation.gstAmount)}</strong>
-                        </div>
-                        <div className="flex justify-between pt-1.5 border-t border-slate-300 font-bold text-sm">
-                          <span className="text-slate-900">Grand Total Billed Value:</span>
-                          <span className="text-setu-700">{formatINR(billingCalculation.grandTotal)}</span>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-950">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>No Active Quotation / Rate Card Found</span>
-                      </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed">
-                        No rate card exists in MongoDB for <strong>{shipment.companyName || 'this company'}</strong>. Create a Quotation in <em>Commercial → Quotations</em> to configure freight rates and automated charges.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* FREIGHT BILLING CARD */}
-              <div className="pt-3 border-t border-slate-100">
-                {shipment.invoiceId ? (
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">GST Freight Invoice</span>
-                      <span className="font-bold font-mono text-slate-900 text-sm">{shipment.invoiceId}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm(`Do you want to reset billing for ${shipment.cnNumber} and recalculate with updated rate card values?`)) {
-                            try {
-                              await shipmentService.updateShipment(shipment.id || shipment.cnNumber, {
-                                billingStatus: 'Not Ready',
-                                invoiceId: ''
-                              });
-                              navigate(`/admin/billing/create?shipmentId=${shipment.cnNumber}`);
-                            } catch (err) {
-                              alert('Failed to reset billing status: ' + err.message);
-                            }
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
-                      >
-                        Recalculate & Re-Generate Bill
-                      </button>
-
-                      <button
-                        onClick={() => navigate(`/admin/billing/invoices/${shipment.invoiceId.toLowerCase()}`)}
-                        className="px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-xs"
-                      >
-                        View Invoice
-                      </button>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between text-slate-500">
-                    <span>Billing: <strong>Ready for Billing</strong></span>
-                    <button
-                      onClick={() => navigate(`/admin/billing/create?shipmentId=${shipment.cnNumber}`)}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-xs"
-                    >
-                      Review & Generate Bill
-                    </button>
+
+                  {/* FREIGHT BILLING CARD */}
+                  <div className="pt-3 border-t border-slate-100">
+                    {shipment.invoiceId ? (
+                      <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">GST Freight Invoice</span>
+                          <span className="font-bold font-mono text-slate-900 text-sm">{shipment.invoiceId}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Do you want to reset billing for ${shipment.cnNumber} and recalculate with updated rate card values?`)) {
+                                try {
+                                  await shipmentService.updateShipment(shipment.id || shipment.cnNumber, {
+                                    billingStatus: 'Not Ready',
+                                    invoiceId: ''
+                                  });
+                                  navigate(`/admin/billing/create?shipmentId=${shipment.cnNumber}`);
+                                } catch (err) {
+                                  alert('Failed to reset billing status: ' + err.message);
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors"
+                          >
+                            Recalculate & Re-Generate Bill
+                          </button>
+
+                          <button
+                            onClick={() => navigate(`/admin/billing/invoices/${shipment.invoiceId.toLowerCase()}`)}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-xs"
+                          >
+                            View Invoice
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between text-slate-500">
+                        <span>Billing: <strong>Ready for Billing</strong></span>
+                        <button
+                          onClick={() => navigate(`/admin/billing/create?shipmentId=${shipment.cnNumber}`)}
+                          className="px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-xs"
+                        >
+                          Review & Generate Bill
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             {/* Linehaul Dispatch Info */}
@@ -598,7 +617,7 @@ export const ShipmentDetailPage = () => {
                     <span className="font-bold text-slate-900">{shipment.operational?.driver || 'Not Specified'}</span>
                   </div>
                 </div>
-                {shipment.operational?.pickupCost > 0 && (
+                {!isDriver && shipment.operational?.pickupCost > 0 && (
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-mono text-xs">
                     <span className="text-slate-600">Pickup Hire Cost (Driver Payable):</span>
                     <span className="font-bold text-amber-700">{formatINR(shipment.operational.pickupCost)}</span>
@@ -624,12 +643,14 @@ export const ShipmentDetailPage = () => {
               ) : (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between text-slate-500">
                   <span>Trip: <strong>Not Assigned</strong></span>
-                  <button
-                    onClick={() => navigate('/admin/trips/new')}
-                    className="px-2.5 py-1 text-xs font-bold text-setu-700 bg-white border border-setu-200 rounded hover:bg-setu-50"
-                  >
-                    + Assign to Trip
-                  </button>
+                  {!isDriver && (
+                    <button
+                      onClick={() => navigate('/admin/trips/new')}
+                      className="px-2.5 py-1 text-xs font-bold text-setu-700 bg-white border border-setu-200 rounded hover:bg-setu-50"
+                    >
+                      + Assign to Trip
+                    </button>
+                  )}
                 </div>
               )}
             </div>

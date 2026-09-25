@@ -333,47 +333,49 @@ export const ShipmentsPage = () => {
       accessor: 'podStatus',
       render: (row) => <StatusBadge status={row.podStatus} />
     },
-    {
-      header: 'Billing',
-      accessor: 'billingStatus',
-      render: (row) => <StatusBadge status={row.billingStatus} />
-    },
-    {
-      header: 'Payment Status',
-      accessor: 'paymentStatus',
-      render: (row) => {
-        const st = row.paymentStatus || 'Unbilled';
-        if (st === 'Paid') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Paid
-            </span>
-          );
-        } else if (st === 'Partially Paid') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Partially Paid
-            </span>
-          );
-        } else if (st === 'Unpaid') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              Unpaid
-            </span>
-          );
-        } else {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-              Unbilled
-            </span>
-          );
+    ...(!isDriverAccount ? [
+      {
+        header: 'Billing',
+        accessor: 'billingStatus',
+        render: (row) => <StatusBadge status={row.billingStatus} />
+      },
+      {
+        header: 'Payment Status',
+        accessor: 'paymentStatus',
+        render: (row) => {
+          const st = row.paymentStatus || 'Unbilled';
+          if (st === 'Paid') {
+            return (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Paid
+              </span>
+            );
+          } else if (st === 'Partially Paid') {
+            return (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Partially Paid
+              </span>
+            );
+          } else if (st === 'Unpaid') {
+            return (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                Unpaid
+              </span>
+            );
+          } else {
+            return (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                Unbilled
+              </span>
+            );
+          }
         }
       }
-    },
+    ] : []),
     {
       header: 'Actions',
       key: 'actions',
@@ -387,33 +389,37 @@ export const ShipmentsPage = () => {
             <Eye className="w-4 h-4" />
           </button>
 
-          <button
-            onClick={() => navigate(`/admin/shipments/${row.id}/edit`)}
-            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors"
-            title="Edit Shipment"
-          >
-            <Edit className="w-4 h-4" />
-          </button>
+          {!isDriverAccount && (
+            <>
+              <button
+                onClick={() => navigate(`/admin/shipments/${row.id}/edit`)}
+                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors"
+                title="Edit Shipment"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
 
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              const cn = row.cnNumber || row.id;
-              if (window.confirm(`Are you sure you want to delete Consignment Note ${cn}? This action cannot be undone.`)) {
-                try {
-                  await shipmentService.deleteShipment(row.id || cn);
-                  setToastMessage(`Consignment Note ${cn} deleted successfully.`);
-                  fetchData();
-                } catch (err) {
-                  alert(`Failed to delete shipment ${cn}: ${err.message}`);
-                }
-              }
-            }}
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-            title="Delete Consignment Note (CN)"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const cn = row.cnNumber || row.id;
+                  if (window.confirm(`Are you sure you want to delete Consignment Note ${cn}? This action cannot be undone.`)) {
+                    try {
+                      await shipmentService.deleteShipment(row.id || cn);
+                      setToastMessage(`Consignment Note ${cn} deleted successfully.`);
+                      fetchData();
+                    } catch (err) {
+                      alert(`Failed to delete shipment ${cn}: ${err.message}`);
+                    }
+                  }
+                }}
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                title="Delete Consignment Note (CN)"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       )
     }
@@ -432,14 +438,16 @@ export const ShipmentsPage = () => {
         breadcrumbs={['Speed Setu Admin', 'Operations', isDriverAccount ? 'My Shipments' : 'Shipments']}
         actions={
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-md shadow-2xs transition-colors flex-1 sm:flex-initial"
-              title="Bulk import shipment data from Excel (.xlsx/.xls/.csv) file"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Import Excel / CSV</span>
-            </button>
+            {!isDriverAccount && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-md shadow-2xs transition-colors flex-1 sm:flex-initial"
+                title="Bulk import shipment data from Excel (.xlsx/.xls/.csv) file"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Import Excel / CSV</span>
+              </button>
+            )}
 
             <button
               onClick={() => setShowUploadModal(true)}
