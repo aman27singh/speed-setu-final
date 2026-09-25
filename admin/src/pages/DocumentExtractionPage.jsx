@@ -719,11 +719,58 @@ export const DocumentExtractionPage = () => {
                         type="text"
                         value={extractionData.invoice?.invoiceNumber?.value || ''}
                         onChange={(e) => handleFieldChange('invoice', 'invoiceNumber', e.target.value)}
-                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono"
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold"
+                        placeholder="e.g. SSE-26-27/1317"
                       />
                     </div>
 
                     <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-slate-700">Invoice Date</label>
+                        <ConfidenceBadge score={extractionData.invoice?.invoiceDate?.confidence} />
+                      </div>
+                      <input
+                        type="text"
+                        value={extractionData.invoice?.invoiceDate?.value || ''}
+                        onChange={(e) => handleFieldChange('invoice', 'invoiceDate', e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono"
+                        placeholder="e.g. 09/09/2026"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-slate-700">Declared Invoice Value (₹)</label>
+                        <ConfidenceBadge score={extractionData.invoice?.invoiceValue?.confidence} />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-2 text-slate-400 font-bold">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={extractionData.invoice?.invoiceValue?.value ?? ''}
+                          onChange={(e) => handleFieldChange('invoice', 'invoiceValue', e.target.value)}
+                          className="w-full pl-7 p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-emerald-700"
+                          placeholder="e.g. 37004.80"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-slate-700">Invoice Quantity (Pcs/Nos)</label>
+                        <ConfidenceBadge score={extractionData.invoice?.invoiceQuantity?.confidence} />
+                      </div>
+                      <input
+                        type="number"
+                        value={extractionData.invoice?.invoiceQuantity?.value ?? ''}
+                        onChange={(e) => handleFieldChange('invoice', 'invoiceQuantity', e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold"
+                        placeholder="e.g. 800"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-slate-700">E-Way Bill Number</label>
                         <ConfidenceBadge score={extractionData.regulatory?.ewayBillNumber?.confidence} />
@@ -733,6 +780,7 @@ export const DocumentExtractionPage = () => {
                         value={extractionData.regulatory?.ewayBillNumber?.value || ''}
                         onChange={(e) => handleFieldChange('regulatory', 'ewayBillNumber', e.target.value)}
                         className="w-full p-2 bg-slate-50 border border-slate-300 rounded font-mono font-bold"
+                        placeholder="12-digit E-Way Bill Number (if generated)"
                       />
                     </div>
                   </div>

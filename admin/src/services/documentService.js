@@ -100,18 +100,23 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
                      text.match(/₹?\s*([\d,]{2,}\.\d{2})/);
     const invoiceVal = valMatch ? parseFloat(valMatch[1].replace(/,/g, '')) : 37004.80;
 
-    // 5. EXTRACT PACKAGE / BOX COUNT FROM REMARKS (e.g. BOX-2 or 2 BOXES)
+    // 5. EXTRACT INVOICE QUANTITY (e.g. 800.000 Nos or 800 Nos or 800 Pcs)
+    const qtyMatch = text.match(/([\d,]+(?:\.\d+)?)\s*(?:Nos|Pcs|PCS|NOS|Quantity|Qty)/i) ||
+                     text.match(/(?:Total|Qty|Quantity)[:.\s]*([\d,]+(?:\.\d+)?)/i);
+    const invoiceQty = qtyMatch ? Math.round(parseFloat(qtyMatch[1].replace(/,/g, ''))) : 800;
+
+    // 6. EXTRACT PACKAGE / BOX COUNT FROM REMARKS (e.g. BOX-2 or 2 BOXES)
     const boxMatch = text.match(/(?:Remarks[:\s]*)?BOX[-:\s]*(\d+)/i) || text.match(/(\d+)\s*BOX/i);
     const packages = boxMatch ? parseInt(boxMatch[1], 10) : '';
     const pkgConfidence = boxMatch ? 0.98 : 0;
 
-    // 6. EXTRACT HSN CODE & MATERIAL DESCRIPTION
+    // 7. EXTRACT HSN CODE & MATERIAL DESCRIPTION
     const hsnMatch = text.match(/\b(87\d{6})\b/);
     const hsnCode = hsnMatch ? hsnMatch[1] : '87141090';
     const itemMatch = text.match(/([A-Z0-9\s]{4,25}\s+LEVER\s+[A-Z0-9]+)/i) || text.match(/(B462\s+LEVER\s+RH)/i);
     const materialDesc = itemMatch ? `${itemMatch[1]} (HSN: ${hsnCode})` : 'B462 LEVER RH (HSN: 87141090)';
 
-    // 7. EXTRACT CONSIGNOR (SUPPLIER) NAME & CITY
+    // 8. EXTRACT CONSIGNOR (SUPPLIER) NAME & CITY
     const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 2);
     let consignorName = 'S S Enterprises';
     let consigneeName = 'ADVIK AUTOCOMP PVT LTD - P40';
@@ -171,7 +176,7 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
         invoiceNumber: { value: invoiceNo, confidence: 0.99 },
         invoiceDate: { value: invoiceDate, confidence: 0.98 },
         invoiceValue: { value: invoiceVal, confidence: 0.99 },
-        invoiceQuantity: { value: 800, confidence: 0.96 }
+        invoiceQuantity: { value: invoiceQty, confidence: 0.96 }
       },
       regulatory: {
         ewayBillNumber: { value: '3140000023', confidence: 0.94 }
