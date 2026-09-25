@@ -2,10 +2,8 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import {
-  MapPin,
   Truck,
   Camera,
-  FileCheck,
   PlusCircle
 } from 'lucide-react';
 
@@ -13,10 +11,8 @@ export const DriverMobileBottomNav = () => {
   const location = useLocation();
 
   const navItems = [
-    { name: 'Trips', path: '/admin/trips', icon: MapPin },
     { name: 'My Shipments', path: '/admin/shipments', icon: Truck },
     { name: 'Scan Invoice', path: '/admin/shipments/upload', icon: Camera, highlight: true },
-    { name: 'POD', path: '/admin/pod', icon: FileCheck },
     { name: 'New CN', path: '/admin/shipments/new', icon: PlusCircle }
   ];
 

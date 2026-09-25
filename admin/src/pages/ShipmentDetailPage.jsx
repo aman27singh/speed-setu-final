@@ -181,7 +181,6 @@ export const ShipmentDetailPage = () => {
   const tabs = isDriver
     ? [
         { id: 'overview', label: 'Overview' },
-        { id: 'pod', label: `POD (${shipment.podStatus || 'Pending'})` },
         { id: 'documents', label: `Documents (${(shipment.documents || []).length})` },
         { id: 'activity', label: 'Activity Log' }
       ]

@@ -65,7 +65,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (allowedRoles && !hasRole(allowedRoles)) {
     if (isDriver) {
-      return <Navigate to="/admin/trips" replace />;
+      return <Navigate to="/admin/shipments" replace />;
     }
     return <Navigate to="/admin/dashboard" replace />;
   }
@@ -77,7 +77,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const AdminIndexRedirect = () => {
   const { isDriver } = useAuth();
   if (isDriver) {
-    return <Navigate to="/admin/trips" replace />;
+    return <Navigate to="/admin/shipments" replace />;
   }
   return <Navigate to="/admin/dashboard" replace />;
 };

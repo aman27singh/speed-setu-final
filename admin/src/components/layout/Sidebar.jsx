@@ -33,15 +33,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
   let navGroups = [];
 
   if (isDriver) {
-    // Driver Portal Navigation
+    // Driver Portal Navigation (Simplified: My Shipments, Scan Invoice, Create CN)
     navGroups = [
       {
         groupLabel: 'Driver Portal',
         items: [
-          { name: 'My Assigned Trips', path: '/admin/trips', icon: MapPin },
+          { name: 'My Shipments', path: '/admin/shipments', icon: Truck },
           { name: 'Scan Invoice (Create CN)', path: '/admin/shipments/upload', icon: Camera },
-          { name: 'Upload ePOD', path: '/admin/pod', icon: FileCheck },
-          { name: 'Assigned Shipments', path: '/admin/shipments', icon: Truck },
           { name: 'Create Shipment', path: '/admin/shipments/new', icon: Plus }
         ]
       }
@@ -108,7 +106,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         {/* Brand Header */}
         <div className="px-5 py-3 border-b border-slate-800 flex flex-col justify-center shrink-0 gap-1.5">
           <div className="flex items-center justify-between">
-            <NavLink to={isDriver ? "/admin/trips" : "/admin/dashboard"} className="flex items-center gap-3 group">
+            <NavLink to={isDriver ? "/admin/shipments" : "/admin/dashboard"} className="flex items-center gap-3 group">
               <img
                 src={logoImg}
                 alt="Speed Setu Logo"
