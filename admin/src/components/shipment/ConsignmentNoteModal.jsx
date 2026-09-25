@@ -1,10 +1,9 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Share2, Check, FileText } from 'lucide-react';
 import logoImg from '../../assets/logo1.png';
 
 export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
   const printRef = useRef(null);
-  const [copyName, setCopyName] = useState('1. Consignor Copy');
+  const [copiedToast, setCopiedToast] = useState(false);
 
   useEffect(() => {
     if (isOpen && autoPrint && shipment) {
@@ -16,6 +15,34 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   }, [isOpen, autoPrint, shipment]);
 
   if (!isOpen || !shipment) return null;
+
+  const handleShare = async () => {
+    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
+    const consignorName = shipment.consignor?.name || 'Shipper';
+    const consigneeName = shipment.consignee?.name || 'Receiver';
+    const shareText = `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nStatus: ${shipment.status || 'Booked'}\nView details: ${window.location.href}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Consignment Note ${cnNo}`,
+          text: shareText,
+          url: window.location.href
+        });
+        return;
+      } catch (err) {
+        console.log('Share canceled or failed:', err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopiedToast(true);
+      setTimeout(() => setCopiedToast(false), 2500);
+    } catch (err) {
+      alert(`Consignment Note ${cnNo}\nConsignor: ${consignorName}\nConsignee: ${consigneeName}`);
+    }
+  };
 
   // Formatting helpers for exact digit arrays
   const formatDateBoxes = (dateStr) => {
@@ -248,39 +275,68 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   const isFtl = mode.includes('FTL');
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static">
       
       {/* Screen Wrapper Shell */}
-      <div className="bg-white border-2 border-black w-full max-w-[1050px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl">
+      <div className="bg-white rounded-2xl border border-slate-700 w-full max-w-[1050px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl relative">
         
-        {/* Screen Utility Control Toolbar (Hidden on Print) */}
-        <div className="no-print flex items-center justify-between px-4 py-2 bg-black text-white text-xs border-b border-black">
-          <div className="flex items-center gap-2 font-mono">
-            <span className="font-bold uppercase tracking-wider">SPEED SETU CONSIGNMENT NOTE MASTER SVG</span>
-            <span>|</span>
-            <span>CN: <strong className="text-amber-300 font-bold">{shipment.cnNumber || 'SS 285'}</strong></span>
+        {/* Screen Control Toolbar (Hidden on Print) */}
+        <div className="no-print flex items-center justify-between px-3 sm:px-5 py-3 bg-slate-900 text-white border-b border-slate-800 shadow-md">
+          
+          {/* Left: Title & CN Badge */}
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-setu-600/20 border border-setu-500/30 flex items-center justify-center text-setu-400 flex-shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <h2 className="text-sm font-bold text-white truncate">Consignment Note (CN)</h2>
+                <span className="px-2 py-0.5 text-[11px] font-extrabold rounded bg-amber-400 text-slate-900 shadow-xs">
+                  {shipment.cnNumber || 'SS2004'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">Official Speed Setu Lorry Receipt</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-bold text-[10px] uppercase">DOCUMENT:</span>
-            <span className="px-2.5 py-0.5 border text-[11px] font-bold bg-white text-black border-white">
-              1. Consignor Copy
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
+          {/* Right: Only 2 Actions (1. Print/Download, 2. Share) + Close */}
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* 1. Print / Download Button */}
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-black font-bold hover:bg-slate-200 transition-colors text-xs"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-setu-600 hover:bg-setu-500 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              title="Print or Save as PDF"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Lorry Receipt (LR)</span>
+              <span>Print / Download</span>
             </button>
+
+            {/* 2. Share Button */}
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              title="Share CN via WhatsApp / System Share"
+            >
+              {copiedToast ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold">Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-setu-400" />
+                  <span>Share</span>
+                </>
+              )}
+            </button>
+
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-1 text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors ml-1 cursor-pointer"
+              title="Close preview"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
