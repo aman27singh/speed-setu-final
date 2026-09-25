@@ -168,7 +168,7 @@ export const BulkShipmentImportModal = ({ isOpen, onClose, onImportSuccess }) =>
           const origin = getFieldValue(row, ['origin', 'fromcity', 'origincity', 'source']) || consignorCity || '';
           const destination = getFieldValue(row, ['destination', 'tocity', 'destcity', 'dest']) || consigneeCity || '';
 
-          const mode = getFieldValue(row, ['mode', 'freightmode', 'transportmode', 'shipmentmode']) || 'Express LTL';
+          const mode = getFieldValue(row, ['mode', 'freightmode', 'transportmode', 'shipmentmode']) || 'Air';
           const packages = parseInt(getFieldValue(row, ['noboxpkt', 'packages', 'boxes', 'noofboxes', 'qty', 'quantity', 'nopack', 'pack', 'parcels', 'units'])) || 1;
           const actualWeight = parseFloat(getFieldValue(row, ['actualweight', 'weight', 'wt', 'actwt', 'grossweight'])) || 0;
           const chargeableWeight = parseFloat(getFieldValue(row, ['chargeableweight', 'chgweight', 'chargewt', 'billweight', 'chargedwt'])) || actualWeight;

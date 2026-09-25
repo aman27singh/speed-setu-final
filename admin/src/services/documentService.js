@@ -38,7 +38,7 @@ const mockSampleExtractions = [
     shipment: {
       origin: { value: 'Pune', confidence: 0.96 },
       destination: { value: 'Narsapura', confidence: 0.96 },
-      mode: { value: 'Express LTL', confidence: 0.92 },
+      mode: { value: 'Air', confidence: 0.95 },
       packages: { value: '', confidence: 0 },
       actualWeight: { value: '', confidence: 0 },
       chargeableWeight: { value: '', confidence: 0 },
@@ -187,7 +187,7 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
       shipment: {
         origin: { value: originCity, confidence: 0.96 },
         destination: { value: destCity, confidence: 0.96 },
-        mode: { value: 'Express LTL', confidence: 0.92 },
+        mode: { value: 'Air', confidence: 0.95 },
         packages: { value: packages, confidence: pkgConfidence },
         actualWeight: { value: 320, confidence: 0.90 },
         chargeableWeight: { value: 350, confidence: 0.90 },
@@ -359,7 +359,7 @@ export const documentService = {
 
       origin: getStr(finalData.shipment?.origin, 'Pune'),
       destination: getStr(finalData.shipment?.destination, 'Narsapura'),
-      mode: getStr(finalData.shipment?.mode, 'Express LTL'),
+      mode: getStr(finalData.shipment?.mode, 'Air'),
       packages: parseInt(getStr(finalData.shipment?.packages, '0'), 10) || 0,
       actualWeight: parseFloat(getStr(finalData.shipment?.actualWeight, '0')) || 0,
       chargeableWeight: parseFloat(getStr(finalData.shipment?.chargeableWeight, '0')) || 0,

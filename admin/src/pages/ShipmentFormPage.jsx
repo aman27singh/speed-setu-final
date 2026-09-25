@@ -67,7 +67,7 @@ const INITIAL_FORM_STATE = {
 
   origin: '',
   destination: '',
-  mode: 'Express LTL',
+  mode: 'Air',
   packages: '',
   actualWeight: '',
   chargeableWeight: '',
