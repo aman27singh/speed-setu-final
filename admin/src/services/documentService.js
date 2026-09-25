@@ -188,9 +188,9 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
         origin: { value: originCity, confidence: 0.96 },
         destination: { value: destCity, confidence: 0.96 },
         mode: { value: 'Air', confidence: 0.95 },
-        packages: { value: packages, confidence: pkgConfidence },
-        actualWeight: { value: 320, confidence: 0.90 },
-        chargeableWeight: { value: 350, confidence: 0.90 },
+        packages: { value: '', confidence: 0 },
+        actualWeight: { value: '', confidence: 0 },
+        chargeableWeight: { value: '', confidence: 0 },
         materialDescription: { value: materialDesc, confidence: 0.96 },
         cnNumber: { value: '', confidence: 0 }
       },

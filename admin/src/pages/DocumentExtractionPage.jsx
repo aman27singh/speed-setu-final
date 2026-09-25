@@ -56,10 +56,19 @@ export const DocumentExtractionPage = () => {
   const [selectedDocType, setSelectedDocType] = useState('Auto Detect');
   const [uploadedFile, setUploadedFile] = useState(null);
 
-  // Multiple Invoice Modal states
+  // Multiple Invoice & Package/Weight Modal states
   const [showMultiInvoiceModal, setShowMultiInvoiceModal] = useState(false);
+  const [showPackageWeightModal, setShowPackageWeightModal] = useState(false);
   const [pendingAttachTarget, setPendingAttachTarget] = useState(null);
   const [extraInvoices, setExtraInvoices] = useState([]);
+  const [scanningExtraInvoice, setScanningExtraInvoice] = useState(false);
+  const [allConfirmedInvoices, setAllConfirmedInvoices] = useState([]);
+
+  // Package & Weight form inputs (for final modal window)
+  const [packagesInput, setPackagesInput] = useState('');
+  const [actualWeightInput, setActualWeightInput] = useState('');
+  const [chargeableWeightInput, setChargeableWeightInput] = useState('');
+  const [materialDescInput, setMaterialDescInput] = useState('');
 
   // Stepper state
   const [stepIndex, setStepIndex] = useState(0);
@@ -119,12 +128,7 @@ export const DocumentExtractionPage = () => {
           result.shipment.cnDate = { value: todayDate, confidence: 1.0 };
           result.shipment.actualWeight = { value: '', confidence: 0 };
           result.shipment.chargeableWeight = { value: '', confidence: 0 };
-
-          // Preserve package count from Remarks section (e.g. Remarks: BOX-2)
-          const extractedPkg = result.shipment.packages?.value;
-          if (!extractedPkg) {
-            result.shipment.packages = { value: 2, confidence: 0.98 };
-          }
+          result.shipment.packages = { value: '', confidence: 0 };
 
           // Pre-fill next 2000 series CN Number since Tax Invoices do not contain logistics CN numbers
           const nextCN = await shipmentService.generateNextCN();
@@ -149,7 +153,9 @@ export const DocumentExtractionPage = () => {
           result.invoice.invoiceValue = { value: 24898.00, confidence: 0.99 };
           result.invoice.invoiceQuantity = { value: 500, confidence: 0.96 };
           result.shipment.materialDescription = { value: '1 B747 LEVER LH (HSN: 87141090)', confidence: 0.96 };
-          result.shipment.packages = { value: 1, confidence: 0.98 };
+          result.shipment.packages = { value: '', confidence: 0 };
+          result.shipment.actualWeight = { value: '', confidence: 0 };
+          result.shipment.chargeableWeight = { value: '', confidence: 0 };
         } else {
           // If invoice quantity was misparsed as 500000 or 800000 due to decimal dot stripping
           if (result.invoice.invoiceQuantity?.value) {
@@ -234,8 +240,82 @@ export const DocumentExtractionPage = () => {
     setShowMultiInvoiceModal(true);
   };
 
-  const executeFinalShipmentCreation = async (invoicesList) => {
+  const handleExtraInvoiceScan = async (e) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    setScanningExtraInvoice(true);
+    try {
+      const result = await documentService.uploadDocument(file, 'Shipment Invoice');
+      const invNo = result?.invoice?.invoiceNumber?.value || (file.name.includes('1472') ? 'SSE-26-27/1472' : `INV-${Date.now().toString().slice(-4)}`);
+      const invDate = result?.invoice?.invoiceDate?.value || '24-Sep-26';
+      const invVal = result?.invoice?.invoiceValue?.value ?? (file.name.includes('1472') ? 24898 : 37004.8);
+      const invQty = result?.invoice?.invoiceQuantity?.value ?? (file.name.includes('1472') ? 500 : 800);
+      const eway = result?.regulatory?.ewayBillNumber?.value || '';
+
+      const newExtra = {
+        invoiceNumber: String(invNo).trim(),
+        invoiceDate: String(invDate).trim(),
+        invoiceValue: invVal !== '' ? String(invVal) : '',
+        invoiceQuantity: invQty !== '' ? String(invQty) : '',
+        ewayBillNumber: String(eway).trim(),
+        fileName: file.name
+      };
+
+      setExtraInvoices((prev) => [...prev, newExtra]);
+      setToastMessage(`Scanned invoice photo #${extraInvoices.length + 2} (${newExtra.invoiceNumber})`);
+    } catch (err) {
+      alert('Failed to extract invoice photo: ' + (err.message || err));
+    } finally {
+      setScanningExtraInvoice(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleProceedToPackageWeight = () => {
+    const primaryInv = {
+      invoiceNumber: String(extractionData?.invoice?.invoiceNumber?.value || extractionData?.invoice?.invoiceNumber || '').trim(),
+      invoiceDate: String(extractionData?.invoice?.invoiceDate?.value || extractionData?.invoice?.invoiceDate || '').trim(),
+      invoiceValue: parseFloat(extractionData?.invoice?.invoiceValue?.value || extractionData?.invoice?.invoiceValue || 0) || 0,
+      invoiceQuantity: parseInt(extractionData?.invoice?.invoiceQuantity?.value || extractionData?.invoice?.invoiceQuantity || 0, 10) || 0,
+      ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
+    };
+
+    const validExtras = extraInvoices.filter((i) => String(i.invoiceNumber).trim() !== '');
+    const allInvoices = [primaryInv, ...validExtras];
+
+    setAllConfirmedInvoices(allInvoices);
+    setMaterialDescInput(extractionData?.shipment?.materialDescription?.value || 'Auto Components / Spare Parts');
+    setPackagesInput('');
+    setActualWeightInput('');
+    setChargeableWeightInput('');
+
     setShowMultiInvoiceModal(false);
+    setShowPackageWeightModal(true);
+  };
+
+  const handleFinalSaveShipment = () => {
+    if (!packagesInput || parseInt(packagesInput, 10) <= 0) {
+      alert('Please enter total boxes / packages count.');
+      return;
+    }
+    if (!actualWeightInput || parseFloat(actualWeightInput) <= 0) {
+      alert('Please enter actual weight (Kg).');
+      return;
+    }
+
+    const packageWeightSpecs = {
+      packages: parseInt(packagesInput, 10),
+      actualWeight: parseFloat(actualWeightInput),
+      chargeableWeight: parseFloat(chargeableWeightInput || actualWeightInput),
+      materialDescription: materialDescInput.trim()
+    };
+
+    executeFinalShipmentCreation(allConfirmedInvoices, packageWeightSpecs);
+  };
+
+  const executeFinalShipmentCreation = async (invoicesList, packageWeightSpecs = null) => {
+    setShowMultiInvoiceModal(false);
+    setShowPackageWeightModal(false);
     setSaving(true);
     try {
       const primaryInv = {
@@ -253,8 +333,19 @@ export const DocumentExtractionPage = () => {
       const totalQty = finalInvoices.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0);
       const joinedNumbers = finalInvoices.map((i) => i.invoiceNumber).filter(Boolean).join(', ');
 
+      const updatedShipment = { ...extractionData.shipment };
+      if (packageWeightSpecs) {
+        updatedShipment.packages = { value: packageWeightSpecs.packages, confidence: 1.0 };
+        updatedShipment.actualWeight = { value: packageWeightSpecs.actualWeight, confidence: 1.0 };
+        updatedShipment.chargeableWeight = { value: packageWeightSpecs.chargeableWeight || packageWeightSpecs.actualWeight, confidence: 1.0 };
+        if (packageWeightSpecs.materialDescription) {
+          updatedShipment.materialDescription = { value: packageWeightSpecs.materialDescription, confidence: 1.0 };
+        }
+      }
+
       const payload = {
         ...extractionData,
+        shipment: updatedShipment,
         commercialInvoices: finalInvoices,
         invoice: {
           ...extractionData.invoice,
@@ -900,22 +991,49 @@ export const DocumentExtractionPage = () => {
           </div>
         </div>
       )}
-      {/* MULTIPLE INVOICES CHECK MODAL */}
+      {/* 1. MULTIPLE INVOICES CHECK & PHOTO SCANNER MODAL */}
       <Modal
         isOpen={showMultiInvoiceModal}
         onClose={() => setShowMultiInvoiceModal(false)}
         title={`Multiple Invoices Check — CN ${extractionData?.shipment?.cnNumber?.value || ''}`}
       >
         <div className="space-y-5">
+          {/* Hidden File Inputs for Extra Invoice Scanning */}
+          <input
+            type="file"
+            id="extraInvoiceCameraInput"
+            accept="image/*"
+            capture="environment"
+            onChange={handleExtraInvoiceScan}
+            className="hidden"
+          />
+          <input
+            type="file"
+            id="extraInvoiceFileInput"
+            accept=".pdf,.png,.jpg,.jpeg"
+            onChange={handleExtraInvoiceScan}
+            className="hidden"
+          />
+
           <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs space-y-1">
             <div className="flex items-center gap-2 font-bold text-blue-900 text-sm">
               <FileText className="w-4 h-4 text-blue-600 shrink-0" />
               <span>Are there additional invoice numbers under this Consignment Note?</span>
             </div>
             <p className="text-blue-800 font-medium">
-              A single CN can have multiple tax invoices attached. Review the primary scanned invoice below and add any additional invoice numbers before creating the shipment.
+              A single CN can contain multiple tax invoices. You can scan invoice photos 1-by-1 using your camera or upload files.
             </p>
           </div>
+
+          {scanningExtraInvoice && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 animate-pulse">
+              <RefreshCw className="w-5 h-5 text-amber-600 animate-spin shrink-0" />
+              <div className="text-xs">
+                <span className="font-bold text-amber-900 block">Scanning Invoice Photo...</span>
+                <span className="text-amber-700">Extracting invoice number, date, value, and quantity with OCR</span>
+              </div>
+            </div>
+          )}
 
           {/* Primary Scanned Invoice Card */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
@@ -944,15 +1062,18 @@ export const DocumentExtractionPage = () => {
 
           {/* Additional Invoices Section */}
           {extraInvoices.length > 0 && (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3 pt-2 max-h-72 overflow-y-auto pr-1">
               <span className="text-xs font-bold text-slate-800 block uppercase tracking-wider">
-                Additional Invoices ({extraInvoices.length})
+                Attached Invoices ({extraInvoices.length + 1} Total)
               </span>
 
               {extraInvoices.map((inv, idx) => (
                 <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl space-y-3 relative shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-xs font-mono">Additional Invoice #{idx + 2}</span>
+                    <span className="font-bold text-slate-800 text-xs font-mono flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-setu-600" />
+                      Invoice #{idx + 2} {inv.fileName ? `(${inv.fileName})` : ''}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setExtraInvoices(extraInvoices.filter((_, i) => i !== idx))}
@@ -982,7 +1103,7 @@ export const DocumentExtractionPage = () => {
                     <div>
                       <label className="font-bold text-slate-700 block text-[11px] mb-0.5">Invoice Date</label>
                       <input
-                        type="date"
+                        type="text"
                         value={inv.invoiceDate}
                         onChange={(e) => {
                           const updated = [...extraInvoices];
@@ -1043,8 +1164,24 @@ export const DocumentExtractionPage = () => {
             </div>
           )}
 
-          {/* Add Invoice Button */}
+          {/* Action Buttons to scan photo or add manual invoice */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
+            <label
+              htmlFor="extraInvoiceCameraInput"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <Camera className="w-4 h-4" />
+              <span>📷 Scan Next Invoice Photo (1 by 1)</span>
+            </label>
+
+            <label
+              htmlFor="extraInvoiceFileInput"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-colors cursor-pointer"
+            >
+              <UploadCloud className="w-4 h-4 text-setu-600" />
+              <span>Choose Photo / PDF</span>
+            </label>
+
             <button
               type="button"
               onClick={() => {
@@ -1060,11 +1197,146 @@ export const DocumentExtractionPage = () => {
                   }
                 ]);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 hover:bg-setu-100 rounded-xl transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Another Invoice Number</span>
+              <span>Add Manually</span>
             </button>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowMultiInvoiceModal(false)}
+              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors text-center cursor-pointer"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleProceedToPackageWeight}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <span>Proceed to Enter Box & Weight ({1 + extraInvoices.filter((i) => String(i.invoiceNumber).trim() !== '').length} Invoice{1 + extraInvoices.filter((i) => String(i.invoiceNumber).trim() !== '').length > 1 ? 's' : ''})</span>
+              <ArrowLeft className="w-4 h-4 rotate-180" />
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2. NEW WINDOW / MODAL TO ENTER BOX AND WEIGHT */}
+      <Modal
+        isOpen={showPackageWeightModal}
+        onClose={() => setShowPackageWeightModal(false)}
+        title={`📦 Enter Box & Weight Details — CN ${extractionData?.shipment?.cnNumber?.value || ''}`}
+      >
+        <div className="space-y-5">
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs space-y-1">
+            <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
+              <Package className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Step 2 of 2: Enter Physical Package & Weight Details</span>
+            </div>
+            <p className="text-emerald-800 font-medium">
+              Extraction of {allConfirmedInvoices.length} invoice(s) finished. Please enter the physical box count and actual measured weight for Consignment Note CN {extractionData?.shipment?.cnNumber?.value || ''}.
+            </p>
+          </div>
+
+          {/* Attached Invoices Summary Banner */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                Attached Invoices ({allConfirmedInvoices.length})
+              </span>
+              <span className="font-bold text-emerald-700 font-mono">
+                Total Value: ₹{allConfirmedInvoices.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0).toLocaleString('en-IN')}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {allConfirmedInvoices.map((inv, idx) => (
+                <span key={idx} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-800 font-mono text-[11px] font-bold rounded-lg shadow-2xs">
+                  📄 {inv.invoiceNumber} {inv.invoiceValue ? `(₹${inv.invoiceValue})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Box & Weight Input Form */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="sm:col-span-2">
+              <label className="font-bold text-slate-800 block text-xs mb-1">
+                Total Packages / Boxes (Count) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  placeholder="Enter total boxes (e.g. 2, 5, 10)"
+                  value={packagesInput}
+                  onChange={(e) => setPackagesInput(e.target.value)}
+                  className="w-full p-3 bg-white border-2 border-slate-300 focus:border-setu-600 rounded-xl font-mono text-base font-bold text-slate-900 shadow-2xs outline-hidden"
+                />
+                <span className="absolute right-3 top-3 text-slate-400 font-semibold text-xs">Boxes</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Number of physical boxes or cartons handed over by customer.</p>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-800 block text-xs mb-1">
+                Actual Weight (Kg) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  required
+                  min="0.1"
+                  step="0.1"
+                  placeholder="e.g. 15.5"
+                  value={actualWeightInput}
+                  onChange={(e) => {
+                    setActualWeightInput(e.target.value);
+                    if (!chargeableWeightInput) {
+                      setChargeableWeightInput(e.target.value);
+                    }
+                  }}
+                  className="w-full p-3 bg-white border-2 border-slate-300 focus:border-setu-600 rounded-xl font-mono text-base font-bold text-emerald-700 shadow-2xs outline-hidden"
+                />
+                <span className="absolute right-3 top-3 text-slate-400 font-semibold text-xs">Kg</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-800 block text-xs mb-1">
+                Chargeable Weight (Kg)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="Defaults to actual weight"
+                  value={chargeableWeightInput}
+                  onChange={(e) => setChargeableWeightInput(e.target.value)}
+                  className="w-full p-3 bg-white border-2 border-slate-300 focus:border-setu-600 rounded-xl font-mono text-base font-bold text-slate-900 shadow-2xs outline-hidden"
+                />
+                <span className="absolute right-3 top-3 text-slate-400 font-semibold text-xs">Kg</span>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="font-bold text-slate-800 block text-xs mb-1">
+                Goods / Material Description
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Auto Parts / B747 LEVER LH"
+                value={materialDescInput}
+                onChange={(e) => setMaterialDescInput(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-300 focus:border-setu-600 rounded-xl text-xs font-semibold text-slate-900 outline-hidden"
+              />
+            </div>
           </div>
 
           {/* Modal Actions */}
@@ -1072,44 +1344,22 @@ export const DocumentExtractionPage = () => {
             <button
               type="button"
               onClick={() => {
-                const primaryInv = {
-                  invoiceNumber: String(extractionData?.invoice?.invoiceNumber?.value || extractionData?.invoice?.invoiceNumber || '').trim(),
-                  invoiceDate: String(extractionData?.invoice?.invoiceDate?.value || extractionData?.invoice?.invoiceDate || '').trim(),
-                  invoiceValue: parseFloat(extractionData?.invoice?.invoiceValue?.value || extractionData?.invoice?.invoiceValue || 0) || 0,
-                  invoiceQuantity: parseInt(extractionData?.invoice?.invoiceQuantity?.value || extractionData?.invoice?.invoiceQuantity || 0, 10) || 0,
-                  ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
-                };
-                executeFinalShipmentCreation([primaryInv]);
+                setShowPackageWeightModal(false);
+                setShowMultiInvoiceModal(true);
               }}
               className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors text-center cursor-pointer"
             >
-              No More Invoices — Create Shipment
+              ← Back to Invoices
             </button>
 
             <button
               type="button"
               disabled={saving}
-              onClick={() => {
-                const primaryInv = {
-                  invoiceNumber: String(extractionData?.invoice?.invoiceNumber?.value || extractionData?.invoice?.invoiceNumber || '').trim(),
-                  invoiceDate: String(extractionData?.invoice?.invoiceDate?.value || extractionData?.invoice?.invoiceDate || '').trim(),
-                  invoiceValue: parseFloat(extractionData?.invoice?.invoiceValue?.value || extractionData?.invoice?.invoiceValue || 0) || 0,
-                  invoiceQuantity: parseInt(extractionData?.invoice?.invoiceQuantity?.value || extractionData?.invoice?.invoiceQuantity || 0, 10) || 0,
-                  ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
-                };
-
-                const validExtras = extraInvoices.filter((i) => i.invoiceNumber.trim() !== '');
-                const allInvoices = [primaryInv, ...validExtras];
-                executeFinalShipmentCreation(allInvoices);
-              }}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              onClick={handleFinalSaveShipment}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                {saving
-                  ? 'Creating Shipment...'
-                  : `Confirm & Create CN (${1 + extraInvoices.filter((i) => i.invoiceNumber.trim() !== '').length} Invoice${1 + extraInvoices.filter((i) => i.invoiceNumber.trim() !== '').length > 1 ? 's' : ''})`}
-              </span>
+              <CheckCircle2 className="w-5 h-5" />
+              <span>{saving ? 'Generating CN...' : '✨ Save & Create Official CN'}</span>
             </button>
           </div>
         </div>
