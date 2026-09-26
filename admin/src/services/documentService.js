@@ -115,7 +115,48 @@ function createEmptyExtraction(fileName = 'Tax_Invoice_Scan.jpg', fileSize = '')
 
 function parseIndianWordsToNumber(wordsStr) {
   if (!wordsStr) return null;
-  const clean = wordsStr.toLowerCase().replace(/inr|rupees|only|paise|and/g, ' ').trim();
+
+  let clean = wordsStr.toLowerCase().replace(/inr|rupees|only/g, ' ').trim();
+  let rupeesStr = clean;
+  let paiseStr = '';
+
+  if (clean.includes('paise')) {
+    const paiseSplit = clean.split('paise')[0];
+    const andSplit = paiseSplit.split(/\band\b/);
+    if (andSplit.length > 1) {
+      paiseStr = andSplit.pop();
+      rupeesStr = andSplit.join(' ');
+    } else {
+      rupeesStr = paiseSplit;
+    }
+  } else if (clean.includes('and')) {
+    const andSplit = clean.split(/\band\b/);
+    const candidatePaise = andSplit[andSplit.length - 1].trim();
+    if (/^(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|\s)+$/.test(candidatePaise)) {
+      const testVal = parseWordsNumberHelper(candidatePaise);
+      if (testVal !== null && testVal < 100) {
+        paiseStr = candidatePaise;
+        rupeesStr = andSplit.slice(0, -1).join(' ');
+      }
+    }
+  }
+
+  const rupeesVal = parseWordsNumberHelper(rupeesStr);
+  const paiseVal = parseWordsNumberHelper(paiseStr);
+
+  if (rupeesVal === null && paiseVal === null) return null;
+
+  const r = rupeesVal || 0;
+  const p = paiseVal && paiseVal < 100 ? paiseVal / 100 : 0;
+  const finalVal = Math.round((r + p) * 100) / 100;
+  return finalVal > 0 ? finalVal : null;
+}
+
+function parseWordsNumberHelper(str) {
+  if (!str) return null;
+  const clean = str.toLowerCase().replace(/[^a-z\s]/g, ' ').trim();
+  if (!clean) return null;
+
   const wordMap = {
     zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
     ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
@@ -198,37 +239,51 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
     let invValConfidence = 0;
 
     // Strategy A: Parse "Amount Chargeable (in words)" line if present
-    const wordsMatch = text.match(/Amount Chargeable \(in words\)[\s\S]*?INR\s+([A-Za-z\s]+?)(?:Only|\n|$)/i) ||
+    const wordsMatch = text.match(/Amount Chargeable \(in words\)[\s\S]*?INR\s+([A-Za-z\s]+?)(?:E\.\s*&\s*O\.E|\n|$)/i) ||
                        text.match(/INR\s+([A-Za-z\s]+?)(?:Only|paise|\n|$)/i);
     if (wordsMatch && wordsMatch[1]) {
       const parsedFromWords = parseIndianWordsToNumber(wordsMatch[1]);
       if (parsedFromWords && parsedFromWords > 100) {
-        let paise = 0;
-        const paiseMatch = text.match(/(\w+)\s*paise/i);
-        if (paiseMatch) {
-          const pNum = parseIndianWordsToNumber(paiseMatch[1]);
-          if (pNum && pNum < 100) paise = pNum / 100;
-        }
-        invoiceVal = parsedFromWords + paise;
+        invoiceVal = parsedFromWords;
         invValConfidence = 0.99;
       }
     }
 
     // Strategy B: Explicit match for Amount Chargeable / Total line in table
     if (!invoiceVal) {
-      const totalMatch = text.match(/(?:Amount Chargeable|Grand Total|Total Billed|Billed Amount)[:.\s]*₹?\s*([\d,]+\.\d{2})/i) ||
-                         text.match(/Total\s+[\d,.]+\s*(?:Nos|Pcs)?\s*₹?\s*([\d,]+\.\d{2})/i) ||
-                         text.match(/₹\s*([\d,]+\.\d{2})/);
-      if (totalMatch) {
-        const parsed = parseFloat(totalMatch[1].replace(/,/g, ''));
-        if (!isNaN(parsed) && parsed > 100) {
-          invoiceVal = parsed;
-          invValConfidence = 0.98;
+      const explicitMatches = [
+        text.match(/Total\s+[\d,.]+\s*(?:Nos|Pcs)?\s*₹?\s*([\d,]+\.\d{2})/i),
+        text.match(/Amount Chargeable[:.\s]*₹?\s*([\d,]+\.\d{2})/i),
+        text.match(/Grand Total[:.\s]*₹?\s*([\d,]+\.\d{2})/i),
+        text.match(/₹\s*([\d,]+\.\d{2})/)
+      ];
+      for (const m of explicitMatches) {
+        if (m && m[1]) {
+          const parsed = parseFloat(m[1].replace(/,/g, ''));
+          if (!isNaN(parsed) && parsed > 100) {
+            invoiceVal = parsed;
+            invValConfidence = 0.98;
+            break;
+          }
         }
       }
     }
 
-    // Strategy C: Pick maximum valid currency value from document
+    // Strategy C: Check Taxable Subtotal + Tax Amount (e.g. 18396.00 + 3311.28 = 21707.28)
+    if (!invoiceVal) {
+      const taxableMatch = text.match(/(?:Taxable Value|Taxable Amount)[:.\s]*₹?\s*([\d,]+\.\d{2})/i);
+      const taxAmountMatch = text.match(/(?:IGST|GST|Total Tax Amount)[:.\s]*₹?\s*([\d,]+\.\d{2})/i);
+      if (taxableMatch && taxAmountMatch) {
+        const taxable = parseFloat(taxableMatch[1].replace(/,/g, ''));
+        const tax = parseFloat(taxAmountMatch[1].replace(/,/g, ''));
+        if (!isNaN(taxable) && !isNaN(tax) && taxable > 100) {
+          invoiceVal = Math.round((taxable + tax) * 100) / 100;
+          invValConfidence = 0.95;
+        }
+      }
+    }
+
+    // Strategy D: Pick maximum valid currency value from document
     if (!invoiceVal) {
       const amountMatches = [...text.matchAll(/[\d,]{3,}\.\d{2}/g)]
         .map(m => parseFloat(m[0].replace(/,/g, '')))
