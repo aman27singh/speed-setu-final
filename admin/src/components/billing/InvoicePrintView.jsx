@@ -259,47 +259,47 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
   const totalIGST = isChargingGst ? dockets.reduce((sum, d) => sum + (d.igst || 0), 0) : 0;
   const grandTotalValue = isChargingGst ? (totalTaxable + totalCGST + totalSGST + totalIGST) : totalTaxable;
 
-  // Pad table with empty rows to fill A4 page height (minimum 15 rows)
-  const MIN_TABLE_ROWS = 15;
+  // Pad table with empty rows to fill A4 page height (minimum 16 rows)
+  const MIN_TABLE_ROWS = 16;
   const emptyRowsCount = Math.max(0, MIN_TABLE_ROWS - dockets.length);
   const emptyRows = Array.from({ length: emptyRowsCount }, () => ({ isEmptyRow: true }));
   const displayDockets = [...dockets, ...emptyRows];
 
   return (
-    <div id="printable-invoice" className="bg-white text-slate-900 font-sans p-3 sm:p-5 w-full max-w-7xl mx-auto space-y-2.5 print:space-y-1.5 print:p-0 print:m-0 print:max-w-none text-xs">
+    <div id="printable-invoice" className="bg-white text-slate-900 font-sans p-3 sm:p-5 w-full max-w-7xl mx-auto space-y-2.5 print:space-y-2 print:p-0 print:m-0 print:max-w-none text-xs">
       
 
       {/* TAX INVOICE HEADER TITLE */}
-      <div className="text-center font-extrabold text-sm uppercase tracking-wider py-0.5 print:py-0 print:text-xs">
+      <div className="text-center font-extrabold text-sm uppercase tracking-wider py-0.5 print:py-0.5 print:text-xs">
         TAX INVOICE
       </div>
 
       {/* TOP HEADER 3-BOX GRID STRUCTURE */}
-      <div className="grid grid-cols-12 border border-black text-[10px] print:text-[8.5px] leading-tight">
+      <div className="grid grid-cols-12 border border-black text-[10px] print:text-[9px] leading-tight">
 
         {/* BOX 1: SUPPLIER */}
-        <div className="col-span-5 p-2 print:p-1.5 border-r border-black space-y-0.5 print:space-y-0">
+        <div className="col-span-5 p-2 print:p-2 border-r border-black space-y-0.5">
           <div className="flex items-center gap-1.5 mb-0.5">
             <img
               src={logoImg}
               alt="Speed Setu Logo"
-              className="h-6 print:h-4.5 w-auto object-contain shrink-0"
+              className="h-6 print:h-5 w-auto object-contain shrink-0"
             />
-            <div className="font-extrabold text-[9px] uppercase text-black">SUPPLIER</div>
+            <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">SUPPLIER</div>
           </div>
-          <div className="font-extrabold text-[11px] print:text-[9.5px]">SPEEDSETU LOGISTICS PRIVATE LIMITED</div>
+          <div className="font-extrabold text-[11px] print:text-[10px]">SPEEDSETU LOGISTICS PRIVATE LIMITED</div>
           <div>Haripur, BHIWANI,</div>
           <div>Haripur, Bhiwani, Bhiwani, Haryana, 127021</div>
           <div className="pt-1 font-bold font-mono">GST - 06ABSCS1710K1Z4</div>
         </div>
 
         {/* BOX 2: BILL TO */}
-        <div className="col-span-4 p-2 print:p-1.5 border-r border-black space-y-0.5 print:space-y-0">
-          <div className="font-extrabold text-[9px] uppercase text-black">BILL TO</div>
-          <div className="font-extrabold text-[11px] print:text-[9.5px]">{displayCompanyName}</div>
-          {displayAddress && <div className="text-[9.5px] print:text-[8px] leading-tight">{displayAddress}</div>}
+        <div className="col-span-4 p-2 print:p-2 border-r border-black space-y-0.5">
+          <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">BILL TO</div>
+          <div className="font-extrabold text-[11px] print:text-[10px]">{displayCompanyName}</div>
+          {displayAddress && <div className="text-[9.5px] print:text-[8.5px] leading-tight">{displayAddress}</div>}
           {(rawCity || rawState || rawPinCode) && (
-            <div className="text-[9.5px] print:text-[8px] leading-tight font-medium">
+            <div className="text-[9.5px] print:text-[8.5px] leading-tight font-medium">
               {[rawCity, rawState].filter(Boolean).join(', ')} {rawPinCode ? `- ${rawPinCode}` : ''}
             </div>
           )}
@@ -311,26 +311,26 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         </div>
 
         {/* BOX 3: INVOICE NUMBER & DATE */}
-        <div className="col-span-3 p-2 print:p-1.5 flex flex-col justify-between text-center">
+        <div className="col-span-3 p-2 print:p-2 flex flex-col justify-between text-center">
           <div>
-            <div className="font-extrabold text-[9px] uppercase text-black">INVOICE NUMBER</div>
-            <div className="font-extrabold text-xs print:text-[10px] font-mono py-0.5">{invoice.invoiceNumber || '-'}</div>
+            <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">INVOICE NUMBER</div>
+            <div className="font-extrabold text-xs print:text-[10.5px] font-mono py-0.5">{invoice.invoiceNumber || '-'}</div>
           </div>
 
           <div className="border-t border-black pt-1">
-            <div className="font-extrabold text-[9px] uppercase text-black">INVOICE DATE</div>
-            <div className="font-bold text-[11px] print:text-[9.5px] font-mono">{formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
+            <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">INVOICE DATE</div>
+            <div className="font-bold text-[11px] print:text-[10px] font-mono">{formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
           </div>
         </div>
 
       </div>
 
       {/* SUB-HEADER BAR: MODE & HSN CODE */}
-      <div className="grid grid-cols-2 border border-black text-center font-bold text-xs print:text-[9px]">
-        <div className="p-1 print:p-0.5 border-r border-black">
+      <div className="grid grid-cols-2 border border-black text-center font-bold text-xs print:text-[9.5px]">
+        <div className="p-1 print:p-1 border-r border-black">
           MODE: <span className="font-extrabold uppercase">{invoice.billingSnapshot?.mode || invoice.mode || 'TRAIN'}</span>
         </div>
-        <div className="p-1 print:p-0.5">
+        <div className="p-1 print:p-1">
           HSN CODE: <span className="font-mono font-extrabold">{isChargingGst ? (invoice.hsnCode || invoice.billingSnapshot?.hsnCode || '996531') : 'NA'}</span>
         </div>
       </div>
@@ -339,87 +339,87 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       {!isChargingGst ? (
         /* ==================== LAYOUT 1: NO GST CHARGED (IMAGE 1 LAYOUT) ==================== */
         <div className="border border-black w-full overflow-x-auto print:overflow-visible">
-          <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.1] table-auto">
+          <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.15] table-auto">
             <thead className="bg-slate-100 font-extrabold uppercase border-b border-black">
               <tr className="divide-x divide-black">
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">SL. NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">ORIGIN</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DESTINATION</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">NO. OF BOXES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">WEIGHT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">RATE</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">FREIGHT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">PICKUP CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DELIVERY CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">PACKING CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">LABOR CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">STORAGE RATE / MO</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">NO. OF MONTHS</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">GODOWN CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">TAXABLE AMOUNT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">IGST</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px] whitespace-nowrap">TOTAL</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">SL. NO.</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DOCKET NO.</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">ORIGIN</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DESTINATION</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">NO. OF BOXES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">WEIGHT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">RATE</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">FREIGHT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">PICKUP CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DELIVERY CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">PACKING CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">LABOR CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">STORAGE RATE / MO</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">NO. OF MONTHS</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">GODOWN CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">TAXABLE AMOUNT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">IGST</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px] whitespace-nowrap">TOTAL</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black font-medium">
               {displayDockets.map((d, idx) => {
                 if (d.isEmptyRow) {
                   return (
-                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5">
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
+                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5.5">
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                     </tr>
                   );
                 }
 
                 return (
                   <tr key={idx} className="divide-x divide-black hover:bg-slate-50">
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.slNo || idx + 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-bold font-mono whitespace-nowrap">{d.docketNo || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{d.docketDate || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.origin || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.destination || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.noPack || 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.pickupCharges || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{(d.deliveryCharges || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.packingCharges || d.packing || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.laborCharges || d.labor || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.slNo || idx + 1}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-bold font-mono whitespace-nowrap">{d.docketNo || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{d.docketDate || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] uppercase">{d.origin || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] uppercase">{d.destination || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.noPack || 1}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.pickupCharges || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{(d.deliveryCharges || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.packingCharges || d.packing || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.laborCharges || d.labor || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">
                       {(d.godownCharges || d.godown || 0) > 0
                         ? `₹${(d.godownRatePerMonth || (d.godownMonths > 0 ? Math.round((d.godownCharges || d.godown || 0) / d.godownMonths) : (d.godownCharges || d.godown || 0))).toLocaleString('en-IN')}`
                         : '₹0'}
                     </td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">
                       {(d.godownCharges || d.godown || 0) > 0
                         ? (d.godownMonths ? `${d.godownMonths} Months` : (d.godownDays ? `${d.godownDays} Days` : '1 Month'))
                         : '-'}
                     </td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">₹{(d.godownCharges || d.godown || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">0</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-extrabold text-black whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">₹{(d.godownCharges || d.godown || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">0</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-extrabold text-black whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
                   </tr>
                 );
               })}
@@ -428,21 +428,21 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
             {/* SUMMARY TOTALS FOOTER ROW */}
             <tfoot className="border-t border-black font-extrabold bg-slate-50">
               <tr className="divide-x divide-black">
-                <td colSpan={5} className="px-1 py-0.5 print:py-[1px] text-right uppercase">TOTAL:</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalPacks}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px]"></td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalPickupCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalDeliveryCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalPackingCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalLaborCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px]"></td>
-                <td className="px-1 py-0.5 print:py-[1px]"></td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalGodownCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">₹0</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
+                <td colSpan={5} className="px-1 py-0.5 print:py-0.5 text-right uppercase">TOTAL:</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono">{totalPacks}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5"></td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalPickupCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalDeliveryCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">₹{totalPackingCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">₹{totalLaborCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5"></td>
+                <td className="px-1 py-0.5 print:py-0.5"></td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">₹{totalGodownCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">₹0</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
               </tr>
             </tfoot>
           </table>
@@ -450,52 +450,52 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       ) : (
         /* ==================== LAYOUT 2: CHARGING GST (IMAGE 2 LAYOUT) ==================== */
         <div className="border border-black w-full overflow-x-auto print:overflow-visible">
-          <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.1] table-auto">
+          <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.15] table-auto">
             <thead className="bg-slate-100 font-extrabold uppercase border-b border-black">
               <tr className="divide-x divide-black">
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">SL. NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET NO.</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">ORIGIN</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DESTINATION</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">NO. PACK</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">WEIGHT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">RATE</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">FREIGHT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DOCKET CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">PICKUP CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">DELIVERY CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">OTHER CHARGES</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">TAXABLE AMOUNT</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">CGST</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">SGST</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px]">IGST</th>
-                <th className="px-1 py-0.5 print:py-[1px] print:px-[1px] whitespace-nowrap">TOTAL INVOICE VALUE</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">SL. NO.</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DOCKET NO.</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">{useDeliveryDate ? 'DELIVERY DATE' : 'DOCKET DATE'}</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">ORIGIN</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DESTINATION</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">NO. PACK</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">WEIGHT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">RATE</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">FREIGHT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DOCKET CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">PICKUP CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">DELIVERY CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">OTHER CHARGES</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">TAXABLE AMOUNT</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">CGST</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">SGST</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px]">IGST</th>
+                <th className="px-1 py-0.5 print:py-0.5 print:px-[1px] whitespace-nowrap">TOTAL INVOICE VALUE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black font-medium">
               {displayDockets.map((d, idx) => {
                 if (d.isEmptyRow) {
                   return (
-                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5">
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
-                      <td className="px-1 py-0.5 print:py-[1px]">&nbsp;</td>
+                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5.5">
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
+                      <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                     </tr>
                   );
                 }
@@ -503,24 +503,24 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                 const other = (d.otherCharges || 0) > 0 ? d.otherCharges : ((d.packingCharges || 0) + (d.laborCharges || 0) + (d.godownCharges || 0));
                 return (
                   <tr key={idx} className="divide-x divide-black hover:bg-slate-50">
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.slNo || idx + 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-bold font-mono whitespace-nowrap">{d.docketNo || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{d.docketDate || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.origin || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] uppercase">{d.destination || '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.noPack || 1}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{(d.docketCharges || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{(d.pickupCharges || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{(d.deliveryCharges || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{other > 0 ? `₹${other.toLocaleString('en-IN')}` : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{d.cgst > 0 ? d.cgst.toLocaleString('en-IN') : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono whitespace-nowrap">{d.sgst > 0 ? d.sgst.toLocaleString('en-IN') : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-bold whitespace-nowrap">{d.igst > 0 ? d.igst.toLocaleString('en-IN') : '-'}</td>
-                    <td className="px-1 py-0.5 print:py-[1px] print:px-[1px] font-mono font-extrabold text-black whitespace-nowrap">{(d.totalInvoiceValue || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.slNo || idx + 1}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-bold font-mono whitespace-nowrap">{d.docketNo || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{d.docketDate || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] uppercase">{d.origin || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] uppercase">{d.destination || '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.noPack || 1}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.weight > 0 ? d.weight : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">₹{(d.rate || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">₹{(d.freight || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{(d.docketCharges || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{(d.pickupCharges || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{(d.deliveryCharges || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{other > 0 ? `₹${other.toLocaleString('en-IN')}` : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{(d.taxableAmount || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{d.cgst > 0 ? d.cgst.toLocaleString('en-IN') : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">{d.sgst > 0 ? d.sgst.toLocaleString('en-IN') : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-bold whitespace-nowrap">{d.igst > 0 ? d.igst.toLocaleString('en-IN') : '-'}</td>
+                    <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono font-extrabold text-black whitespace-nowrap">{(d.totalInvoiceValue || 0).toLocaleString('en-IN')}</td>
                   </tr>
                 );
               })}
@@ -529,20 +529,20 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
             {/* SUMMARY TOTALS FOOTER ROW */}
             <tfoot className="border-t border-black font-extrabold bg-slate-50">
               <tr className="divide-x divide-black">
-                <td colSpan={5} className="px-1 py-0.5 print:py-[1px] text-right uppercase">TOTAL:</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalPacks}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px]"></td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalDocketCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalPickupCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalDeliveryCharges.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalOtherCharges > 0 ? `₹${totalOtherCharges.toLocaleString('en-IN')}` : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalCGST > 0 ? `₹${totalCGST.toLocaleString('en-IN')}` : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono whitespace-nowrap">{totalSGST > 0 ? `₹${totalSGST.toLocaleString('en-IN')}` : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">{totalIGST > 0 ? `₹${totalIGST.toLocaleString('en-IN')}` : '-'}</td>
-                <td className="px-1 py-0.5 print:py-[1px] font-mono text-black whitespace-nowrap">₹{grandTotalValue.toLocaleString('en-IN')}</td>
+                <td colSpan={5} className="px-1 py-0.5 print:py-0.5 text-right uppercase">TOTAL:</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono">{totalPacks}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono">{totalWeight > 0 ? totalWeight : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5"></td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">₹{totalFreight.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalDocketCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalPickupCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalDeliveryCharges.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalOtherCharges > 0 ? `₹${totalOtherCharges.toLocaleString('en-IN')}` : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">₹{totalTaxable.toLocaleString('en-IN')}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalCGST > 0 ? `₹${totalCGST.toLocaleString('en-IN')}` : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono whitespace-nowrap">{totalSGST > 0 ? `₹${totalSGST.toLocaleString('en-IN')}` : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">{totalIGST > 0 ? `₹${totalIGST.toLocaleString('en-IN')}` : '-'}</td>
+                <td className="px-1 py-0.5 print:py-0.5 font-mono text-black whitespace-nowrap">₹{grandTotalValue.toLocaleString('en-IN')}</td>
               </tr>
             </tfoot>
           </table>
@@ -550,9 +550,9 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       )}
 
       {/* TERMS & CONDITIONS BLOCK */}
-      <div className="border border-black p-2 print:p-1.5 space-y-0.5 text-[9.5px] print:text-[7.5px] leading-tight">
+      <div className="border border-black p-2 print:p-2 space-y-0.5 text-[9.5px] print:text-[8px] leading-tight">
         <div className="font-extrabold underline text-black">Terms :-</div>
-        <ol className="list-decimal list-inside space-y-0 text-slate-800">
+        <ol className="list-decimal list-inside space-y-0.5 text-slate-800">
           <li>Our Company Is Registered Under Msme. Uam No</li>
           <li>If Any Discrepancy In The Invoice Please Inform Us Within Two Days After That It Will Not Be Accepted.</li>
           <li>The Laws Applicable To This Contract Shall Be The Law In Force In India. The Courts Of New Delhi Shall Have Exclusive Jurisdiction In All Matters Arising Under This Contract.</li>
@@ -562,9 +562,9 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       </div>
 
       {/* BANK DETAILS & AUTHORISED SIGNATORY GRID */}
-      <div className="grid grid-cols-12 gap-2 text-[10px] print:text-[8px] pt-0.5 leading-tight items-stretch">
+      <div className="grid grid-cols-12 gap-2 text-[10px] print:text-[8.5px] pt-0.5 leading-tight items-stretch">
         {/* BANK ACCOUNT BOX */}
-        <div className="col-span-7 border border-black p-2 print:p-1.5 flex items-center gap-3">
+        <div className="col-span-7 border border-black p-2 print:p-2 flex items-center gap-3">
           <div className="p-1.5 border border-slate-300 rounded bg-slate-50 shrink-0">
             <span className="font-extrabold text-sm">🏛️</span>
           </div>
@@ -577,8 +577,8 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         </div>
 
         {/* SIGNATORY BOX */}
-        <div className="col-span-5 border border-black p-2 print:p-1.5 flex flex-col justify-end text-center min-h-[65px] print:min-h-[55px]">
-          <div className="font-extrabold uppercase text-[9px] print:text-[7.5px] tracking-wider text-black">
+        <div className="col-span-5 border border-black p-2 print:p-2 flex flex-col justify-end text-center min-h-[65px] print:min-h-[60px]">
+          <div className="font-extrabold uppercase text-[9px] print:text-[8px] tracking-wider text-black">
             AUTHORISED SIGNATORY
           </div>
         </div>
