@@ -1,10 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Share2, Check, FileText } from 'lucide-react';
+import { X, Printer, Share2, Check, FileText, Download, Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import logoImg from '../../assets/logo1.png';
 
 export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
   const printRef = useRef(null);
-  const [copiedToast, setCopiedToast] = useState(false);
+  const [copiedToast, setCopiedToast] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
     if (isOpen && autoPrint && shipment) {
@@ -18,173 +21,208 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   if (!isOpen || !shipment) return null;
 
   const getShareText = (isSplit = false) => {
-    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
+    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
     const consignorName = shipment.consignor?.name || 'Shipper';
     const consigneeName = shipment.consignee?.name || 'Receiver';
     const layoutType = isSplit ? 'Split 2-in-1 Duplicate CN (2 Copies/A4)' : 'Single Page CN';
-    return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}\nView Details: ${window.location.href}`;
+    return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}`;
   };
 
-  const handleShareSingle = async () => {
-    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
-    const shareText = getShareText(false);
+  // Helper function to build actual PDF File object using html2canvas & jsPDF
+  const generateCnPdfFile = async (isSplit = false) => {
+    const printContent = printRef.current;
+    if (!printContent) throw new Error('Document element not found');
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Consignment Note ${cnNo}`, text: shareText, url: window.location.href });
-        return;
-      } catch (err) {}
+    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
+
+    // Capture SVG layout as high resolution canvas (300 DPI equivalent)
+    const canvas = await html2canvas(printContent, {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+    const imgData = canvas.toDataURL('image/png');
+
+    let pdf;
+    if (!isSplit) {
+      // Single Page CN -> A4 Landscape (297mm x 210mm)
+      pdf = new jsPDF('landscape', 'mm', 'a4');
+      pdf.addImage(imgData, 'PNG', 4, 4, 289, 202);
+    } else {
+      // Split 2-in-1 Duplicate CN -> A4 Portrait (210mm x 297mm)
+      pdf = new jsPDF('portrait', 'mm', 'a4');
+      // Top Copy
+      pdf.addImage(imgData, 'PNG', 4, 4, 202, 140);
+
+      // Dashed Cut Line Divider
+      pdf.setLineDashPattern([3, 2], 0);
+      pdf.setDrawColor(100, 100, 100);
+      pdf.setLineWidth(0.4);
+      pdf.line(4, 148.5, 206, 148.5);
+
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('- - - - - - - - - - - - CUT HERE FOR DUPLICATE COPY - - - - - - - - - - - -', 105, 147.5, { align: 'center' });
+
+      // Bottom Copy
+      pdf.addImage(imgData, 'PNG', 4, 153, 202, 140);
     }
 
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopiedToast('single');
-      setTimeout(() => setCopiedToast(null), 2500);
-    } catch (e) {}
+    const pdfBlob = pdf.output('blob');
+    const fileName = `Consignment_Note_${cnNo}_${isSplit ? '2Up' : 'Single'}.pdf`;
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+    return { pdfBlob, pdfFile, fileName };
   };
 
-  const handleShareSplit = async () => {
-    const cnNo = shipment.cnNumber || shipment.cn_number || 'SS2004';
-    const shareText = getShareText(true);
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `Consignment Note ${cnNo} (2-Up Split)`, text: shareText, url: window.location.href });
-        return;
-      } catch (err) {}
-    }
+  // 1. Native Mobile PDF Share (Shares actual .pdf file via Web Share API)
+  const handleSharePdf = async (isSplit = false) => {
+    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
+    setIsGeneratingPdf(true);
 
     try {
-      await navigator.clipboard.writeText(shareText);
-      setCopiedToast('split');
-      setTimeout(() => setCopiedToast(null), 2500);
-    } catch (e) {}
+      const { pdfFile, pdfBlob, fileName } = await generateCnPdfFile(isSplit);
+
+      // Try native Web Share API with file attachment (iOS Safari / Android / Mobile Chrome)
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: `Consignment Note ${cnNo}`,
+          text: `Speed Setu Consignment Note - ${cnNo}`,
+          files: [pdfFile],
+        });
+        setIsGeneratingPdf(false);
+        return;
+      }
+
+      // Fallback for browsers that don't support file sharing: Download PDF file
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setCopiedToast(isSplit ? 'split-download' : 'single-download');
+      setTimeout(() => setCopiedToast(null), 3000);
+    } catch (err) {
+      console.error('Share PDF error:', err);
+      // Secondary fallback: Copy text summary
+      try {
+        const shareText = getShareText(isSplit);
+        await navigator.clipboard.writeText(shareText);
+        setCopiedToast(isSplit ? 'split-text' : 'single-text');
+        setTimeout(() => setCopiedToast(null), 2500);
+      } catch (e) {}
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // 2. Direct PDF File Download
+  const handleDownloadPdf = async (isSplit = false) => {
+    setIsGeneratingPdf(true);
+    try {
+      const { pdfBlob, fileName } = await generateCnPdfFile(isSplit);
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setCopiedToast(isSplit ? 'split-download' : 'single-download');
+      setTimeout(() => setCopiedToast(null), 3000);
+    } catch (err) {
+      console.error('Download PDF error:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Shared CSS styles for iframe print generation
   const printStyles = `
-    .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
-    .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
-    .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
-    .font-serif-title { font-family: "Times New Roman", Times, serif; font-weight: 900; }
-    .font-sans-bold { font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
-    .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
-    .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
+    .static-border { stroke: #000000; stroke-width: 1.8; fill: none; }
+    .thin-line { stroke: #000000; stroke-width: 1.0; fill: none; }
+    .font-condensed-bold { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+    .font-serif-title { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+    .font-sans-bold { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; }
+    .font-sans-regular { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 400; }
+    .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: 600; }
     .static-text { fill: #000000; }
-    .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
+    .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; letter-spacing: 0.2px; }
+    .dynamic-digit-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; text-anchor: middle; }
   `;
 
-  // 1. Single Page CN Print / PDF Download
-  const handlePrintSingle = () => {
-    const printContent = printRef.current;
-    if (!printContent) {
-      window.print();
-      return;
+  // Dynamic Printable Iframe Creation (iOS / Mobile WebKit Compatible)
+  const createAndPrintIframe = (svgHtml, isSplit = false) => {
+    const oldIframe = document.getElementById('speed-setu-print-iframe');
+    if (oldIframe) {
+      try { document.body.removeChild(oldIframe); } catch (e) {}
     }
 
-    const svgElement = printContent.querySelector('svg');
-    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-
     const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.id = 'speed-setu-print-iframe';
+    // iOS Safari Fix: Do NOT use width: 0, height: 0 or display: none! Position off-screen with valid viewport size.
+    iframe.style.position = 'absolute';
+    iframe.style.top = '0';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '1024px';
+    iframe.style.height = '1440px';
     iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
     document.body.appendChild(iframe);
 
     const doc = iframe.contentWindow.document;
     doc.open();
+    const titleText = `Consignment Note ${isSplit ? '2-Up' : 'Single'} - ${shipment.cnNumber || shipment.cn_number || 'SS2004'}`;
+
+    const bodyHtml = isSplit ? `
+      <div class="page-container">
+        <div class="copy-wrapper">${svgHtml}</div>
+        <div class="cut-line-divider"><div class="cut-line-dashed"></div></div>
+        <div class="copy-wrapper">${svgHtml}</div>
+      </div>
+    ` : `
+      <div class="single-container">
+        ${svgHtml}
+      </div>
+    `;
+
     doc.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Consignment Note Single - ${shipment.cnNumber || shipment.cn_number || 'SS2004'}</title>
+          <title>${titleText}</title>
           <style>
-            @page { size: A4 landscape; margin: 4mm !important; }
+            @page { size: ${isSplit ? 'A4 portrait' : 'A4 landscape'}; margin: 4mm !important; }
             html, body {
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
-              width: 100vw !important;
-              height: 100vh !important;
+              width: 100% !important;
+              height: 100% !important;
               box-sizing: border-box !important;
               font-family: Arial, Helvetica, sans-serif;
             }
             .single-container {
-              width: 100vw;
+              width: 100%;
               height: 98vh;
               display: flex;
               align-items: center;
               justify-content: center;
             }
             .single-container svg {
-              width: 98vw !important;
+              width: 100% !important;
               height: auto !important;
               max-height: 95vh !important;
               display: block !important;
               margin: 0 auto !important;
-            }
-            ${printStyles}
-          </style>
-        </head>
-        <body>
-          <div class="single-container">
-            ${svgHtml}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
-
-    iframe.contentWindow.focus();
-    setTimeout(() => {
-      iframe.contentWindow.print();
-      setTimeout(() => {
-        try { if (document.body.contains(iframe)) document.body.removeChild(iframe); } catch (e) {}
-      }, 1000);
-    }, 300);
-  };
-
-  // 2. Split 2-in-1 Duplicate CN Print / PDF Download (2 per A4 Sheet with cut line)
-  const handlePrintSplit = () => {
-    const printContent = printRef.current;
-    if (!printContent) {
-      window.print();
-      return;
-    }
-
-    const svgElement = printContent.querySelector('svg');
-    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Consignment Note Split 2-Up - ${shipment.cnNumber || shipment.cn_number || 'SS2004'}</title>
-          <style>
-            @page { size: A4 portrait; margin: 3mm !important; }
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              width: 100% !important;
-              height: 100vh !important;
-              overflow: hidden !important;
-              box-sizing: border-box !important;
-              font-family: Arial, Helvetica, sans-serif;
             }
             .page-container {
               width: 100%;
@@ -235,11 +273,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
           </style>
         </head>
         <body>
-          <div class="page-container">
-            <div class="copy-wrapper">${svgHtml}</div>
-            <div class="cut-line-divider"><div class="cut-line-dashed"></div></div>
-            <div class="copy-wrapper">${svgHtml}</div>
-          </div>
+          ${bodyHtml}
         </body>
       </html>
     `);
@@ -247,11 +281,78 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     iframe.contentWindow.focus();
     setTimeout(() => {
-      iframe.contentWindow.print();
+      try {
+        iframe.contentWindow.print();
+      } catch (e) {
+        console.error('Print call error:', e);
+      }
       setTimeout(() => {
         try { if (document.body.contains(iframe)) document.body.removeChild(iframe); } catch (e) {}
-      }, 1000);
-    }, 300);
+      }, 1500);
+    }, 500);
+  };
+
+  // 3. Single Page CN Print
+  const handlePrintSingle = async () => {
+    const printContent = printRef.current;
+    if (!printContent) {
+      window.print();
+      return;
+    }
+
+    const svgElement = printContent.querySelector('svg');
+    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
+
+    // Check if user is on iOS / iPhone / iPad
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      try {
+        setIsGeneratingPdf(true);
+        const { pdfBlob } = await generateCnPdfFile(false);
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        const win = window.open(blobUrl, '_blank');
+        if (!win) {
+          createAndPrintIframe(svgHtml, false);
+        }
+        setIsGeneratingPdf(false);
+        return;
+      } catch (e) {
+        setIsGeneratingPdf(false);
+      }
+    }
+
+    createAndPrintIframe(svgHtml, false);
+  };
+
+  // 4. Split 2-in-1 Duplicate CN Print
+  const handlePrintSplit = async () => {
+    const printContent = printRef.current;
+    if (!printContent) {
+      window.print();
+      return;
+    }
+
+    const svgElement = printContent.querySelector('svg');
+    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
+
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      try {
+        setIsGeneratingPdf(true);
+        const { pdfBlob } = await generateCnPdfFile(true);
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        const win = window.open(blobUrl, '_blank');
+        if (!win) {
+          createAndPrintIframe(svgHtml, true);
+        }
+        setIsGeneratingPdf(false);
+        return;
+      } catch (e) {
+        setIsGeneratingPdf(false);
+      }
+    }
+
+    createAndPrintIframe(svgHtml, true);
   };
 
   // Formatting helpers for exact digit arrays
@@ -378,7 +479,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
           </div>
 
           {/* Action Buttons Row: Option 1 (Single) and Option 2 (Split 2-in-1 Duplicate) */}
-          <div className="pt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="pt-2.5 grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Option 1 Card: Single Page CN */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
               <div className="min-w-0 mr-2">
@@ -388,19 +489,30 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               <div className="flex items-center space-x-1.5 flex-shrink-0">
                 <button
                   onClick={handlePrintSingle}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-setu-600 hover:bg-setu-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
-                  title="Print or Save Single Page CN"
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-setu-600 hover:bg-setu-500 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Print Single Page CN"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
                 </button>
                 <button
-                  onClick={handleShareSingle}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
-                  title="Share Single Page CN"
+                  onClick={() => handleDownloadPdf(false)}
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Download Single Page PDF file"
                 >
-                  {copiedToast === 'single' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
-                  <span>Share</span>
+                  {copiedToast === 'single-download' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Download className="w-3.5 h-3.5 text-slate-300" />}
+                  <span>PDF</span>
+                </button>
+                <button
+                  onClick={() => handleSharePdf(false)}
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Share Single Page PDF file"
+                >
+                  {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 text-setu-400 animate-spin" /> : copiedToast === 'single-text' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
+                  <span>Share PDF</span>
                 </button>
               </div>
             </div>
@@ -414,19 +526,30 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               <div className="flex items-center space-x-1.5 flex-shrink-0">
                 <button
                   onClick={handlePrintSplit}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
                   title="Print 2 Copies on 1 A4 Sheet"
                 >
                   <Printer className="w-3.5 h-3.5 text-slate-950" />
                   <span>Print 2-Up</span>
                 </button>
                 <button
-                  onClick={handleShareSplit}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
-                  title="Share Split 2-in-1 Duplicate CN"
+                  onClick={() => handleDownloadPdf(true)}
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Download 2-Up Split PDF file"
                 >
-                  {copiedToast === 'split' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
-                  <span>Share</span>
+                  {copiedToast === 'split-download' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Download className="w-3.5 h-3.5 text-amber-400" />}
+                  <span>PDF</span>
+                </button>
+                <button
+                  onClick={() => handleSharePdf(true)}
+                  disabled={isGeneratingPdf}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Share Split 2-in-1 PDF file"
+                >
+                  {isGeneratingPdf ? <Loader2 className="w-3.5 h-3.5 text-setu-400 animate-spin" /> : copiedToast === 'split-text' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-setu-400" />}
+                  <span>Share PDF</span>
                 </button>
               </div>
             </div>
@@ -445,15 +568,16 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             className="w-full h-auto select-none bg-white"
           >
             <style>{`
-              .static-border { stroke: #000000; stroke-width: 2.5; fill: none; }
-              .thin-line { stroke: #000000; stroke-width: 1.5; fill: none; }
-              .font-condensed-bold { font-family: "Arial Narrow", Arial, "Helvetica Condensed", sans-serif; font-weight: 900; }
-              .font-serif-title { font-family: "Times New Roman", Times, serif; font-weight: 900; }
-              .font-sans-bold { font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
-              .font-sans-regular { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
-              .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: bold; }
+              .static-border { stroke: #000000; stroke-width: 1.8; fill: none; }
+              .thin-line { stroke: #000000; stroke-width: 1.0; fill: none; }
+              .font-condensed-bold { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+              .font-serif-title { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+              .font-sans-bold { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; }
+              .font-sans-regular { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 400; }
+              .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: 600; }
               .static-text { fill: #000000; }
-              .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 900; letter-spacing: 0.4px; }
+              .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; letter-spacing: 0.2px; }
+              .dynamic-digit-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; text-anchor: middle; }
             `}</style>
 
             {/* BACKGROUND */}
@@ -486,12 +610,12 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               {/* Header Right: Document Title & Carrier Risk Notice */}
               <g transform="translate(1212, 30)">
                 <text x="0" y="24" textAnchor="middle" className="font-condensed-bold static-text" fontSize="28" letterSpacing="1">CONSIGNMENT NOTE</text>
-                <line x1="-155" y1="32" x2="155" y2="32" stroke="#000000" strokeWidth="2.5" />
+                <line x1="-155" y1="32" x2="155" y2="32" stroke="#000000" strokeWidth="1.8" />
                 
                 <text x="0" y="58" textAnchor="middle" className="font-sans-bold static-text" fontSize="14" letterSpacing="0.8">GST - 06ABSCS1710K1Z4</text>
 
                 <text x="0" y="82" textAnchor="middle" className="font-sans-bold static-text" fontSize="12.5" letterSpacing="0.2">AT CARRIER'S RISK / OWNER'S RISK</text>
-                <line x1="-165" y1="88" x2="165" y2="88" stroke="#000000" strokeWidth="1.5" />
+                <line x1="-165" y1="88" x2="165" y2="88" stroke="#000000" strokeWidth="1.0" />
               </g>
 
               {/* =================================================================== */}
@@ -797,104 +921,104 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             {/* =================================================================== */}
             <g id="DYNAMIC_FIELDS">
               {/* Consignor Data */}
-              <text x="140" y="170" className="dynamic-text" fontSize="17">
+              <text x="140" y="170" className="dynamic-text" fontSize="15">
                 {(shipment.consignor?.name || shipment.companyName || '').toUpperCase()}
               </text>
-              <text x="190" y="215" className="dynamic-text" fontSize="15">
+              <text x="190" y="215" className="dynamic-text" fontSize="14">
                 {(shipment.consignor?.code || shipment.companyCode || '').toUpperCase()}
               </text>
-              <text x="480" y="215" className="dynamic-text" fontSize="15">
+              <text x="480" y="215" className="dynamic-text" fontSize="14">
                 {(shipment.consignor?.gstin || '').toUpperCase()}
               </text>
-              <g transform="translate(809, 199)">
+              <g transform="translate(805, 196)">
                 {consignorPinBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
+                  <text key={idx} x={idx * 22 + 11} y="17" className="dynamic-digit-text" fontSize="14">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* Consignee Data */}
-              <text x="140" y="275" className="dynamic-text" fontSize="17">
+              <text x="140" y="275" className="dynamic-text" fontSize="15">
                 {(shipment.consignee?.name || '').toUpperCase()}
               </text>
-              <text x="190" y="320" className="dynamic-text" fontSize="15">
+              <text x="190" y="320" className="dynamic-text" fontSize="14">
                 {(shipment.consignee?.code || '').toUpperCase()}
               </text>
-              <text x="480" y="320" className="dynamic-text" fontSize="15">
+              <text x="480" y="320" className="dynamic-text" fontSize="14">
                 {(shipment.consignee?.gstin || '').toUpperCase()}
               </text>
-              <g transform="translate(809, 304)">
+              <g transform="translate(805, 301)">
                 {consigneePinBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
+                  <text key={idx} x={idx * 22 + 11} y="17" className="dynamic-digit-text" fontSize="14">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* CN Number & Date */}
-              <text x="1080" y="170" className="dynamic-text" fontSize="24">{cnDetails.prefix}</text>
-              <text x="1150" y="170" className="dynamic-text" fontSize="28">
+              <text x="1040" y="170" className="dynamic-text" fontSize="22">{cnDetails.prefix}</text>
+              <text x="1100" y="170" className="dynamic-text" fontSize="24">
                 {cnDetails.number}
               </text>
-              <g transform="translate(1103, 196)">
+              <g transform="translate(1100, 194)">
                 {dateBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 28 + 7} y="19" className="dynamic-text" fontSize="18">
+                  <text key={idx} x={idx * 28 + 14} y="18" className="dynamic-digit-text" fontSize="15">
                     {digit}
                   </text>
                 ))}
               </g>
 
               {/* Mode Checkboxes (renders check mark inside existing fixed checkbox) */}
-              {isAirExpress && <text x="956" y="246" className="dynamic-text" fontSize="18">✓</text>}
-              {isAir && <text x="1066" y="246" className="dynamic-text" fontSize="18">✓</text>}
-              {isTrain && <text x="1131" y="246" className="dynamic-text" fontSize="18">✓</text>}
-              {isRoad && <text x="1211" y="246" className="dynamic-text" fontSize="18">✓</text>}
-              {isFtl && <text x="1291" y="246" className="dynamic-text" fontSize="18">✓</text>}
+              {isAirExpress && <text x="956" y="246" className="dynamic-text" fontSize="16">✓</text>}
+              {isAir && <text x="1066" y="246" className="dynamic-text" fontSize="16">✓</text>}
+              {isTrain && <text x="1131" y="246" className="dynamic-text" fontSize="16">✓</text>}
+              {isRoad && <text x="1211" y="246" className="dynamic-text" fontSize="16">✓</text>}
+              {isFtl && <text x="1291" y="246" className="dynamic-text" fontSize="16">✓</text>}
 
               {/* Routing */}
-              <text x="1010" y="280" className="dynamic-text" fontSize="16">{shipment.origin || ''}</text>
-              <text x="1310" y="280" className="dynamic-text" fontSize="15">{shipment.originCode || ''}</text>
+              <text x="1010" y="280" className="dynamic-text" fontSize="15">{shipment.origin || ''}</text>
+              <text x="1310" y="280" className="dynamic-text" fontSize="14">{shipment.originCode || ''}</text>
 
-              <text x="1010" y="308" className="dynamic-text" fontSize="16">{shipment.destination || ''}</text>
-              <text x="1310" y="308" className="dynamic-text" fontSize="15">{shipment.destCode || ''}</text>
+              <text x="1010" y="308" className="dynamic-text" fontSize="15">{shipment.destination || ''}</text>
+              <text x="1310" y="308" className="dynamic-text" fontSize="14">{shipment.destCode || ''}</text>
 
               {/* Packages & Weights */}
-              <text x="170" y="370" className="dynamic-text" fontSize="15">{shipment.doNumber || shipment.dcpiNumber || ''}</text>
-              <text x="90" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{shipment.packages || ''}</text>
-              <text x="240" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{actualW || ''}</text>
-              <text x="390" y="432" className="dynamic-text" fontSize="18" textAnchor="middle">{chargeW || ''}</text>
+              <text x="170" y="370" className="dynamic-text" fontSize="14">{shipment.doNumber || shipment.dcpiNumber || ''}</text>
+              <text x="90" y="432" className="dynamic-text" fontSize="16" textAnchor="middle">{shipment.packages || ''}</text>
+              <text x="240" y="432" className="dynamic-text" fontSize="16" textAnchor="middle">{actualW || ''}</text>
+              <text x="390" y="432" className="dynamic-text" fontSize="16" textAnchor="middle">{chargeW || ''}</text>
 
               {/* Goods Description */}
-              <text x="30" y="480" className="dynamic-text" fontSize="15">{shipment.materialDescription || ''}</text>
+              <text x="30" y="480" className="dynamic-text" fontSize="14">{shipment.materialDescription || ''}</text>
 
               {/* Invoices */}
-              <text x="150" y="555" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
-              <text x="150" y="583" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
-              <text x="150" y="611" className="dynamic-text" fontSize="15">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
-              <text x="150" y="639" className="dynamic-text" fontSize="16">
+              <text x="150" y="555" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
+              <text x="150" y="583" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
+              <text x="150" y="611" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
+              <text x="150" y="639" className="dynamic-text" fontSize="14">
                 {shipment.invoiceDetails?.invoiceQuantity !== undefined && shipment.invoiceDetails?.invoiceQuantity !== null && shipment.invoiceDetails?.invoiceQuantity !== ''
                   ? shipment.invoiceDetails.invoiceQuantity
                   : ((shipment.commercialInvoices || []).map(i => i.invoiceQuantity).filter((q) => q !== undefined && q !== null && q !== '').join(', ') || '')}
               </text>
-              <text x="150" y="667" className="dynamic-text" fontSize="15">{shipment.ewayBillNumber || ''}</text>
-              <text x="150" y="687" className="dynamic-text" fontSize="15">{shipment.awbNumber || ''}</text>
+              <text x="150" y="667" className="dynamic-text" fontSize="14">{shipment.ewayBillNumber || ''}</text>
+              <text x="150" y="687" className="dynamic-text" fontSize="14">{shipment.awbNumber || ''}</text>
 
               {/* Freight Amounts */}
-              <text x="870" y="424" className="dynamic-text" fontSize="15" textAnchor="end">{basicFreight ? basicFreight.toFixed(0) : ''}</text>
-              <text x="870" y="450" className="dynamic-text" fontSize="15" textAnchor="end">{laborC ? laborC.toFixed(0) : ''}</text>
-              <text x="870" y="502" className="dynamic-text" fontSize="15" textAnchor="end">{pickupC ? pickupC.toFixed(0) : ''}</text>
-              <text x="870" y="580" className="dynamic-text" fontSize="15" textAnchor="end">{packingC ? packingC.toFixed(0) : ''}</text>
-              <text x="870" y="632" className="dynamic-text" fontSize="15" textAnchor="end">{gstAmount ? gstAmount.toFixed(0) : ''}</text>
-              <text x="870" y="688" className="dynamic-text" fontSize="18" textAnchor="end">{grandTotal ? `₹ ${grandTotal.toFixed(0)}` : ''}</text>
+              <text x="870" y="424" className="dynamic-text" fontSize="14" textAnchor="end">{basicFreight ? basicFreight.toFixed(0) : ''}</text>
+              <text x="870" y="450" className="dynamic-text" fontSize="14" textAnchor="end">{laborC ? laborC.toFixed(0) : ''}</text>
+              <text x="870" y="502" className="dynamic-text" fontSize="14" textAnchor="end">{pickupC ? pickupC.toFixed(0) : ''}</text>
+              <text x="870" y="580" className="dynamic-text" fontSize="14" textAnchor="end">{packingC ? packingC.toFixed(0) : ''}</text>
+              <text x="870" y="632" className="dynamic-text" fontSize="14" textAnchor="end">{gstAmount ? gstAmount.toFixed(0) : ''}</text>
+              <text x="870" y="688" className="dynamic-text" fontSize="16" textAnchor="end">{grandTotal ? `₹ ${grandTotal.toFixed(0)}` : ''}</text>
 
               {/* Remarks */}
-              <text x="400" y="738" className="dynamic-text" fontSize="15">{shipment.remarks || ''}</text>
+              <text x="400" y="738" className="dynamic-text" fontSize="14">{shipment.remarks || ''}</text>
 
               {/* Employee Code digit boxes */}
-              <g transform="translate(1200, 841)">
+              <g transform="translate(1200, 881)">
                 {empCodeBoxes.map((digit, idx) => (
-                  <text key={idx} x={idx * 22 + 5} y="17" className="dynamic-text" fontSize="16">
+                  <text key={idx} x={idx * 22 + 11} y="17" className="dynamic-digit-text" fontSize="14">
                     {digit}
                   </text>
                 ))}
