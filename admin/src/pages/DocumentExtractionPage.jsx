@@ -45,169 +45,6 @@ const DOC_TYPES = [
   'Other'
 ];
 
-export async function getCroppedAndEnhancedImageBlob(imageFile, cropRect, rotation = 0, enhanceContrast = true) {
-  return new Promise((resolve, reject) => {
-    if (!imageFile || !(imageFile instanceof Blob || imageFile instanceof File)) {
-      resolve(imageFile);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        const cropX = ((cropRect.left || 0) / 100) * img.width;
-        const cropY = ((cropRect.top || 0) / 100) * img.height;
-        const cropWidth = ((100 - (cropRect.left || 0) - (cropRect.right || 0)) / 100) * img.width;
-        const cropHeight = ((100 - (cropRect.top || 0) - (cropRect.bottom || 0)) / 100) * img.height;
-
-        const safeW = Math.max(10, cropWidth);
-        const safeH = Math.max(10, cropHeight);
-
-        if (rotation === 90 || rotation === 270) {
-          canvas.width = safeH;
-          canvas.height = safeW;
-        } else {
-          canvas.width = safeW;
-          canvas.height = safeH;
-        }
-
-        ctx.save();
-        if (rotation === 90) {
-          ctx.translate(canvas.width, 0);
-          ctx.rotate((90 * Math.PI) / 180);
-        } else if (rotation === 180) {
-          ctx.translate(canvas.width, canvas.height);
-          ctx.rotate((180 * Math.PI) / 180);
-        } else if (rotation === 270) {
-          ctx.translate(0, canvas.height);
-          ctx.rotate((270 * Math.PI) / 180);
-        }
-
-        ctx.drawImage(img, cropX, cropY, safeW, safeH, 0, 0, safeW, safeH);
-        ctx.restore();
-
-        if (enhanceContrast) {
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            let enhanced = gray;
-            if (enhanced < 150) {
-              enhanced = Math.max(0, enhanced - 45);
-            } else {
-              enhanced = Math.min(255, enhanced + 45);
-            }
-            data[i] = enhanced;
-            data[i + 1] = enhanced;
-            data[i + 2] = enhanced;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        }
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const croppedFile = new File([blob], `Cropped_${imageFile.name || 'Invoice.jpg'}`, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              });
-              resolve(croppedFile);
-            } else {
-              resolve(imageFile);
-            }
-          },
-          'image/jpeg',
-          0.95
-        );
-      };
-      img.onerror = () => resolve(imageFile);
-      img.src = e.target.result;
-    };
-    reader.onerror = () => resolve(imageFile);
-    reader.readAsDataURL(imageFile);
-  });
-}
-
-const CanvasCropPreview = ({ file, cropRect, rotation, enhanceContrast }) => {
-  const canvasRef = React.useRef(null);
-
-  useEffect(() => {
-    if (!file || !canvasRef.current) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-
-        const cropX = ((cropRect.left || 0) / 100) * img.width;
-        const cropY = ((cropRect.top || 0) / 100) * img.height;
-        const cropWidth = ((100 - (cropRect.left || 0) - (cropRect.right || 0)) / 100) * img.width;
-        const cropHeight = ((100 - (cropRect.top || 0) - (cropRect.bottom || 0)) / 100) * img.height;
-
-        const safeW = Math.max(10, cropWidth);
-        const safeH = Math.max(10, cropHeight);
-
-        if (rotation === 90 || rotation === 270) {
-          canvas.width = safeH;
-          canvas.height = safeW;
-        } else {
-          canvas.width = safeW;
-          canvas.height = safeH;
-        }
-
-        ctx.save();
-        if (rotation === 90) {
-          ctx.translate(canvas.width, 0);
-          ctx.rotate((90 * Math.PI) / 180);
-        } else if (rotation === 180) {
-          ctx.translate(canvas.width, canvas.height);
-          ctx.rotate((180 * Math.PI) / 180);
-        } else if (rotation === 270) {
-          ctx.translate(0, canvas.height);
-          ctx.rotate((270 * Math.PI) / 180);
-        }
-
-        ctx.drawImage(img, cropX, cropY, safeW, safeH, 0, 0, safeW, safeH);
-        ctx.restore();
-
-        if (enhanceContrast) {
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            let enhanced = gray;
-            if (enhanced < 150) {
-              enhanced = Math.max(0, enhanced - 45);
-            } else {
-              enhanced = Math.min(255, enhanced + 45);
-            }
-            data[i] = enhanced;
-            data[i + 1] = enhanced;
-            data[i + 2] = enhanced;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        }
-      };
-      img.src = e.target.result;
-    };
-    if (file instanceof Blob || file instanceof File) {
-      reader.readAsDataURL(file);
-    }
-  }, [file, cropRect, rotation, enhanceContrast]);
-
-  return (
-    <div className="w-full max-h-[350px] overflow-auto flex items-center justify-center bg-slate-950 rounded-xl p-2 border border-slate-800 shadow-inner">
-      <canvas ref={canvasRef} className="max-w-full max-h-[320px] object-contain rounded shadow-md border border-slate-700" />
-    </div>
-  );
-};
-
 export const DocumentExtractionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -222,14 +59,6 @@ export const DocumentExtractionPage = () => {
   const [stage, setStage] = useState('upload');
   const [selectedDocType, setSelectedDocType] = useState('Auto Detect');
   const [uploadedFile, setUploadedFile] = useState(null);
-
-  // Image Cropper & Preprocessor Modal states
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [pendingCropFile, setPendingCropFile] = useState(null);
-  const [pendingCropTarget, setPendingCropTarget] = useState('primary'); // 'primary' | 'extra'
-  const [cropRect, setCropRect] = useState({ top: 0, bottom: 0, left: 0, right: 0 }); // % margins
-  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270
-  const [enhanceContrast, setEnhanceContrast] = useState(true);
 
   // Multiple Invoice & Package/Weight Modal states
   const [showMultiInvoiceModal, setShowMultiInvoiceModal] = useState(false);
@@ -276,13 +105,7 @@ export const DocumentExtractionPage = () => {
 
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPendingCropFile(file);
-      setPendingCropTarget('primary');
-      setCropRect({ top: 0, bottom: 0, left: 0, right: 0 });
-      setRotation(0);
-      setEnhanceContrast(true);
-      setShowCropModal(true);
+      startProcessing(e.target.files[0]);
       e.target.value = '';
     }
   };
@@ -387,51 +210,8 @@ export const DocumentExtractionPage = () => {
 
   const handleExtraInvoiceSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPendingCropFile(file);
-      setPendingCropTarget('extra');
-      setCropRect({ top: 0, bottom: 0, left: 0, right: 0 });
-      setRotation(0);
-      setEnhanceContrast(true);
-      setShowCropModal(true);
+      processExtraInvoiceScan(e.target.files[0]);
       e.target.value = '';
-    }
-  };
-
-  const handleApplyCropAndRunOCR = async () => {
-    if (!pendingCropFile) return;
-    setShowCropModal(false);
-
-    try {
-      const croppedBlob = await getCroppedAndEnhancedImageBlob(
-        pendingCropFile,
-        cropRect,
-        rotation,
-        enhanceContrast
-      );
-
-      if (pendingCropTarget === 'primary') {
-        startProcessing(croppedBlob);
-      } else if (pendingCropTarget === 'extra') {
-        processExtraInvoiceScan(croppedBlob);
-      }
-    } catch (err) {
-      console.warn('Crop processing fallback:', err);
-      if (pendingCropTarget === 'primary') {
-        startProcessing(pendingCropFile);
-      } else {
-        processExtraInvoiceScan(pendingCropFile);
-      }
-    }
-  };
-
-  const handleSkipCrop = () => {
-    setShowCropModal(false);
-    if (!pendingCropFile) return;
-    if (pendingCropTarget === 'primary') {
-      startProcessing(pendingCropFile);
-    } else {
-      processExtraInvoiceScan(pendingCropFile);
     }
   };
 
@@ -799,31 +579,7 @@ export const DocumentExtractionPage = () => {
                 url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
               />
 
-              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs shadow-2xs">
-                <div>
-                  <span className="font-bold text-slate-800 block">Image Quality & Crop Settings</span>
-                  <span className="text-[11px] text-slate-500">Crop non-invoice borders or rotate sideways photos to increase OCR accuracy</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (uploadedFile) {
-                      setPendingCropFile(uploadedFile);
-                      setPendingCropTarget('primary');
-                      setCropRect({ top: 0, bottom: 0, left: 0, right: 0 });
-                      setRotation(0);
-                      setEnhanceContrast(true);
-                      setShowCropModal(true);
-                    } else {
-                      alert('No image file loaded to crop.');
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
-                >
-                  <Crop className="w-4 h-4" />
-                  <span>✂️ Crop & Rescan Image</span>
-                </button>
-              </div>
+
 
               {!isDriverAccount && extractionData.rawOcrText && (
                 <details className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-slate-300 text-xs">
@@ -1578,173 +1334,6 @@ export const DocumentExtractionPage = () => {
             >
               <CheckCircle2 className="w-5 h-5" />
               <span>{saving ? 'Generating CN...' : '✨ Save & Create Official CN'}</span>
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* 3. IMAGE CROPPER & PREPROCESSOR ENHANCER MODAL */}
-      <Modal
-        isOpen={showCropModal}
-        onClose={() => setShowCropModal(false)}
-        title="✂️ Crop & Enhance Invoice Image for High-Accuracy OCR"
-      >
-        <div className="space-y-5">
-          <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-xs space-y-1">
-            <div className="flex items-center gap-2 font-bold text-indigo-900 text-sm">
-              <Crop className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span>Document Image Crop & Enhancement Preprocessor</span>
-            </div>
-            <p className="text-indigo-800 font-medium">
-              Crop non-invoice borders, rotate sideways photos, and sharpen text ink to dramatically boost AI OCR extraction accuracy.
-            </p>
-          </div>
-
-          {/* Live Canvas Preview */}
-          <CanvasCropPreview
-            file={pendingCropFile}
-            cropRect={cropRect}
-            rotation={rotation}
-            enhanceContrast={enhanceContrast}
-          />
-
-          {/* Preset Buttons */}
-          <div className="space-y-2 text-xs">
-            <span className="font-bold text-slate-700 block uppercase tracking-wider text-[11px]">
-              Preset Crop Regions
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setCropRect({ top: 0, bottom: 0, left: 0, right: 0 })}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
-                  cropRect.top === 0 && cropRect.bottom === 0 && cropRect.left === 0 && cropRect.right === 0
-                    ? 'bg-setu-600 text-white border-setu-600'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                📄 Full Document (0%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCropRect({ top: 5, bottom: 5, left: 5, right: 5 })}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                ✂️ Trim Outer Margins (5%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCropRect({ top: 5, bottom: 25, left: 2, right: 2 })}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                📋 Invoice Header & Item Table
-              </button>
-              <button
-                type="button"
-                onClick={() => setCropRect({ top: 40, bottom: 5, left: 5, right: 5 })}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                💰 Lower Amount & Total Box
-              </button>
-            </div>
-          </div>
-
-          {/* Interactive Sliders for Custom Margins */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
-            <span className="font-bold text-slate-800 block text-xs">
-              Custom Crop Margins (% Cut from Edge)
-            </span>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="font-bold text-slate-600 block text-[11px] mb-1">Top Crop: {cropRect.top}%</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={cropRect.top}
-                  onChange={(e) => setCropRect({ ...cropRect, top: parseInt(e.target.value, 10) })}
-                  className="w-full accent-setu-600 cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block text-[11px] mb-1">Bottom Crop: {cropRect.bottom}%</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={cropRect.bottom}
-                  onChange={(e) => setCropRect({ ...cropRect, bottom: parseInt(e.target.value, 10) })}
-                  className="w-full accent-setu-600 cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block text-[11px] mb-1">Left Crop: {cropRect.left}%</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={cropRect.left}
-                  onChange={(e) => setCropRect({ ...cropRect, left: parseInt(e.target.value, 10) })}
-                  className="w-full accent-setu-600 cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-600 block text-[11px] mb-1">Right Crop: {cropRect.right}%</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="50"
-                  value={cropRect.right}
-                  onChange={(e) => setCropRect({ ...cropRect, right: parseInt(e.target.value, 10) })}
-                  className="w-full accent-setu-600 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Enhancement Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-slate-200 rounded-xl text-xs">
-            <button
-              type="button"
-              onClick={() => setRotation((prev) => (prev + 90) % 360)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <RotateCw className="w-4 h-4 text-setu-600" />
-              <span>Rotate 90° (Current: {rotation}°)</span>
-            </button>
-
-            <label className="inline-flex items-center gap-2 cursor-pointer font-bold text-slate-800">
-              <input
-                type="checkbox"
-                checked={enhanceContrast}
-                onChange={(e) => setEnhanceContrast(e.target.checked)}
-                className="w-4 h-4 text-setu-600 rounded focus:ring-setu-500 cursor-pointer"
-              />
-              <span>✨ Sharpen Text Ink & Contrast (Binarize for OCR)</span>
-            </label>
-          </div>
-
-          {/* Modal Footer Actions */}
-          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={handleSkipCrop}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors text-center cursor-pointer"
-            >
-              ⚡ Skip Crop (Use Raw Photo)
-            </button>
-
-            <button
-              type="button"
-              onClick={handleApplyCropAndRunOCR}
-              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>✨ Apply Crop & Run High-Accuracy OCR</span>
             </button>
           </div>
         </div>
