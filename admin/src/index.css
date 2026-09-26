@@ -64,8 +64,8 @@
 /* @media print styles to ensure ONLY tax invoice or consignment note is printed on A4 */
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 4mm;
+    size: A4 landscape;
+    margin: 3mm 4mm;
   }
 
   html, body {
