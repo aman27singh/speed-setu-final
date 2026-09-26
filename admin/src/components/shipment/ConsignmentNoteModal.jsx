@@ -8,6 +8,28 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   const printRef = useRef(null);
   const [copiedToast, setCopiedToast] = useState(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [logoBase64, setLogoBase64] = useState(logoImg);
+
+  // Convert logo to inline Base64 data URI on mount to ensure html2canvas & print PDF engines never miss logo
+  useEffect(() => {
+    if (!logoImg) return;
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/png'));
+      } catch (e) {
+        setLogoBase64(logoImg);
+      }
+    };
+    img.onerror = () => setLogoBase64(logoImg);
+    img.src = logoImg;
+  }, []);
 
   useEffect(() => {
     if (isOpen && autoPrint && shipment) {
@@ -28,45 +50,57 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}`;
   };
 
-  // Helper function to build actual PDF File object using html2canvas & jsPDF
+  // Helper function to build 300+ DPI razor-sharp PDF File object using html2canvas & jsPDF
   const generateCnPdfFile = async (isSplit = false) => {
     const printContent = printRef.current;
     if (!printContent) throw new Error('Document element not found');
 
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
 
-    // Capture SVG layout as high resolution canvas (300 DPI equivalent)
+    // Capture SVG layout at 4x high resolution scaling (300+ DPI) with base64 embedded assets
     const canvas = await html2canvas(printContent, {
-      scale: 3,
+      scale: 4,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      imageTimeout: 0,
     });
-    const imgData = canvas.toDataURL('image/png');
+    const imgData = canvas.toDataURL('image/png', 1.0);
 
     let pdf;
     if (!isSplit) {
       // Single Page CN -> A4 Landscape (297mm x 210mm)
-      pdf = new jsPDF('landscape', 'mm', 'a4');
-      pdf.addImage(imgData, 'PNG', 4, 4, 289, 202);
+      pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+      pdf.addImage(imgData, 'PNG', 3, 3, 291, 204, undefined, 'FAST');
     } else {
       // Split 2-in-1 Duplicate CN -> A4 Portrait (210mm x 297mm)
-      pdf = new jsPDF('portrait', 'mm', 'a4');
+      pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
       // Top Copy
-      pdf.addImage(imgData, 'PNG', 4, 4, 202, 140);
+      pdf.addImage(imgData, 'PNG', 3, 3, 204, 142, undefined, 'FAST');
 
       // Dashed Cut Line Divider
       pdf.setLineDashPattern([3, 2], 0);
-      pdf.setDrawColor(100, 100, 100);
+      pdf.setDrawColor(120, 120, 120);
       pdf.setLineWidth(0.4);
-      pdf.line(4, 148.5, 206, 148.5);
+      pdf.line(3, 148.5, 207, 148.5);
 
       pdf.setFontSize(8);
-      pdf.setTextColor(100, 100, 100);
+      pdf.setTextColor(120, 120, 120);
       pdf.text('- - - - - - - - - - - - CUT HERE FOR DUPLICATE COPY - - - - - - - - - - - -', 105, 147.5, { align: 'center' });
 
       // Bottom Copy
-      pdf.addImage(imgData, 'PNG', 4, 153, 202, 140);
+      pdf.addImage(imgData, 'PNG', 3, 153, 204, 142, undefined, 'FAST');
     }
 
     const pdfBlob = pdf.output('blob');
@@ -76,7 +110,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     return { pdfBlob, pdfFile, fileName };
   };
 
-  // 1. Native Mobile PDF Share (Shares actual .pdf file via Web Share API)
+  // 1. Native Mobile PDF Share (Shares high-res .pdf file via Web Share API with logo intact)
   const handleSharePdf = async (isSplit = false) => {
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
     setIsGeneratingPdf(true);
@@ -95,7 +129,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         return;
       }
 
-      // Fallback for browsers that don't support file sharing: Download PDF file
+      // Fallback for browsers that don't support file sharing: Download PDF file directly
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -167,7 +201,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const iframe = document.createElement('iframe');
     iframe.id = 'speed-setu-print-iframe';
-    // iOS Safari Fix: Do NOT use width: 0, height: 0 or display: none! Position off-screen with valid viewport size.
     iframe.style.position = 'absolute';
     iframe.style.top = '0';
     iframe.style.left = '-9999px';
@@ -289,11 +322,17 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       setTimeout(() => {
         try { if (document.body.contains(iframe)) document.body.removeChild(iframe); } catch (e) {}
       }, 1500);
-    }, 500);
+    }, 400);
   };
 
   // 3. Single Page CN Print
   const handlePrintSingle = async () => {
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      window.print();
+      return;
+    }
+
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
@@ -302,30 +341,17 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const svgElement = printContent.querySelector('svg');
     const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-
-    // Check if user is on iOS / iPhone / iPad
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      try {
-        setIsGeneratingPdf(true);
-        const { pdfBlob } = await generateCnPdfFile(false);
-        const blobUrl = URL.createObjectURL(pdfBlob);
-        const win = window.open(blobUrl, '_blank');
-        if (!win) {
-          createAndPrintIframe(svgHtml, false);
-        }
-        setIsGeneratingPdf(false);
-        return;
-      } catch (e) {
-        setIsGeneratingPdf(false);
-      }
-    }
-
     createAndPrintIframe(svgHtml, false);
   };
 
   // 4. Split 2-in-1 Duplicate CN Print
   const handlePrintSplit = async () => {
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      window.print();
+      return;
+    }
+
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
@@ -334,24 +360,6 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const svgElement = printContent.querySelector('svg');
     const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      try {
-        setIsGeneratingPdf(true);
-        const { pdfBlob } = await generateCnPdfFile(true);
-        const blobUrl = URL.createObjectURL(pdfBlob);
-        const win = window.open(blobUrl, '_blank');
-        if (!win) {
-          createAndPrintIframe(svgHtml, true);
-        }
-        setIsGeneratingPdf(false);
-        return;
-      } catch (e) {
-        setIsGeneratingPdf(false);
-      }
-    }
-
     createAndPrintIframe(svgHtml, true);
   };
 
@@ -596,7 +604,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
               {/* Header Left: Official Speed Setu Brand Image Logo */}
               <g transform="translate(35, 25)">
-                <image href={logoImg} x="0" y="0" width="300" height="100" preserveAspectRatio="xMidYMid meet" />
+                <image href={logoBase64 || logoImg} x="0" y="0" width="300" height="100" preserveAspectRatio="xMidYMid meet" />
               </g>
 
               {/* Header Center: Registered Company Title & Address */}
