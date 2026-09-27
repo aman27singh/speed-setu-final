@@ -138,8 +138,10 @@ export const ShipmentFormPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
-  const { user } = useAuth();
+  const { user, isDriver } = useAuth();
+  const isDriverUser = isDriver || user?.role === 'Driver';
 
+  const [formMode, setFormMode] = useState(isDriverUser ? 'driver' : 'driver');
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [companies, setCompanies] = useState([]);
   const [errors, setErrors] = useState({});
@@ -565,6 +567,7 @@ export const ShipmentFormPage = () => {
           setCreatedCN(created.cnNumber);
           setCreatedId(created.id);
           setCreatedShipment(created);
+          setShowCNModal(true); // Opens CN document popup immediately on creation!
         }
       }
     } catch (err) {
@@ -611,7 +614,438 @@ export const ShipmentFormPage = () => {
         </div>
       )}
 
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+      {/* Form Mode Selector Tabs */}
+      {!isEditMode && (
+        <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setFormMode('driver')}
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+              formMode === 'driver'
+                ? 'bg-white text-setu-700 shadow-md border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>📱 Driver Express CN (Quick Mobile Form)</span>
+          </button>
+          {!isDriverUser && (
+            <button
+              type="button"
+              onClick={() => setFormMode('full')}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                formMode === 'full'
+                  ? 'bg-white text-setu-700 shadow-md border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🏢 Full ERP Form (Advanced Specs)</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* DRIVER EXPRESS CN FORM */}
+      {formMode === 'driver' && !isEditMode ? (
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+          {/* Driver Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-setu-900 to-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-md shrink-0">
+                🚚
+              </div>
+              <div>
+                <h2 className="text-base font-extrabold text-white">Create Consignment Note (CN)</h2>
+                <p className="text-xs text-slate-300">Quick Driver Form — Auto-fills company codes, GSTIN & PIN. Generates instant document.</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-mono text-xs font-bold">
+                CN # Auto-Assigned
+              </span>
+            </div>
+          </div>
+
+          {/* STEP 1: CONSIGNOR & CONSIGNEE DETAILS */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
+            
+            {/* CONSIGNOR BLOCK */}
+            <div className="space-y-3 pb-6 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignor Details (Shipper)</h3>
+                </div>
+                <span className="text-xs text-slate-400">Select company or enter details</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company (Auto-Fills Code, GSTIN, Address, PIN)</label>
+                <select
+                  value={consignorSelectMode}
+                  onChange={(e) => handleConsignorSelect(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-setu-600 focus:bg-white transition-all"
+                >
+                  <option value="">-- Choose Consignor Company --</option>
+                  {savedConsignorsList.map((c) => (
+                    <option key={c.id || c.name} value={c.name}>
+                      {c.name} {c.city ? `(${c.city})` : ''} {c.gstin ? `— GST: ${c.gstin}` : ''}
+                    </option>
+                  ))}
+                  <option value="__custom__">✏️ Enter Custom Consignor</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Consignor Name <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.consignor?.name || ''}
+                    onChange={(e) => handleNestedInputChange('consignor', 'name', e.target.value)}
+                    placeholder="e.g. S S Enterprises"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-setu-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Company Code</label>
+                  <input
+                    type="text"
+                    value={formData.consignor?.code || ''}
+                    onChange={(e) => handleNestedInputChange('consignor', 'code', e.target.value)}
+                    placeholder="e.g. CON-102"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">GSTIN Number</label>
+                  <input
+                    type="text"
+                    value={formData.consignor?.gstin || ''}
+                    onChange={(e) => handleNestedInputChange('consignor', 'gstin', e.target.value)}
+                    placeholder="e.g. 27CIOPK3596D2ZU"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={formData.consignor?.pin || ''}
+                    onChange={(e) => handleNestedInputChange('consignor', 'pin', e.target.value)}
+                    placeholder="e.g. 410501"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <label className="block font-bold text-slate-600 mb-1">Full Address</label>
+                  <input
+                    type="text"
+                    value={formData.consignor?.address || ''}
+                    onChange={(e) => handleNestedInputChange('consignor', 'address', e.target.value)}
+                    placeholder="Full pickup street address..."
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CONSIGNEE BLOCK */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignee Details (Receiver)</h3>
+                </div>
+                <span className="text-xs text-slate-400">Select receiver or enter details</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company (Auto-Fills Code, GSTIN, Address, PIN)</label>
+                <select
+                  value={consigneeSelectMode}
+                  onChange={(e) => handleConsigneeSelect(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all"
+                >
+                  <option value="">-- Choose Consignee Company --</option>
+                  {savedConsigneesList.map((c) => (
+                    <option key={c.id || c.name} value={c.name}>
+                      {c.name} {c.city ? `(${c.city})` : ''} {c.gstin ? `— GST: ${c.gstin}` : ''}
+                    </option>
+                  ))}
+                  <option value="__custom__">✏️ Enter Custom Consignee</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Consignee Name <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.consignee?.name || ''}
+                    onChange={(e) => handleNestedInputChange('consignee', 'name', e.target.value)}
+                    placeholder="e.g. Advik Autocomp Pvt Ltd"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Company Code</label>
+                  <input
+                    type="text"
+                    value={formData.consignee?.code || ''}
+                    onChange={(e) => handleNestedInputChange('consignee', 'code', e.target.value)}
+                    placeholder="e.g. COM-008"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">GSTIN Number</label>
+                  <input
+                    type="text"
+                    value={formData.consignee?.gstin || ''}
+                    onChange={(e) => handleNestedInputChange('consignee', 'gstin', e.target.value)}
+                    placeholder="e.g. 29AASCA8132C1ZJ"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={formData.consignee?.pin || ''}
+                    onChange={(e) => handleNestedInputChange('consignee', 'pin', e.target.value)}
+                    placeholder="e.g. 563133"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <label className="block font-bold text-slate-600 mb-1">Full Address</label>
+                  <input
+                    type="text"
+                    value={formData.consignee?.address || ''}
+                    onChange={(e) => handleNestedInputChange('consignee', 'address', e.target.value)}
+                    placeholder="Full delivery street address..."
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 2: PICKUP FROM (ORIGIN) & DELIVER TO (DESTINATION) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+              <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-extrabold text-xs flex items-center justify-center">3</span>
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Pickup & Delivery Locations</h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Pickup From (Origin) <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={formData.origin || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
+                  placeholder="Auto-filled from consignor city..."
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Deliver To (Destination) <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={formData.destination || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, destination: e.target.value }))}
+                  placeholder="Auto-filled from consignee city..."
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 3: TRANSPORT MODE (AIR, TRAIN, ROAD, AIR EXPRESS) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Select Transport Mode</h3>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              {[
+                { id: 'Air', label: 'Air', icon: '✈️' },
+                { id: 'Train', label: 'Train', icon: '🚂' },
+                { id: 'Road', label: 'Road', icon: '🚚' },
+                { id: 'Air Express', label: 'Air Express', icon: '⚡' }
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
+                  className={`p-3.5 rounded-xl border-2 font-extrabold text-center transition-all flex flex-col items-center justify-center space-y-1.5 cursor-pointer ${
+                    formData.mode === m.id
+                      ? 'border-setu-600 bg-setu-50/80 text-setu-900 shadow-sm scale-[1.02]'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-2xl">{m.icon}</span>
+                  <span className="text-xs font-bold">{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* STEP 4: BOX COUNT & WEIGHT */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+              <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Cargo Quantity & Weight</h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Number of Boxes / Packages <span className="text-rose-500">*</span></label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={formData.packages || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, packages: e.target.value }))}
+                  placeholder="e.g. 10"
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold font-mono text-slate-900 text-sm focus:ring-2 focus:ring-purple-600 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Actual Weight (Kgs) <span className="text-rose-500">*</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  value={formData.actualWeight || ''}
+                  onChange={(e) => setFormData((prev) => ({
+                    ...prev,
+                    actualWeight: e.target.value,
+                    chargeableWeight: e.target.value
+                  }))}
+                  placeholder="e.g. 250"
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold font-mono text-slate-900 text-sm focus:ring-2 focus:ring-purple-600 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 5: MULTIPLE COMMERCIAL INVOICES */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full bg-rose-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Commercial Invoices</h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddCommercialInvoice}
+                className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Another Invoice</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {(formData.commercialInvoices || []).map((inv, idx) => (
+                <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl relative space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-700 font-mono">Invoice #{idx + 1}</span>
+                    {(formData.commercialInvoices || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCommercialInvoice(idx)}
+                        className="p-1 text-rose-600 hover:bg-rose-100 rounded-md transition-colors cursor-pointer"
+                        title="Remove invoice"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Invoice Number</label>
+                      <input
+                        type="text"
+                        value={inv.invoiceNumber || ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceNumber', e.target.value)}
+                        placeholder="e.g. INV-2024-889"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Invoice Quantity (Boxes)</label>
+                      <input
+                        type="number"
+                        value={inv.invoiceQuantity || ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceQuantity', e.target.value)}
+                        placeholder="e.g. 5"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Invoice Value (Rs.)</label>
+                      <input
+                        type="number"
+                        value={inv.invoiceValue || ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceValue', e.target.value)}
+                        placeholder="e.g. 150000"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">E-Way Bill Number</label>
+                      <input
+                        type="text"
+                        value={inv.ewayBillNumber || ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'ewayBillNumber', e.target.value)}
+                        placeholder="e.g. EWB-1810294"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* SUBMIT BUTTON */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full py-4 px-6 bg-gradient-to-r from-setu-600 to-setu-700 hover:from-setu-700 hover:to-setu-800 disabled:opacity-50 text-white font-extrabold text-base rounded-2xl shadow-xl transition-all active:scale-[0.99] flex items-center justify-center space-x-2.5 cursor-pointer"
+            >
+              <Save className="w-5 h-5 text-amber-300" />
+              <span>{saving ? 'Creating Consignment Note...' : '🚀 Submit & Generate CN Document'}</span>
+            </button>
+          </div>
+        </form>
+      ) : (
+        /* FULL ERP FORM FOR ADMINS */
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
         {/* SECTION A: COMPANY SELECTION */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -1409,6 +1843,7 @@ export const ShipmentFormPage = () => {
           </button>
         </div>
       </form>
+      )}
 
       {/* SUCCESS MODAL */}
       <Modal
