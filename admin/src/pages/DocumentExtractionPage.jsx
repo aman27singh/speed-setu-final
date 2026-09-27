@@ -221,12 +221,22 @@ export const DocumentExtractionPage = () => {
   const processExtraInvoiceScan = async (file) => {
     setScanningExtraInvoice(true);
     try {
-      const result = await documentService.uploadDocument(file, 'Shipment Invoice');
-      const invNo = result?.invoice?.invoiceNumber?.value || '';
-      const invDate = result?.invoice?.invoiceDate?.value || '';
-      const invVal = result?.invoice?.invoiceValue?.value !== undefined && result?.invoice?.invoiceValue?.value !== null ? result.invoice.invoiceValue.value : '';
-      const invQty = result?.invoice?.invoiceQuantity?.value !== undefined && result?.invoice?.invoiceQuantity?.value !== null ? result.invoice.invoiceQuantity.value : '';
-      const eway = result?.regulatory?.ewayBillNumber?.value || '';
+      let invNo = '';
+      let invDate = '';
+      let invVal = '';
+      let invQty = '';
+      let eway = '';
+
+      try {
+        const result = await documentService.uploadDocument(file, 'Shipment Invoice');
+        invNo = result?.invoice?.invoiceNumber?.value || '';
+        invDate = result?.invoice?.invoiceDate?.value || '';
+        invVal = result?.invoice?.invoiceValue?.value !== undefined && result?.invoice?.invoiceValue?.value !== null ? result.invoice.invoiceValue.value : '';
+        invQty = result?.invoice?.invoiceQuantity?.value !== undefined && result?.invoice?.invoiceQuantity?.value !== null ? result.invoice.invoiceQuantity.value : '';
+        eway = result?.regulatory?.ewayBillNumber?.value || '';
+      } catch (e) {
+        console.warn('OCR extraction warning:', e);
+      }
 
       const newExtra = {
         id: Date.now() + Math.random(),
@@ -235,15 +245,15 @@ export const DocumentExtractionPage = () => {
         invoiceValue: invVal !== '' ? String(invVal) : '',
         invoiceQuantity: invQty !== '' ? String(invQty) : '',
         ewayBillNumber: String(eway).trim(),
-        fileName: file.name,
+        fileName: file?.name || 'Additional_Invoice_Photo.jpg',
         file: file,
         url: (file instanceof File || file instanceof Blob) ? URL.createObjectURL(file) : null
       };
 
       setExtraInvoices((prev) => [...prev, newExtra]);
-      setToastMessage(`Scanned invoice photo #${extraInvoices.length + 2} (${newExtra.invoiceNumber || 'Completed'})`);
+      setToastMessage(`Added invoice photo #${extraInvoices.length + 2}`);
     } catch (err) {
-      alert('Failed to extract invoice photo: ' + (err.message || err));
+      alert('Failed to add invoice photo: ' + (err.message || err));
     } finally {
       setScanningExtraInvoice(false);
     }
@@ -1053,8 +1063,25 @@ export const DocumentExtractionPage = () => {
                             You can take a photo or upload another commercial invoice. All invoice details and photos will be attached together on this CN.
                           </p>
                           <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <input
+                              type="file"
+                              id="extraInvoiceCameraInput"
+                              accept="image/*"
+                              capture="environment"
+                              onChange={handleExtraInvoiceSelect}
+                              className="hidden"
+                            />
+                            <input
+                              type="file"
+                              id="extraInvoiceGalleryInput"
+                              accept="image/*,.pdf"
+                              onChange={handleExtraInvoiceSelect}
+                              className="hidden"
+                            />
+
                             <label
                               htmlFor="extraInvoiceCameraInput"
+                              onClick={() => document.getElementById('extraInvoiceCameraInput')?.click()}
                               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
                             >
                               <Camera className="w-4 h-4" />
@@ -1063,6 +1090,7 @@ export const DocumentExtractionPage = () => {
 
                             <label
                               htmlFor="extraInvoiceGalleryInput"
+                              onClick={() => document.getElementById('extraInvoiceGalleryInput')?.click()}
                               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
                             >
                               <UploadCloud className="w-4 h-4 text-setu-600" />
