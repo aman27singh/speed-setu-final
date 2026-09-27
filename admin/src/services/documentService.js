@@ -211,11 +211,15 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
     const text = result?.data?.text || '';
     console.log('[Tesseract OCR Engine] Raw Extracted Document Text:\n', text);
 
-    // 1. EXTRACT INVOICE NUMBER (e.g. SSE-26-27/1486, SSE-26-27/1472, SSE-26-27/1317)
-    const invMatch = text.match(/(?:Invoice No\.|Inv No\.|Invoice Number|Invoice[:.\s]*No)[:.\s]*([A-Z0-9/_-]{4,30})/i) ||
-                     text.match(/\b([A-Z]{2,4}-\d{2}-\d{2}\/\d{3,6})\b/i) ||
-                     text.match(/\b(SSE[A-Z0-9/_-]{4,25})\b/i);
-    const invoiceNo = invMatch ? invMatch[1].trim() : '';
+    // 1. EXTRACT INVOICE NUMBER (e.g. SSE-26-27/1486, SSE-26-27/1472, SSE-26-27/1317, SSE-26-27/1318)
+    const invMatch = text.match(/(?:Invoice\s*No\.?|Inv\s*No\.?|Invoice\s*Number)[:.\s]*([A-Z0-9/_-]{4,30})/i) ||
+                     text.match(/\b([A-Z]{2,4}[-/\s]?\d{2}[-/\s]?\d{2}[/-]\d{3,6})\b/i) ||
+                     text.match(/\b(SSE[A-Z0-9/_-]{4,25})\b/i) ||
+                     text.match(/([A-Z]{2,5}[/-][A-Z0-9/-]{5,20})/i);
+    let invoiceNo = invMatch ? invMatch[1].trim() : '';
+    if (invoiceNo) {
+      invoiceNo = invoiceNo.split(/\s+/)[0].replace(/^(Dated|Mode|Buyer|No|Date)[.:-]*/i, '').trim();
+    }
     const invNoConfidence = invoiceNo ? 0.98 : 0;
 
     // 2. EXTRACT INVOICE DATE (e.g. 25-Sep-26, 24-Sep-26, 9-Sep-26, 25/09/2026)
@@ -238,12 +242,19 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
     let invoiceVal = '';
     let invValConfidence = 0;
 
+    const isReasonableAmount = (num) => {
+      if (isNaN(num) || num < 50 || num > 500000) return false;
+      const str = String(Math.round(num));
+      if (str.startsWith('8714') || str.startsWith('27CI') || str.startsWith('29AA') || str.startsWith('3140')) return false;
+      return true;
+    };
+
     // Strategy A: Parse "Amount Chargeable (in words)" line if present
     const wordsMatch = text.match(/Amount Chargeable \(in words\)[\s\S]*?INR\s+([A-Za-z\s]+?)(?:E\.\s*&\s*O\.E|\n|$)/i) ||
                        text.match(/INR\s+([A-Za-z\s]+?)(?:Only|paise|\n|$)/i);
     if (wordsMatch && wordsMatch[1]) {
       const parsedFromWords = parseIndianWordsToNumber(wordsMatch[1]);
-      if (parsedFromWords && parsedFromWords > 100) {
+      if (parsedFromWords && isReasonableAmount(parsedFromWords)) {
         invoiceVal = parsedFromWords;
         invValConfidence = 0.99;
       }
@@ -260,7 +271,7 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
       for (const m of explicitMatches) {
         if (m && m[1]) {
           const parsed = parseFloat(m[1].replace(/,/g, ''));
-          if (!isNaN(parsed) && parsed > 100) {
+          if (isReasonableAmount(parsed)) {
             invoiceVal = parsed;
             invValConfidence = 0.98;
             break;
@@ -276,18 +287,18 @@ export async function parseInvoiceImageWithOCR(file, docType = 'Auto Detect') {
       if (taxableMatch && taxAmountMatch) {
         const taxable = parseFloat(taxableMatch[1].replace(/,/g, ''));
         const tax = parseFloat(taxAmountMatch[1].replace(/,/g, ''));
-        if (!isNaN(taxable) && !isNaN(tax) && taxable > 100) {
+        if (isReasonableAmount(taxable) && !isNaN(tax)) {
           invoiceVal = Math.round((taxable + tax) * 100) / 100;
           invValConfidence = 0.95;
         }
       }
     }
 
-    // Strategy D: Pick maximum valid currency value from document
+    // Strategy D: Pick max valid currency value (bounded by reasonable range <= ₹ 5,00,000)
     if (!invoiceVal) {
       const amountMatches = [...text.matchAll(/[\d,]{3,}\.\d{2}/g)]
         .map(m => parseFloat(m[0].replace(/,/g, '')))
-        .filter(n => !isNaN(n) && n > 100 && n < 10000000);
+        .filter(n => isReasonableAmount(n));
       if (amountMatches.length > 0) {
         invoiceVal = Math.max(...amountMatches);
         invValConfidence = 0.90;
