@@ -952,19 +952,24 @@ export const ShipmentFormPage = () => {
                   <label
                     key={m.id}
                     onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
-                    className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center gap-2.5 cursor-pointer select-none ${
+                    className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center gap-3 cursor-pointer select-none ${
                       isSelected
                         ? 'border-setu-600 bg-setu-50 text-setu-900 shadow-sm ring-1 ring-setu-600'
                         : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      isSelected ? 'border-setu-600 bg-setu-600' : 'border-slate-400 bg-white'
+                    }`}>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
                     <input
                       type="radio"
                       name="transportMode"
                       value={m.id}
                       checked={isSelected}
                       onChange={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
-                      className="w-4 h-4 text-setu-600 focus:ring-setu-500 border-slate-300 cursor-pointer shrink-0"
+                      className="sr-only"
                     />
                     <span className="text-xs font-extrabold uppercase tracking-wide">{m.label}</span>
                   </label>
