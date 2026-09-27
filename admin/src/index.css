@@ -110,12 +110,12 @@
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    max-width: 100% !important;
-    max-height: 100vh !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
     margin: 0 !important;
-    padding: 2mm !important;
+    padding: 1mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     overflow: hidden !important;
@@ -123,85 +123,94 @@
     break-inside: avoid !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
+    z-index: 999999 !important;
   }
 
   /* Single Page CN Print Layout */
   .cn-single-print-wrapper {
-    width: 100%;
-    height: 98vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    overflow: hidden;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 95% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .cn-single-print-wrapper svg, #printable-cn svg {
     width: 100% !important;
-    height: auto !important;
-    max-height: 96vh !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     display: block !important;
     margin: 0 auto !important;
+    object-fit: contain !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
   /* Split 2-in-1 Duplicate CN Print Layout (2 copies on 1 A4 portrait sheet) */
   .cn-split-print-wrapper {
-    width: 100%;
-    height: 98vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    box-sizing: border-box;
-    overflow: hidden;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 98% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .cn-copy-half {
-    width: 100%;
-    height: 47vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    width: 100% !important;
+    height: 48% !important;
+    flex: 1 1 48% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
   }
 
   .cn-copy-half svg {
     width: 100% !important;
-    height: auto !important;
-    max-height: 46vh !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     display: block !important;
     margin: 0 auto !important;
+    object-fit: contain !important;
   }
 
   .cn-cut-line {
-    width: 100%;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    margin: 1px 0;
+    width: 100% !important;
+    height: 12px !important;
+    flex: 0 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    margin: 1px 0 !important;
   }
 
   .cn-cut-line-dashed {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    border-top: 1.5px dashed #000000;
+    position: absolute !important;
+    top: 50% !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-top: 1.5px dashed #000000 !important;
   }
 
   .cn-cut-text {
-    position: relative;
-    z-index: 2;
-    background: #ffffff;
-    padding: 0 8px;
-    font-size: 8px;
-    font-weight: bold;
-    color: #333333;
-    font-family: Arial, sans-serif;
+    position: relative !important;
+    z-index: 2 !important;
+    background: #ffffff !important;
+    padding: 0 8px !important;
+    font-size: 8px !important;
+    font-weight: bold !important;
+    color: #333333 !important;
+    font-family: Arial, sans-serif !important;
   }
 
   /* Tax Invoice Print View Styling */

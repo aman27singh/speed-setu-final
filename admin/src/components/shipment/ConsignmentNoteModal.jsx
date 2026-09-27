@@ -365,14 +365,14 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       @media print {
         @page {
           size: A4 portrait !important;
-          margin: 2mm 3mm !important;
+          margin: 2mm !important;
         }
       }
     ` : `
       @media print {
         @page {
           size: A4 landscape !important;
-          margin: 2mm 3mm !important;
+          margin: 2mm !important;
         }
       }
     `;
