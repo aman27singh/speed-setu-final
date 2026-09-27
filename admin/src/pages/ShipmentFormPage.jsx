@@ -1021,19 +1021,9 @@ export const ShipmentFormPage = () => {
 
           {/* STEP 5: MULTIPLE COMMERCIAL INVOICES */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Commercial Invoices</h3>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddCommercialInvoice}
-                className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-bold text-xs shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Another Invoice</span>
-              </button>
+            <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Commercial Invoices</h3>
             </div>
 
             <div className="space-y-3">
@@ -1100,6 +1090,18 @@ export const ShipmentFormPage = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Bottom Add Another Invoice Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleAddCommercialInvoice}
+                className="w-full py-3 px-4 rounded-xl bg-setu-50 hover:bg-setu-100 text-setu-700 border-2 border-dashed border-setu-300 font-extrabold text-xs shadow-2xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
+              >
+                <Plus className="w-4 h-4 text-setu-600" />
+                <span>+ Add Another Invoice</span>
+              </button>
             </div>
           </div>
 
