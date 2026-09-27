@@ -728,25 +728,7 @@ export const ShipmentFormPage = () => {
                 <span className="text-xs text-slate-400">Select shipper or enter name</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company (Alphabetical A-Z)</label>
-                <select
-                  value={consignorSelectMode}
-                  onChange={(e) => handleConsignorSelect(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-setu-600 focus:bg-white transition-all"
-                >
-                  <option value="">-- Choose Consignor Company (A-Z) --</option>
-                  {savedConsignorsList
-                    .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                    .map((c) => (
-                      <option key={c.id || c.name} value={c.name}>
-                        {c.name} {c.city ? `(${c.city})` : ''}
-                      </option>
-                    ))}
-                  <option value="__custom__">Enter Custom Consignor</option>
-                </select>
-              </div>
+
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                 <div className="relative">
@@ -818,25 +800,7 @@ export const ShipmentFormPage = () => {
                 <span className="text-xs text-slate-400">Select receiver or enter name</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company (Alphabetical A-Z)</label>
-                <select
-                  value={consigneeSelectMode}
-                  onChange={(e) => handleConsigneeSelect(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all"
-                >
-                  <option value="">-- Choose Consignee Company (A-Z) --</option>
-                  {savedConsigneesList
-                    .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                    .map((c) => (
-                      <option key={c.id || c.name} value={c.name}>
-                        {c.name} {c.city ? `(${c.city})` : ''}
-                      </option>
-                    ))}
-                  <option value="__custom__">Enter Custom Consignee</option>
-                </select>
-              </div>
+
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                 <div className="relative">
@@ -1233,27 +1197,7 @@ export const ShipmentFormPage = () => {
             </div>
 
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Select Consignor (Shipper) — Sorted A-Z
-                </label>
-                <select
-                  value={consignorSelectMode}
-                  onChange={(e) => handleConsignorSelect(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
-                >
-                  <option value="">-- Select Saved Consignor / Shipper Hub (A-Z) --</option>
-                  {savedConsignorsList
-                    .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                    .map((c) => (
-                      <option key={c.id || c.name} value={c.name}>
-                        {c.name} {c.city ? `(${c.city})` : ''}
-                      </option>
-                    ))}
-                  <option value="__custom__">+ Custom Add New Consignor</option>
-                </select>
-              </div>
+
 
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -1367,27 +1311,7 @@ export const ShipmentFormPage = () => {
             </div>
 
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Select Consignee (Receiver) — Sorted A-Z
-                </label>
-                <select
-                  value={consigneeSelectMode}
-                  onChange={(e) => handleConsigneeSelect(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600/20"
-                >
-                  <option value="">-- Select Saved Consignee / Delivery Store (A-Z) --</option>
-                  {savedConsigneesList
-                    .slice()
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                    .map((e) => (
-                      <option key={e.id || e.name} value={e.name}>
-                        {e.name} {e.city ? `(${e.city})` : ''}
-                      </option>
-                    ))}
-                  <option value="__custom__">+ Custom Add New Consignee</option>
-                </select>
-              </div>
+
 
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
