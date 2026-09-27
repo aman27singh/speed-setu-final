@@ -527,8 +527,8 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         {/* Screen Control Toolbar (Hidden on Print) */}
         <div className="no-print bg-slate-900 text-white border-b border-slate-800 shadow-md p-3 sm:p-4">
           
-          {/* Top Header Row with High-Visibility Red Close Button */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 gap-2">
+          {/* Top Header Row */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
             <div className="flex items-center space-x-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-setu-600/20 border border-setu-500/30 flex items-center justify-center text-setu-400 flex-shrink-0">
                 <FileText className="w-4 h-4" />
@@ -545,17 +545,16 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             </div>
 
             <button
-              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer shrink-0"
-              title="Close (Esc)"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex-shrink-0"
+              title="Close preview"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Action Buttons Row */}
-          <div className="pt-2.5 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {/* Action Buttons Row: Option 1 (Single) and Option 2 (Split 2-in-1 Duplicate) */}
+          <div className="pt-2.5 grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Option 1 Card: Single Page CN */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
               <div className="min-w-0 mr-2">
