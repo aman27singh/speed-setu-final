@@ -680,43 +680,69 @@ export const ShipmentDetailPage = () => {
             </button>
           </div>
 
-          {(shipment.documents || []).length > 0 ? (
+          {(shipment.documents || []).length > 0 || shipment.podDocumentUrl ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {shipment.documents.map((doc) => (
-                <div key={doc.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between space-y-3 hover:border-setu-300 transition-all">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-lg bg-blue-100 text-setu-600 shrink-0">
-                      <FileText className="w-5 h-5" />
+              {[
+                ...(shipment.documents || []),
+                ...(shipment.podDocumentUrl && !(shipment.documents || []).some(d => d.url === shipment.podDocumentUrl) ? [{
+                  id: 'pod-photo-doc',
+                  name: 'Scanned_POD_Invoice_Photo.jpg',
+                  type: 'Proof of Delivery (POD)',
+                  size: '1.8 MB',
+                  uploadedAt: shipment.updatedAt || 'Recently Uploaded',
+                  url: shipment.podDocumentUrl
+                }] : [])
+              ].map((doc) => {
+                const isPhoto = doc.url && (doc.url.startsWith('data:image/') || /\.(png|jpg|jpeg|webp)/i.test(doc.name || doc.url));
+                return (
+                  <div key={doc.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between space-y-3 hover:border-setu-300 transition-all">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 rounded-lg bg-blue-100 text-setu-600 shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold text-slate-900 text-xs block truncate" title={doc.name}>
+                          {doc.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block font-mono">
+                          {doc.type} • {doc.size || 'Attachment'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">{doc.uploadedAt}</span>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="font-bold text-slate-900 text-xs block truncate" title={doc.name}>
-                        {doc.name}
-                      </span>
-                      <span className="text-[10px] text-slate-500 block font-mono">
-                        {doc.type} • {doc.size || 'Attachment'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">{doc.uploadedAt}</span>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
-                    <button
-                      onClick={() => handleOpenDocument(doc)}
-                      className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 text-[11px] font-bold text-setu-700 bg-white border border-setu-200 rounded hover:bg-setu-50 transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>View / Open</span>
-                    </button>
-                    <button
-                      onClick={() => handleDownloadDocument(doc)}
-                      className="inline-flex items-center justify-center p-1.5 text-slate-600 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors"
-                      title="Download Document"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                    {isPhoto && (
+                      <div
+                        className="w-full h-40 bg-slate-900 rounded-lg overflow-hidden border border-slate-200 relative group cursor-pointer"
+                        onClick={() => handleOpenDocument(doc)}
+                      >
+                        <img src={doc.url} alt={doc.name} className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
+                          <Eye className="w-4 h-4 text-setu-400" />
+                          <span>View Full Photo</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
+                      <button
+                        onClick={() => handleOpenDocument(doc)}
+                        className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 text-[11px] font-bold text-setu-700 bg-white border border-setu-200 rounded hover:bg-setu-50 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View / Open</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownloadDocument(doc)}
+                        className="inline-flex items-center justify-center p-1.5 text-slate-600 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors"
+                        title="Download Document"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <EmptyState
@@ -1021,18 +1047,31 @@ export const ShipmentDetailPage = () => {
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-center space-y-3">
-              <div className="font-mono text-slate-800 text-sm font-bold">
-                📄 [OFFICIAL LOGISTICS ARCHIVE RECORD]
+            {selectedDocForPreview.url ? (
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden text-center space-y-2">
+                <img
+                  src={selectedDocForPreview.url}
+                  alt={selectedDocForPreview.name}
+                  className="max-w-full max-h-[60vh] object-contain mx-auto rounded-lg shadow-2xl bg-white p-1"
+                />
+                <div className="text-[11px] font-mono text-slate-400">
+                  {selectedDocForPreview.name} ({selectedDocForPreview.type})
+                </div>
               </div>
-              <p className="text-slate-600 text-xs max-w-md mx-auto">
-                This document is securely archived under Speed Setu ERP for Consignment Note <strong>{shipment.cnNumber}</strong> ({shipment.origin} → {shipment.destination}).
-              </p>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded font-mono text-[11px] font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Verified ePOD / Operational Record</span>
+            ) : (
+              <div className="p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-center space-y-3">
+                <div className="font-mono text-slate-800 text-sm font-bold">
+                  📄 [OFFICIAL LOGISTICS ARCHIVE RECORD]
+                </div>
+                <p className="text-slate-600 text-xs max-w-md mx-auto">
+                  This document is securely archived under Speed Setu ERP for Consignment Note <strong>{shipment.cnNumber}</strong> ({shipment.origin} → {shipment.destination}).
+                </p>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded font-mono text-[11px] font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Verified ePOD / Operational Record</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </Modal>

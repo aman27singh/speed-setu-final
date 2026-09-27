@@ -315,8 +315,22 @@ export const DocumentExtractionPage = () => {
         }
       }
 
+      let docUrl = '';
+      if (uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob)) {
+        docUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(uploadedFile);
+        });
+      } else if (typeof uploadedFile === 'string') {
+        docUrl = uploadedFile;
+      }
+
       const payload = {
         ...extractionData,
+        documentUrl: docUrl || extractionData?.documentUrl || '',
+        fileName: uploadedFile?.name || extractionData?.fileName || 'Tax_Invoice_Photo.jpg',
         shipment: updatedShipment,
         commercialInvoices: finalInvoices,
         invoice: {
@@ -568,34 +582,10 @@ export const DocumentExtractionPage = () => {
             </div>
           )}
 
-          {/* SPLIT SCREEN GRID */}
+          {/* REVIEW GRID: FORM ON TOP, UPLOADED PHOTO PREVIEW AT BOTTOM ON MOBILE */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* LEFT PANE: DOCUMENT PREVIEWER & RAW OCR TEXT */}
-            <div className="h-full space-y-4">
-              <DocumentPreviewer
-                fileName={extractionData.fileName}
-                fileType={extractionData.fileType}
-                initialUrl={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
-                url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
-              />
-
-
-
-              {!isDriverAccount && extractionData.rawOcrText && (
-                <details className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-slate-300 text-xs">
-                  <summary className="font-bold text-setu-400 cursor-pointer text-[11px] uppercase tracking-wider flex items-center justify-between">
-                    <span>📜 View Raw OCR Image Text</span>
-                    <span className="text-[10px] font-normal text-slate-400">Extracted by Tesseract OCR</span>
-                  </summary>
-                  <pre className="mt-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-[11px] text-emerald-400 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                    {extractionData.rawOcrText}
-                  </pre>
-                </details>
-              )}
-            </div>
-
-            {/* RIGHT PANE: EDITABLE EXTRACTED FORM WITH CONFIDENCE BADGES */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-6">
+            {/* EXTRACTED FORM PANE (FIRST ON MOBILE, RIGHT ON DESKTOP) */}
+            <div className="lg:order-2 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Extracted Shipment Information</h3>
@@ -961,6 +951,37 @@ export const DocumentExtractionPage = () => {
                   <span>{saving ? 'Creating Shipment...' : 'Confirm & Create Official Shipment'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* UPLOADED PHOTO PREVIEW PANE (AT THE BOTTOM ON MOBILE, LEFT ON DESKTOP) */}
+            <div className="lg:order-1 h-full space-y-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-setu-600" />
+                    Uploaded Invoice Photo Preview
+                  </span>
+                  <span className="text-[11px] text-slate-400">Fits mobile screen</span>
+                </div>
+                <DocumentPreviewer
+                  fileName={extractionData.fileName}
+                  fileType={extractionData.fileType}
+                  initialUrl={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
+                  url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
+                />
+              </div>
+
+              {!isDriverAccount && extractionData.rawOcrText && (
+                <details className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-slate-300 text-xs">
+                  <summary className="font-bold text-setu-400 cursor-pointer text-[11px] uppercase tracking-wider flex items-center justify-between">
+                    <span>📜 View Raw OCR Image Text</span>
+                    <span className="text-[10px] font-normal text-slate-400">Extracted by Tesseract OCR</span>
+                  </summary>
+                  <pre className="mt-2.5 p-3 bg-slate-950 border border-slate-800 rounded-lg font-mono text-[11px] text-emerald-400 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                    {extractionData.rawOcrText}
+                  </pre>
+                </details>
+              )}
             </div>
           </div>
         </div>

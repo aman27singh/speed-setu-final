@@ -68,14 +68,14 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
   const isImage = (uploadedFile && uploadedFile.type?.startsWith('image/')) || (displayUrl && (displayUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|webp)/i.test(displayUrl)));
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-full min-h-[550px]">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-full min-h-[350px] sm:min-h-[550px]">
       {/* Top Document Preview Toolbar */}
       <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white text-xs">
         {/* LEFT SIDE: UPLOAD POD PDF BUTTON */}
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs">
             <Upload className="w-3.5 h-3.5" />
-            <span>{uploadedFile ? `Uploaded: ${uploadedFile.name}` : (displayUrl ? 'Re-Upload POD PDF / Photo' : 'Upload POD PDF / Photo')}</span>
+            <span>{uploadedFile ? `Uploaded: ${uploadedFile.name}` : (displayUrl ? 'Re-Upload Photo' : 'Upload POD / Photo')}</span>
             <input
               type="file"
               accept=".pdf,application/pdf,image/*"
@@ -123,7 +123,7 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
       </div>
 
       {/* Interactive Document View Canvas */}
-      <div className="flex-1 p-4 overflow-auto flex items-center justify-center bg-slate-900/95 relative min-h-[500px]">
+      <div className="flex-1 p-2 sm:p-4 overflow-auto flex items-center justify-center bg-slate-900/95 relative min-h-[300px] sm:min-h-[500px]">
         {displayUrl ? (
           <div
             style={{
@@ -136,14 +136,14 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
             {isImage ? (
               <img
                 src={displayUrl}
-                alt="Uploaded POD Document"
-                className="max-w-[650px] w-full rounded-lg border border-slate-700 shadow-2xl bg-white object-contain"
+                alt="Uploaded Invoice Photo"
+                className="max-w-full max-h-[55vh] sm:max-h-[75vh] w-auto h-auto rounded-lg border border-slate-700 shadow-2xl bg-white object-contain mx-auto"
               />
             ) : (
               <iframe
                 src={displayUrl}
-                title="Uploaded POD PDF Document"
-                className="w-[640px] h-[780px] rounded-lg border border-slate-700 shadow-2xl bg-white"
+                title="Uploaded Document"
+                className="w-full h-[380px] sm:h-[780px] rounded-lg border border-slate-700 shadow-2xl bg-white"
               />
             )}
           </div>
