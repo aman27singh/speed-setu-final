@@ -146,17 +146,24 @@ const getFilteredAndRankedList = (list, searchTerm) => {
     const name = (item.name || '').trim().toLowerCase();
     const city = (item.city || '').trim().toLowerCase();
 
-    // Priority 1: Company name STARTS with query (e.g. "TECHNIQUES..." for "T" or "TECH")
+    const nameWords = name.split(/[\s\-\_\.\,\/\(\)]+/).filter(Boolean);
+    const cityWords = city.split(/[\s\-\_\.\,\/\(\)]+/).filter(Boolean);
+
+    // Priority 1: Company name STARTS with query (e.g. "D K AUTOMOTIVE" for "D", "TECHNIQUES..." for "T")
     if (name.startsWith(query)) return 1;
 
-    // Priority 2: Any word in name STARTS with query (e.g. "TECH" in "A.R AUTO TECH")
-    const words = name.split(/[\s\-\_\.\,\/\(\)]+/);
-    if (words.some((w) => w.startsWith(query))) return 2;
+    // Priority 2: Any word in name STARTS with query (e.g. "TECH" in "A.R AUTO TECH" for "T")
+    if (nameWords.some((w) => w.startsWith(query))) return 2;
 
-    // Priority 3: City STARTS with query
-    if (city.startsWith(query)) return 3;
+    // Priority 3: City STARTS with query or word in city STARTS with query
+    if (city.startsWith(query) || cityWords.some((w) => w.startsWith(query))) return 3;
 
-    // Priority 4: Substring match anywhere in name
+    // For 1 or 2 letter search queries, ONLY include prefix/word-start matches to prevent false positives (like 'd' in ADVIK)
+    if (query.length < 3) {
+      return 999;
+    }
+
+    // Priority 4: Substring match anywhere in name (only for 3+ char search)
     if (name.includes(query)) return 4;
 
     // Priority 5: Substring match anywhere in city
@@ -765,7 +772,7 @@ export const ShipmentFormPage = () => {
                   {/* Auto-complete Suggestions Dropdown */}
                   {showConsignorSuggestions && (
                     <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {getFilteredAndRankedList(savedConsignorsList, consignorSearchTerm).map((c) => (
+                      {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').map((c) => (
                         <button
                           key={c.id || c.name}
                           type="button"
@@ -779,7 +786,7 @@ export const ShipmentFormPage = () => {
                           {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
                         </button>
                       ))}
-                      {getFilteredAndRankedList(savedConsignorsList, consignorSearchTerm).length === 0 && (
+                      {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').length === 0 && (
                         <div className="p-3 text-xs text-slate-500 text-center font-medium">
                           No matching company found. Continue typing custom name.
                         </div>
@@ -855,7 +862,7 @@ export const ShipmentFormPage = () => {
                   {/* Auto-complete Suggestions Dropdown */}
                   {showConsigneeSuggestions && (
                     <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {getFilteredAndRankedList(savedConsigneesList, consigneeSearchTerm).map((c) => (
+                      {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').map((c) => (
                         <button
                           key={c.id || c.name}
                           type="button"
@@ -869,7 +876,7 @@ export const ShipmentFormPage = () => {
                           {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
                         </button>
                       ))}
-                      {getFilteredAndRankedList(savedConsigneesList, consigneeSearchTerm).length === 0 && (
+                      {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').length === 0 && (
                         <div className="p-3 text-xs text-slate-500 text-center font-medium">
                           No matching company found. Continue typing custom name.
                         </div>
