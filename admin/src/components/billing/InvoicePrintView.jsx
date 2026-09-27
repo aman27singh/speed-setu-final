@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { formatINR, formatDate } from '../../utils/formatters';
-import logoImg from '../../assets/logo1.png';
+import logoImg from '../../assets/logo2.png';
 
 export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
   if (!invoice) return null;
@@ -283,7 +283,8 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
             <img
               src={logoImg}
               alt="Speed Setu Logo"
-              className="h-6 print:h-5 w-auto object-contain shrink-0"
+              className="h-8 print:h-8 w-auto object-contain shrink-0"
+              style={{ imageRendering: 'high-quality' }}
             />
             <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">SUPPLIER</div>
           </div>

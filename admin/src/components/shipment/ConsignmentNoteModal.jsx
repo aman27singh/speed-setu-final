@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Share2, Check, FileText, Download, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import logoImg from '../../assets/logo1.png';
+import logoImg from '../../assets/logo2.png';
 
 export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
   const printRef = useRef(null);
@@ -10,7 +10,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [logoBase64, setLogoBase64] = useState(logoImg);
 
-  // Convert logo to inline Base64 data URI on mount to ensure html2canvas & print PDF engines never miss logo
+  // Convert logo to high-resolution inline Base64 data URI on mount with high-quality smoothing
   useEffect(() => {
     if (!logoImg) return;
     const img = new Image();
@@ -21,8 +21,10 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/png'));
+        setLogoBase64(canvas.toDataURL('image/png', 1.0));
       } catch (e) {
         setLogoBase64(logoImg);
       }
@@ -649,8 +651,16 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               <line x1="15" y1="140" x2="1385" y2="140" className="static-border" />
 
               {/* Header Left: Official Speed Setu Brand Image Logo */}
-              <g transform="translate(35, 25)">
-                <image href={logoBase64 || logoImg} x="0" y="0" width="300" height="100" preserveAspectRatio="xMidYMid meet" />
+              <g transform="translate(25, 18)">
+                <image
+                  href={logoBase64 || logoImg}
+                  x="0"
+                  y="0"
+                  width="415"
+                  height="114"
+                  preserveAspectRatio="xMinYMid meet"
+                  style={{ imageRendering: 'high-quality' }}
+                />
               </g>
 
               {/* Header Center: Registered Company Title & Address */}
