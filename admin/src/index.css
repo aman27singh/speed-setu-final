@@ -79,12 +79,17 @@
     print-color-adjust: exact !important;
   }
 
-  /* When printing a direct print target or invoice, hide ALL other top-level elements */
+  /* When printing a direct print target or invoice, hide React #root completely */
+  body.printing-direct #root,
+  body:has(#speed-setu-direct-print-target) #root {
+    display: none !important;
+  }
+
   body > *:not(#speed-setu-direct-print-target):not(#root) {
     display: none !important;
   }
 
-  /* Hide navigation, headers, sidebars, buttons, dialog overlays, no-print elements */
+  /* Hide navigation, headers, sidebars, buttons, status timeline overlays, no-print elements */
   header, nav, sidebar, aside, button, .no-print, [role="navigation"], .backdrop-blur-md {
     display: none !important;
   }

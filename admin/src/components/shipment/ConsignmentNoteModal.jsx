@@ -396,6 +396,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       `;
     }
 
+    document.body.classList.add('printing-direct');
     document.body.appendChild(printTarget);
 
     setTimeout(() => {
@@ -406,6 +407,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       }
       setTimeout(() => {
         try {
+          document.body.classList.remove('printing-direct');
           if (document.body.contains(printTarget)) {
             printTarget.remove();
           }
