@@ -268,7 +268,10 @@ export const DocumentExtractionPage = () => {
       ewayBillNumber: String(extractionData?.regulatory?.ewayBillNumber?.value || extractionData?.regulatory?.ewayBillNumber || '').trim()
     };
 
-    const validExtras = extraInvoices.filter((i) => String(i.invoiceNumber).trim() !== '');
+    const validExtras = extraInvoices.map((i, idx) => ({
+      ...i,
+      invoiceNumber: String(i.invoiceNumber || '').trim() || `Invoice #${idx + 2}`
+    }));
     const allInvoices = [primaryInv, ...validExtras];
 
     setAllConfirmedInvoices(allInvoices);
