@@ -976,27 +976,56 @@ export const DocumentExtractionPage = () => {
 
                     {/* ADDED EXTRA INVOICES CARDS */}
                     {extraInvoices.map((extraInv, index) => (
-                      <div key={extraInv.id || index} className="sm:col-span-2 p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                      <div key={extraInv.id || index} className="sm:col-span-2 p-3.5 bg-amber-50/70 border border-amber-300 rounded-xl space-y-3 shadow-xs">
                         <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
                           <span className="font-bold text-amber-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-amber-600" />
                             Commercial Invoice #{index + 2} Details
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setExtraInvoices(prev => prev.filter((_, i) => i !== index));
-                            }}
-                            className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer"
-                            title="Remove Invoice"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {extraInv.isOcrLoading ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-amber-800 bg-amber-200/80 rounded-full border border-amber-300 animate-pulse">
+                                <Sparkles className="w-3 h-3 text-amber-600 animate-spin" />
+                                <span>AI Extracting Text...</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 rounded-full border border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>AI Extraction Done</span>
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExtraInvoices(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer"
+                              title="Remove Invoice"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* OCR LOADING LOGO BANNER */}
+                        {extraInv.isOcrLoading && (
+                          <div className="p-2.5 bg-amber-100/80 border border-amber-300 rounded-lg flex items-center justify-between gap-2 text-amber-950 text-xs animate-pulse">
+                            <div className="flex items-center gap-2 font-bold">
+                              <RefreshCw className="w-4 h-4 text-amber-700 animate-spin shrink-0" />
+                              <span>AI OCR Engine is reading & extracting invoice text from photo...</span>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-amber-800 bg-white px-2 py-0.5 rounded shadow-2xs shrink-0">
+                              Please wait...
+                            </span>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="font-bold text-slate-700 block mb-1">Invoice Number</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="font-bold text-slate-700">Invoice Number</label>
+                              {extraInv.isOcrLoading && <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />}
+                            </div>
                             <input
                               type="text"
                               value={extraInv.invoiceNumber || ''}
@@ -1005,12 +1034,15 @@ export const DocumentExtractionPage = () => {
                                 setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceNumber: val } : item));
                               }}
                               className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-xs"
-                              placeholder="e.g. SSE-26-27/1318"
+                              placeholder={extraInv.isOcrLoading ? "AI Extracting Invoice #..." : "e.g. SSE-26-27/1318"}
                             />
                           </div>
 
                           <div>
-                            <label className="font-bold text-slate-700 block mb-1">Invoice Date</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="font-bold text-slate-700">Invoice Date</label>
+                              {extraInv.isOcrLoading && <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />}
+                            </div>
                             <input
                               type="text"
                               value={extraInv.invoiceDate || ''}
@@ -1019,12 +1051,15 @@ export const DocumentExtractionPage = () => {
                                 setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceDate: val } : item));
                               }}
                               className="w-full p-2 bg-white border border-slate-300 rounded font-mono text-xs"
-                              placeholder="e.g. 09/09/2026"
+                              placeholder={extraInv.isOcrLoading ? "AI Reading Date..." : "e.g. 09/09/2026"}
                             />
                           </div>
 
                           <div>
-                            <label className="font-bold text-slate-700 block mb-1">Declared Value (₹)</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="font-bold text-slate-700">Declared Value (₹)</label>
+                              {extraInv.isOcrLoading && <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />}
+                            </div>
                             <input
                               type="number"
                               step="0.01"
@@ -1034,12 +1069,15 @@ export const DocumentExtractionPage = () => {
                                 setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceValue: val } : item));
                               }}
                               className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-emerald-700 text-xs"
-                              placeholder="0.00"
+                              placeholder={extraInv.isOcrLoading ? "AI Reading Amount..." : "0.00"}
                             />
                           </div>
 
                           <div>
-                            <label className="font-bold text-slate-700 block mb-1">Quantity (Pcs/Nos)</label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="font-bold text-slate-700">Quantity (Pcs/Nos)</label>
+                              {extraInv.isOcrLoading && <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />}
+                            </div>
                             <input
                               type="number"
                               value={extraInv.invoiceQuantity ?? ''}
@@ -1048,7 +1086,7 @@ export const DocumentExtractionPage = () => {
                                 setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceQuantity: val } : item));
                               }}
                               className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-xs"
-                              placeholder="0"
+                              placeholder={extraInv.isOcrLoading ? "AI Reading Qty..." : "0"}
                             />
                           </div>
 
