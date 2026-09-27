@@ -65,10 +65,20 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
     }
   };
 
-  const isImage = (uploadedFile && uploadedFile.type?.startsWith('image/')) || (displayUrl && (displayUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|webp)/i.test(displayUrl)));
+  const isImage = 
+    fileType !== 'pdf' && 
+    !fileName?.toLowerCase().endsWith('.pdf') && 
+    (
+      (uploadedFile && uploadedFile.type?.startsWith('image/')) ||
+      (displayUrl && (displayUrl.startsWith('data:image/') || displayUrl.startsWith('blob:') || /\.(jpg|jpeg|png|webp|gif)/i.test(displayUrl))) ||
+      fileType?.includes('image') ||
+      fileType?.includes('png') ||
+      fileType?.includes('jpg') ||
+      fileType?.includes('jpeg')
+    );
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-full min-h-[350px] sm:min-h-[550px]">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col w-full">
       {/* Top Document Preview Toolbar */}
       <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white text-xs">
         {/* LEFT SIDE: UPLOAD POD PDF BUTTON */}
@@ -85,65 +95,38 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
           </label>
         </div>
 
-        {/* Zoom & Rotation Controls */}
+        {/* Rotation Controls */}
         <div className="flex items-center gap-1.5">
           <button
-            onClick={handleZoomOut}
-            className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-
-          <span className="font-mono text-[11px] w-10 text-center">{zoom}%</span>
-
-          <button
-            onClick={handleZoomIn}
-            className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-
-          <button
             onClick={handleRotate}
-            className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded"
-            title="Rotate 90°"
+            className="px-3 py-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg flex items-center gap-1.5 font-bold text-xs cursor-pointer transition-colors"
+            title="Rotate Image 90°"
           >
-            <RotateCw className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleReset}
-            className="px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-white bg-slate-800 rounded"
-          >
-            Reset
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Rotate</span>
           </button>
         </div>
       </div>
 
-      {/* Interactive Document View Canvas */}
-      <div className="flex-1 p-2 sm:p-4 overflow-auto flex items-center justify-center bg-slate-900/95 relative min-h-[300px] sm:min-h-[500px]">
+      {/* Full Uncropped Document View Canvas */}
+      <div className="p-2 sm:p-4 bg-slate-950 flex items-center justify-center relative w-full overflow-hidden">
         {displayUrl ? (
-          <div
-            style={{
-              transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
-              transformOrigin: 'center center',
-              transition: 'transform 0.2s ease-out'
-            }}
-            className="w-full h-full flex justify-center items-center"
-          >
+          <div className="w-full flex justify-center items-center">
             {isImage ? (
               <img
                 src={displayUrl}
-                alt="Uploaded Invoice Photo"
-                className="max-w-full max-h-[55vh] sm:max-h-[75vh] w-auto h-auto rounded-lg border border-slate-700 shadow-2xl bg-white object-contain mx-auto"
+                alt="Full Uploaded Invoice Document"
+                style={{
+                  transform: `rotate(${rotation}deg)`,
+                  transition: 'transform 0.2s ease-out'
+                }}
+                className="w-full h-auto max-w-full rounded-lg border border-slate-800 shadow-2xl bg-white object-contain block mx-auto"
               />
             ) : (
               <iframe
                 src={displayUrl}
                 title="Uploaded Document"
-                className="w-full h-[380px] sm:h-[780px] rounded-lg border border-slate-700 shadow-2xl bg-white"
+                className="w-full h-[600px] sm:h-[800px] rounded-lg border border-slate-700 shadow-2xl bg-white"
               />
             )}
           </div>

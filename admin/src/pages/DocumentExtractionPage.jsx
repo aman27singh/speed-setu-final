@@ -601,7 +601,7 @@ export const DocumentExtractionPage = () => {
                 </button>
               </div>
 
-              <div className="space-y-6 text-xs max-h-[600px] overflow-y-auto pr-2 space-y-5">
+              <div className="space-y-6 text-xs">
                 {/* COMPANY MATCH CARD */}
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
@@ -931,26 +931,6 @@ export const DocumentExtractionPage = () => {
                 </div>
               </div>
 
-              {/* BOTTOM ACTIONS */}
-              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => navigate('/admin/shipments')}
-                  className="w-full sm:w-auto px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors text-center"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => handleConfirmExtraction(null)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-sm transition-colors disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{saving ? 'Creating Shipment...' : 'Confirm & Create Official Shipment'}</span>
-                </button>
-              </div>
             </div>
 
             {/* UPLOADED PHOTO PREVIEW PANE (AT THE BOTTOM ON MOBILE, LEFT ON DESKTOP) */}
@@ -982,6 +962,32 @@ export const DocumentExtractionPage = () => {
                   </pre>
                 </details>
               )}
+            </div>
+          </div>
+
+          {/* PAGE BOTTOM ACTION BAR */}
+          <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">Ready to finalize?</span> Verify all extracted shipment fields above before proceeding.
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => navigate('/admin/shipments')}
+                className="flex-1 sm:flex-none px-5 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleConfirmExtraction(null)}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? 'Creating Shipment...' : 'Confirm & Create Official Shipment'}</span>
+              </button>
             </div>
           </div>
         </div>
