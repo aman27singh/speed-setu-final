@@ -134,6 +134,49 @@ const toISODate = (dateStr) => {
   return dateStr;
 };
 
+const getFilteredAndRankedList = (list, searchTerm) => {
+  if (!list || !Array.isArray(list)) return [];
+  if (!searchTerm || !searchTerm.trim()) {
+    return list.slice().sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' }));
+  }
+
+  const query = searchTerm.trim().toLowerCase();
+
+  const scoreItem = (item) => {
+    const name = (item.name || '').trim().toLowerCase();
+    const city = (item.city || '').trim().toLowerCase();
+
+    // Priority 1: Company name STARTS with query (e.g. "TECHNIQUES..." for "T" or "TECH")
+    if (name.startsWith(query)) return 1;
+
+    // Priority 2: Any word in name STARTS with query (e.g. "TECH" in "A.R AUTO TECH")
+    const words = name.split(/[\s\-\_\.\,\/\(\)]+/);
+    if (words.some((w) => w.startsWith(query))) return 2;
+
+    // Priority 3: City STARTS with query
+    if (city.startsWith(query)) return 3;
+
+    // Priority 4: Substring match anywhere in name
+    if (name.includes(query)) return 4;
+
+    // Priority 5: Substring match anywhere in city
+    if (city.includes(query)) return 5;
+
+    return 999;
+  };
+
+  return list
+    .filter((item) => scoreItem(item) < 999)
+    .sort((a, b) => {
+      const scoreA = scoreItem(a);
+      const scoreB = scoreItem(b);
+      if (scoreA !== scoreB) {
+        return scoreA - scoreB;
+      }
+      return (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' });
+    });
+};
+
 export const ShipmentFormPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -722,32 +765,21 @@ export const ShipmentFormPage = () => {
                   {/* Auto-complete Suggestions Dropdown */}
                   {showConsignorSuggestions && (
                     <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {savedConsignorsList
-                        .filter((c) => {
-                          if (!consignorSearchTerm || !consignorSearchTerm.trim()) return true;
-                          const q = consignorSearchTerm.toLowerCase();
-                          return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
-                        })
-                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                        .map((c) => (
-                          <button
-                            key={c.id || c.name}
-                            type="button"
-                            onMouseDown={() => {
-                              handleConsignorSelect(c.name);
-                              setShowConsignorSuggestions(false);
-                            }}
-                            className="w-full text-left p-2.5 hover:bg-setu-50 transition-colors flex items-center justify-between cursor-pointer"
-                          >
-                            <span className="font-bold text-slate-900 text-xs">{c.name}</span>
-                            {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
-                          </button>
-                        ))}
-                      {savedConsignorsList.filter((c) => {
-                        if (!consignorSearchTerm || !consignorSearchTerm.trim()) return true;
-                        const q = consignorSearchTerm.toLowerCase();
-                        return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
-                      }).length === 0 && (
+                      {getFilteredAndRankedList(savedConsignorsList, consignorSearchTerm).map((c) => (
+                        <button
+                          key={c.id || c.name}
+                          type="button"
+                          onMouseDown={() => {
+                            handleConsignorSelect(c.name);
+                            setShowConsignorSuggestions(false);
+                          }}
+                          className="w-full text-left p-2.5 hover:bg-setu-50 transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-bold text-slate-900 text-xs">{c.name}</span>
+                          {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
+                        </button>
+                      ))}
+                      {getFilteredAndRankedList(savedConsignorsList, consignorSearchTerm).length === 0 && (
                         <div className="p-3 text-xs text-slate-500 text-center font-medium">
                           No matching company found. Continue typing custom name.
                         </div>
@@ -823,32 +855,21 @@ export const ShipmentFormPage = () => {
                   {/* Auto-complete Suggestions Dropdown */}
                   {showConsigneeSuggestions && (
                     <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {savedConsigneesList
-                        .filter((c) => {
-                          if (!consigneeSearchTerm || !consigneeSearchTerm.trim()) return true;
-                          const q = consigneeSearchTerm.toLowerCase();
-                          return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
-                        })
-                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-                        .map((c) => (
-                          <button
-                            key={c.id || c.name}
-                            type="button"
-                            onMouseDown={() => {
-                              handleConsigneeSelect(c.name);
-                              setShowConsigneeSuggestions(false);
-                            }}
-                            className="w-full text-left p-2.5 hover:bg-emerald-50 transition-colors flex items-center justify-between cursor-pointer"
-                          >
-                            <span className="font-bold text-slate-900 text-xs">{c.name}</span>
-                            {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
-                          </button>
-                        ))}
-                      {savedConsigneesList.filter((c) => {
-                        if (!consigneeSearchTerm || !consigneeSearchTerm.trim()) return true;
-                        const q = consigneeSearchTerm.toLowerCase();
-                        return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
-                      }).length === 0 && (
+                      {getFilteredAndRankedList(savedConsigneesList, consigneeSearchTerm).map((c) => (
+                        <button
+                          key={c.id || c.name}
+                          type="button"
+                          onMouseDown={() => {
+                            handleConsigneeSelect(c.name);
+                            setShowConsigneeSuggestions(false);
+                          }}
+                          className="w-full text-left p-2.5 hover:bg-emerald-50 transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-bold text-slate-900 text-xs">{c.name}</span>
+                          {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
+                        </button>
+                      ))}
+                      {getFilteredAndRankedList(savedConsigneesList, consigneeSearchTerm).length === 0 && (
                         <div className="p-3 text-xs text-slate-500 text-center font-medium">
                           No matching company found. Continue typing custom name.
                         </div>
