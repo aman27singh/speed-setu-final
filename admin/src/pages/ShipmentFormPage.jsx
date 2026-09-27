@@ -626,7 +626,7 @@ export const ShipmentFormPage = () => {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>📱 Driver Express CN (Quick Mobile Form)</span>
+            <span>Driver Express CN</span>
           </button>
           {!isDriverUser && (
             <button
@@ -638,7 +638,7 @@ export const ShipmentFormPage = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🏢 Full ERP Form (Advanced Specs)</span>
+              <span>Full ERP Form</span>
             </button>
           )}
         </div>
@@ -648,19 +648,19 @@ export const ShipmentFormPage = () => {
       {formMode === 'driver' && !isEditMode ? (
         <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
           {/* Driver Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-setu-900 to-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-md shrink-0">
-                🚚
+              <div className="w-10 h-10 rounded-xl bg-setu-600 text-white flex items-center justify-center font-bold shrink-0">
+                <Truck className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-base font-extrabold text-white">Create Consignment Note (CN)</h2>
-                <p className="text-xs text-slate-300">Quick Driver Form — Auto-fills company codes, GSTIN & PIN. Generates instant document.</p>
+                <p className="text-xs text-slate-300">Driver Form — Consignor & Consignee Dispatch Details</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
               <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-mono text-xs font-bold">
-                CN # Auto-Assigned
+                CN Auto-Assigned
               </span>
             </div>
           </div>
@@ -675,11 +675,11 @@ export const ShipmentFormPage = () => {
                   <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignor Details (Shipper)</h3>
                 </div>
-                <span className="text-xs text-slate-400">Select company or enter details</span>
+                <span className="text-xs text-slate-400">Select shipper or enter name</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company (Auto-Fills Code, GSTIN, Address, PIN)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company</label>
                 <select
                   value={consignorSelectMode}
                   onChange={(e) => handleConsignorSelect(e.target.value)}
@@ -688,14 +688,14 @@ export const ShipmentFormPage = () => {
                   <option value="">-- Choose Consignor Company --</option>
                   {savedConsignorsList.map((c) => (
                     <option key={c.id || c.name} value={c.name}>
-                      {c.name} {c.city ? `(${c.city})` : ''} {c.gstin ? `— GST: ${c.gstin}` : ''}
+                      {c.name} {c.city ? `(${c.city})` : ''}
                     </option>
                   ))}
-                  <option value="__custom__">✏️ Enter Custom Consignor</option>
+                  <option value="__custom__">Enter Custom Consignor</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                 <div>
                   <label className="block font-bold text-slate-600 mb-1">Consignor Name <span className="text-rose-500">*</span></label>
                   <input
@@ -709,39 +709,6 @@ export const ShipmentFormPage = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">Company Code</label>
-                  <input
-                    type="text"
-                    value={formData.consignor?.code || ''}
-                    onChange={(e) => handleNestedInputChange('consignor', 'code', e.target.value)}
-                    placeholder="e.g. CON-102"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">GSTIN Number</label>
-                  <input
-                    type="text"
-                    value={formData.consignor?.gstin || ''}
-                    onChange={(e) => handleNestedInputChange('consignor', 'gstin', e.target.value)}
-                    placeholder="e.g. 27CIOPK3596D2ZU"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Pincode</label>
-                  <input
-                    type="text"
-                    value={formData.consignor?.pin || ''}
-                    onChange={(e) => handleNestedInputChange('consignor', 'pin', e.target.value)}
-                    placeholder="e.g. 410501"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-4">
                   <label className="block font-bold text-slate-600 mb-1">Full Address</label>
                   <input
                     type="text"
@@ -761,11 +728,11 @@ export const ShipmentFormPage = () => {
                   <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignee Details (Receiver)</h3>
                 </div>
-                <span className="text-xs text-slate-400">Select receiver or enter details</span>
+                <span className="text-xs text-slate-400">Select receiver or enter name</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company (Auto-Fills Code, GSTIN, Address, PIN)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company</label>
                 <select
                   value={consigneeSelectMode}
                   onChange={(e) => handleConsigneeSelect(e.target.value)}
@@ -774,14 +741,14 @@ export const ShipmentFormPage = () => {
                   <option value="">-- Choose Consignee Company --</option>
                   {savedConsigneesList.map((c) => (
                     <option key={c.id || c.name} value={c.name}>
-                      {c.name} {c.city ? `(${c.city})` : ''} {c.gstin ? `— GST: ${c.gstin}` : ''}
+                      {c.name} {c.city ? `(${c.city})` : ''}
                     </option>
                   ))}
-                  <option value="__custom__">✏️ Enter Custom Consignee</option>
+                  <option value="__custom__">Enter Custom Consignee</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                 <div>
                   <label className="block font-bold text-slate-600 mb-1">Consignee Name <span className="text-rose-500">*</span></label>
                   <input
@@ -795,39 +762,6 @@ export const ShipmentFormPage = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">Company Code</label>
-                  <input
-                    type="text"
-                    value={formData.consignee?.code || ''}
-                    onChange={(e) => handleNestedInputChange('consignee', 'code', e.target.value)}
-                    placeholder="e.g. COM-008"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">GSTIN Number</label>
-                  <input
-                    type="text"
-                    value={formData.consignee?.gstin || ''}
-                    onChange={(e) => handleNestedInputChange('consignee', 'gstin', e.target.value)}
-                    placeholder="e.g. 29AASCA8132C1ZJ"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Pincode</label>
-                  <input
-                    type="text"
-                    value={formData.consignee?.pin || ''}
-                    onChange={(e) => handleNestedInputChange('consignee', 'pin', e.target.value)}
-                    placeholder="e.g. 563133"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-4">
                   <label className="block font-bold text-slate-600 mb-1">Full Address</label>
                   <input
                     type="text"
@@ -884,23 +818,22 @@ export const ShipmentFormPage = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               {[
-                { id: 'Air', label: 'Air', icon: '✈️' },
-                { id: 'Train', label: 'Train', icon: '🚂' },
-                { id: 'Road', label: 'Road', icon: '🚚' },
-                { id: 'Air Express', label: 'Air Express', icon: '⚡' }
+                { id: 'Air', label: 'Air' },
+                { id: 'Train', label: 'Train' },
+                { id: 'Road', label: 'Road' },
+                { id: 'Air Express', label: 'Air Express' }
               ].map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
-                  className={`p-3.5 rounded-xl border-2 font-extrabold text-center transition-all flex flex-col items-center justify-center space-y-1.5 cursor-pointer ${
+                  className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center cursor-pointer ${
                     formData.mode === m.id
-                      ? 'border-setu-600 bg-setu-50/80 text-setu-900 shadow-sm scale-[1.02]'
+                      ? 'border-setu-600 bg-setu-50 text-setu-900 shadow-sm ring-1 ring-setu-600'
                       : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="text-2xl">{m.icon}</span>
-                  <span className="text-xs font-bold">{m.label}</span>
+                  <span className="text-xs font-extrabold uppercase tracking-wide">{m.label}</span>
                 </button>
               ))}
             </div>
@@ -1036,10 +969,10 @@ export const ShipmentFormPage = () => {
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-4 px-6 bg-gradient-to-r from-setu-600 to-setu-700 hover:from-setu-700 hover:to-setu-800 disabled:opacity-50 text-white font-extrabold text-base rounded-2xl shadow-xl transition-all active:scale-[0.99] flex items-center justify-center space-x-2.5 cursor-pointer"
+              className="w-full py-4 px-6 bg-setu-600 hover:bg-setu-700 disabled:opacity-50 text-white font-extrabold text-base rounded-2xl shadow-lg transition-all active:scale-[0.99] flex items-center justify-center space-x-2.5 cursor-pointer"
             >
               <Save className="w-5 h-5 text-amber-300" />
-              <span>{saving ? 'Creating Consignment Note...' : '🚀 Submit & Generate CN Document'}</span>
+              <span>{saving ? 'Creating Consignment Note...' : 'Submit & Generate CN Document'}</span>
             </button>
           </div>
         </form>
@@ -1154,7 +1087,7 @@ export const ShipmentFormPage = () => {
                 className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                 title="Fill Section B with selected Corporate Account details"
               >
-                ⚡ Fill Corporate Details
+                Fill Corporate Details
               </button>
             </div>
 
@@ -1174,7 +1107,7 @@ export const ShipmentFormPage = () => {
                       {c.name}
                     </option>
                   ))}
-                  <option value="__custom__">✍️ + Custom Add New Consignor</option>
+                  <option value="__custom__">+ Custom Add New Consignor</option>
                 </select>
               </div>
 
@@ -1285,7 +1218,7 @@ export const ShipmentFormPage = () => {
                 className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                 title="Fill Section C with selected Corporate Account details"
               >
-                ⚡ Fill Corporate Details
+                Fill Corporate Details
               </button>
             </div>
 
@@ -1305,7 +1238,7 @@ export const ShipmentFormPage = () => {
                       {e.name}
                     </option>
                   ))}
-                  <option value="__custom__">✍️ + Custom Add New Consignee</option>
+                  <option value="__custom__">+ Custom Add New Consignee</option>
                 </select>
               </div>
 
@@ -1867,7 +1800,7 @@ export const ShipmentFormPage = () => {
               onClick={() => setShowCNModal(true)}
               className="px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded shadow-xs inline-flex items-center gap-1.5"
             >
-              <span>📄 Print Pickup Document (CN)</span>
+              <span>Print Pickup Document (CN)</span>
             </button>
 
             <button
@@ -1890,7 +1823,7 @@ export const ShipmentFormPage = () => {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-left text-xs space-y-1">
-            <span className="font-bold block">💡 Pickup Document Ready</span>
+            <span className="font-bold block">Pickup Document Ready</span>
             <p>You can generate and print the official Speed Setu Consignment Note (Pickup Document) immediately using the button below or print it anytime later from the shipment details page.</p>
           </div>
         </div>
