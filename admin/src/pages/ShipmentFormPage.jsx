@@ -154,6 +154,12 @@ export const ShipmentFormPage = () => {
   const [savedConsignorsList, setSavedConsignorsList] = useState(DEFAULT_CONSIGNORS);
   const [savedConsigneesList, setSavedConsigneesList] = useState(DEFAULT_CONSIGNEES);
 
+  // Live Search Auto-complete States
+  const [consignorSearchTerm, setConsignorSearchTerm] = useState('');
+  const [consigneeSearchTerm, setConsigneeSearchTerm] = useState('');
+  const [showConsignorSuggestions, setShowConsignorSuggestions] = useState(false);
+  const [showConsigneeSuggestions, setShowConsigneeSuggestions] = useState(false);
+
   // Success Modal State
   const [createdCN, setCreatedCN] = useState(null);
   const [createdId, setCreatedId] = useState(null);
@@ -288,8 +294,15 @@ export const ShipmentFormPage = () => {
           }
         });
 
-        setSavedConsignorsList(Array.from(consignorMap.values()));
-        setSavedConsigneesList(Array.from(consigneeMap.values()));
+        const sortedConsignors = Array.from(consignorMap.values()).sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        );
+        const sortedConsignees = Array.from(consigneeMap.values()).sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        );
+
+        setSavedConsignorsList(sortedConsignors);
+        setSavedConsigneesList(sortedConsignees);
 
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
@@ -642,33 +655,81 @@ export const ShipmentFormPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignor Company (Alphabetical A-Z)</label>
                 <select
                   value={consignorSelectMode}
                   onChange={(e) => handleConsignorSelect(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-setu-600 focus:bg-white transition-all"
                 >
-                  <option value="">-- Choose Consignor Company --</option>
-                  {savedConsignorsList.map((c) => (
-                    <option key={c.id || c.name} value={c.name}>
-                      {c.name} {c.city ? `(${c.city})` : ''}
-                    </option>
-                  ))}
+                  <option value="">-- Choose Consignor Company (A-Z) --</option>
+                  {savedConsignorsList
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                    .map((c) => (
+                      <option key={c.id || c.name} value={c.name}>
+                        {c.name} {c.city ? `(${c.city})` : ''}
+                      </option>
+                    ))}
                   <option value="__custom__">Enter Custom Consignor</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Consignor Name <span className="text-rose-500">*</span></label>
+                <div className="relative">
+                  <label className="block font-bold text-slate-600 mb-1">
+                    Consignor Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search company)</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.consignor?.name || ''}
-                    onChange={(e) => handleNestedInputChange('consignor', 'name', e.target.value)}
-                    placeholder="e.g. S S Enterprises"
+                    onFocus={() => setShowConsignorSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowConsignorSuggestions(false), 200)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleNestedInputChange('consignor', 'name', val);
+                      setConsignorSearchTerm(val);
+                      setShowConsignorSuggestions(true);
+                    }}
+                    placeholder="Type to search e.g. GKN, SS, Techniques..."
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-setu-600"
                   />
+
+                  {/* Auto-complete Suggestions Dropdown */}
+                  {showConsignorSuggestions && (
+                    <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
+                      {savedConsignorsList
+                        .filter((c) => {
+                          if (!consignorSearchTerm || !consignorSearchTerm.trim()) return true;
+                          const q = consignorSearchTerm.toLowerCase();
+                          return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
+                        })
+                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                        .map((c) => (
+                          <button
+                            key={c.id || c.name}
+                            type="button"
+                            onMouseDown={() => {
+                              handleConsignorSelect(c.name);
+                              setShowConsignorSuggestions(false);
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-setu-50 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="font-bold text-slate-900 text-xs">{c.name}</span>
+                            {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
+                          </button>
+                        ))}
+                      {savedConsignorsList.filter((c) => {
+                        if (!consignorSearchTerm || !consignorSearchTerm.trim()) return true;
+                        const q = consignorSearchTerm.toLowerCase();
+                        return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
+                      }).length === 0 && (
+                        <div className="p-3 text-xs text-slate-500 text-center font-medium">
+                          No matching company found. Continue typing custom name.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -695,33 +756,81 @@ export const ShipmentFormPage = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Consignee Company (Alphabetical A-Z)</label>
                 <select
                   value={consigneeSelectMode}
                   onChange={(e) => handleConsigneeSelect(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all"
                 >
-                  <option value="">-- Choose Consignee Company --</option>
-                  {savedConsigneesList.map((c) => (
-                    <option key={c.id || c.name} value={c.name}>
-                      {c.name} {c.city ? `(${c.city})` : ''}
-                    </option>
-                  ))}
+                  <option value="">-- Choose Consignee Company (A-Z) --</option>
+                  {savedConsigneesList
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                    .map((c) => (
+                      <option key={c.id || c.name} value={c.name}>
+                        {c.name} {c.city ? `(${c.city})` : ''}
+                      </option>
+                    ))}
                   <option value="__custom__">Enter Custom Consignee</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Consignee Name <span className="text-rose-500">*</span></label>
+                <div className="relative">
+                  <label className="block font-bold text-slate-600 mb-1">
+                    Consignee Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search company)</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.consignee?.name || ''}
-                    onChange={(e) => handleNestedInputChange('consignee', 'name', e.target.value)}
-                    placeholder="e.g. Advik Autocomp Pvt Ltd"
+                    onFocus={() => setShowConsigneeSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowConsigneeSuggestions(false), 200)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleNestedInputChange('consignee', 'name', val);
+                      setConsigneeSearchTerm(val);
+                      setShowConsigneeSuggestions(true);
+                    }}
+                    placeholder="Type to search e.g. Sansera, Advik, Reliance..."
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-emerald-600"
                   />
+
+                  {/* Auto-complete Suggestions Dropdown */}
+                  {showConsigneeSuggestions && (
+                    <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
+                      {savedConsigneesList
+                        .filter((c) => {
+                          if (!consigneeSearchTerm || !consigneeSearchTerm.trim()) return true;
+                          const q = consigneeSearchTerm.toLowerCase();
+                          return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
+                        })
+                        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                        .map((c) => (
+                          <button
+                            key={c.id || c.name}
+                            type="button"
+                            onMouseDown={() => {
+                              handleConsigneeSelect(c.name);
+                              setShowConsigneeSuggestions(false);
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-emerald-50 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="font-bold text-slate-900 text-xs">{c.name}</span>
+                            {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
+                          </button>
+                        ))}
+                      {savedConsigneesList.filter((c) => {
+                        if (!consigneeSearchTerm || !consigneeSearchTerm.trim()) return true;
+                        const q = consigneeSearchTerm.toLowerCase();
+                        return c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
+                      }).length === 0 && (
+                        <div className="p-3 text-xs text-slate-500 text-center font-medium">
+                          No matching company found. Continue typing custom name.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1057,19 +1166,22 @@ export const ShipmentFormPage = () => {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Select Consignor (Shipper)
+                  Select Consignor (Shipper) — Sorted A-Z
                 </label>
                 <select
                   value={consignorSelectMode}
                   onChange={(e) => handleConsignorSelect(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
                 >
-                  <option value="">-- Select Saved Consignor / Shipper Hub --</option>
-                  {savedConsignorsList.map((c) => (
-                    <option key={c.id || c.name} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
+                  <option value="">-- Select Saved Consignor / Shipper Hub (A-Z) --</option>
+                  {savedConsignorsList
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                    .map((c) => (
+                      <option key={c.id || c.name} value={c.name}>
+                        {c.name} {c.city ? `(${c.city})` : ''}
+                      </option>
+                    ))}
                   <option value="__custom__">+ Custom Add New Consignor</option>
                 </select>
               </div>
@@ -1188,19 +1300,22 @@ export const ShipmentFormPage = () => {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Select Consignee (Receiver)
+                  Select Consignee (Receiver) — Sorted A-Z
                 </label>
                 <select
                   value={consigneeSelectMode}
                   onChange={(e) => handleConsigneeSelect(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600/20"
                 >
-                  <option value="">-- Select Saved Consignee / Delivery Store --</option>
-                  {savedConsigneesList.map((e) => (
-                    <option key={e.id || e.name} value={e.name}>
-                      {e.name}
-                    </option>
-                  ))}
+                  <option value="">-- Select Saved Consignee / Delivery Store (A-Z) --</option>
+                  {savedConsigneesList
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+                    .map((e) => (
+                      <option key={e.id || e.name} value={e.name}>
+                        {e.name} {e.city ? `(${e.city})` : ''}
+                      </option>
+                    ))}
                   <option value="__custom__">+ Custom Add New Consignee</option>
                 </select>
               </div>
