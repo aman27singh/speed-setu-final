@@ -946,20 +946,30 @@ export const ShipmentFormPage = () => {
                 { id: 'Train', label: 'Train' },
                 { id: 'Road', label: 'Road' },
                 { id: 'Air Express', label: 'Air Express' }
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
-                  className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center cursor-pointer ${
-                    formData.mode === m.id
-                      ? 'border-setu-600 bg-setu-50 text-setu-900 shadow-sm ring-1 ring-setu-600'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="text-xs font-extrabold uppercase tracking-wide">{m.label}</span>
-                </button>
-              ))}
+              ].map((m) => {
+                const isSelected = formData.mode === m.id;
+                return (
+                  <label
+                    key={m.id}
+                    onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
+                    className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center gap-2.5 cursor-pointer select-none ${
+                      isSelected
+                        ? 'border-setu-600 bg-setu-50 text-setu-900 shadow-sm ring-1 ring-setu-600'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="transportMode"
+                      value={m.id}
+                      checked={isSelected}
+                      onChange={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
+                      className="w-4 h-4 text-setu-600 focus:ring-setu-500 border-slate-300 cursor-pointer shrink-0"
+                    />
+                    <span className="text-xs font-extrabold uppercase tracking-wide">{m.label}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
