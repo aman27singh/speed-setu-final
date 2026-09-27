@@ -588,14 +588,25 @@ export const ShipmentFormPage = () => {
         description="Issue Consignment Note (CN), record consignor/consignee details, e-way bill and dispatch specs."
         breadcrumbs={['Speed Setu Admin', 'Operations', 'Shipments', isEditMode ? 'Edit' : 'New']}
         actions={
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Cancel</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            {!isDriverUser && !isEditMode && (
+              <button
+                type="button"
+                onClick={() => setFormMode(formMode === 'driver' ? 'full' : 'driver')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-setu-700 bg-setu-50 border border-setu-200 rounded-md hover:bg-setu-100 transition-colors"
+              >
+                <span>{formMode === 'driver' ? 'Switch to Full ERP Form' : 'Switch to Driver Express Form'}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Cancel</span>
+            </button>
+          </div>
         }
       />
 
@@ -614,57 +625,9 @@ export const ShipmentFormPage = () => {
         </div>
       )}
 
-      {/* Form Mode Selector Tabs */}
-      {!isEditMode && (
-        <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-          <button
-            type="button"
-            onClick={() => setFormMode('driver')}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
-              formMode === 'driver'
-                ? 'bg-white text-setu-700 shadow-md border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <span>Driver Express CN</span>
-          </button>
-          {!isDriverUser && (
-            <button
-              type="button"
-              onClick={() => setFormMode('full')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
-                formMode === 'full'
-                  ? 'bg-white text-setu-700 shadow-md border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>Full ERP Form</span>
-            </button>
-          )}
-        </div>
-      )}
-
       {/* DRIVER EXPRESS CN FORM */}
       {formMode === 'driver' && !isEditMode ? (
         <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-          {/* Driver Banner */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-setu-600 text-white flex items-center justify-center font-bold shrink-0">
-                <Truck className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-extrabold text-white">Create Consignment Note (CN)</h2>
-                <p className="text-xs text-slate-300">Driver Form — Consignor & Consignee Dispatch Details</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-mono text-xs font-bold">
-                CN Auto-Assigned
-              </span>
-            </div>
-          </div>
-
           {/* STEP 1: CONSIGNOR & CONSIGNEE DETAILS */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
             
