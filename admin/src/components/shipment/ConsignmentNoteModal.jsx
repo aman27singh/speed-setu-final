@@ -34,6 +34,18 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   }, []);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (isOpen && autoPrint && shipment) {
       const timer = setTimeout(() => {
         handlePrintSplit();
@@ -501,16 +513,22 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   const isFtl = mode.includes('FTL');
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static"
+      onClick={onClose}
+    >
       
       {/* Screen Wrapper Shell */}
-      <div className="bg-white rounded-2xl border border-slate-700 w-full max-w-[1050px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl relative">
+      <div
+        className="bg-white rounded-2xl border border-slate-700 w-full max-w-[1100px] overflow-hidden print:border-none print:w-full print:max-w-none shadow-2xl relative my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Screen Control Toolbar (Hidden on Print) */}
         <div className="no-print bg-slate-900 text-white border-b border-slate-800 shadow-md p-3 sm:p-4">
           
-          {/* Top Header Row */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+          {/* Top Header Row with High-Visibility Red Close Button */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 gap-2">
             <div className="flex items-center space-x-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-setu-600/20 border border-setu-500/30 flex items-center justify-center text-setu-400 flex-shrink-0">
                 <FileText className="w-4 h-4" />
@@ -527,18 +545,20 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             </div>
 
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex-shrink-0"
-              title="Close preview"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0"
+              title="Close Screen / Exit Preview (Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
+              <span>Close Screen</span>
             </button>
           </div>
 
-          {/* Action Buttons Row: Option 1 (Single) and Option 2 (Split 2-in-1 Duplicate) */}
-          <div className="pt-2.5 grid grid-cols-1 lg:grid-cols-2 gap-2">
+          {/* Action Buttons Row: Option 1, Option 2, and Quick Close Button */}
+          <div className="pt-2.5 grid grid-cols-1 md:grid-cols-12 gap-2">
             {/* Option 1 Card: Single Page CN */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
+            <div className="md:col-span-6 lg:col-span-5 bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
               <div className="min-w-0 mr-2">
                 <span className="text-[11px] font-bold text-slate-200 block truncate">1. Single Page CN</span>
                 <span className="text-[10px] text-slate-400 block truncate">Normal 1 copy</span>
@@ -575,7 +595,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             </div>
 
             {/* Option 2 Card: Split 2-in-1 Duplicate CN */}
-            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
+            <div className="md:col-span-6 lg:col-span-5 bg-slate-950/80 border border-amber-500/30 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
               <div className="min-w-0 mr-2">
                 <span className="text-[11px] font-bold text-amber-400 block truncate">2. Split 2-in-1 Duplicate</span>
                 <span className="text-[10px] text-slate-400 block truncate">2 copies per A4 sheet</span>
@@ -609,6 +629,18 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
                   <span>Share PDF</span>
                 </button>
               </div>
+            </div>
+
+            {/* Quick Red Close Button in Action Bar */}
+            <div className="md:col-span-12 lg:col-span-2 flex items-center">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-rose-500"
+              >
+                <X className="w-4 h-4" />
+                <span>Close Screen</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1092,6 +1124,37 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             </g>
 
           </svg>
+        </div>
+
+        {/* Bottom Screen Control Bar (Hidden on Print) */}
+        <div className="no-print bg-slate-900 text-white p-3 border-t border-slate-800 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-rose-500"
+          >
+            <X className="w-4 h-4" />
+            <span>Close Screen (Esc)</span>
+          </button>
+
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={handlePrintSingle}
+              className="px-4 py-2 bg-setu-600 hover:bg-setu-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print Single CN</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintSplit}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>Print 2-Up Duplicate</span>
+            </button>
+          </div>
         </div>
 
       </div>
