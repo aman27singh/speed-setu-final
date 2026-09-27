@@ -8,12 +8,15 @@ const __dirname = path.dirname(__filename);
 const distDir = path.join(__dirname, 'dist');
 const adminDir = __dirname;
 
-// 1. Copy dist/index.html -> admin/index.html
+// 1. Copy dist/index.html -> admin/index.html with cache buster query parameter
 const distIndex = path.join(distDir, 'index.html');
 const adminIndex = path.join(adminDir, 'index.html');
 if (fs.existsSync(distIndex)) {
-  fs.copyFileSync(distIndex, adminIndex);
-  console.log('✓ Synced dist/index.html to admin/index.html');
+  let htmlContent = fs.readFileSync(distIndex, 'utf8');
+  const cacheBuster = Date.now();
+  htmlContent = htmlContent.replace(/\.(js|css)"/g, `.$1?v=${cacheBuster}"`);
+  fs.writeFileSync(adminIndex, htmlContent, 'utf8');
+  console.log(`✓ Synced dist/index.html to admin/index.html with cache buster ?v=${cacheBuster}`);
 }
 
 // 2. Sync dist/assets/ -> admin/assets/

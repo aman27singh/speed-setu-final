@@ -280,12 +280,31 @@ export const ShipmentFormPage = () => {
           }
         };
 
-        (shipmentList || []).forEach((s) => {
-          if (s.consignor) addConsignor(s.consignor);
-          if (s.consignee) addConsignee(s.consignee);
-        });
-
         (compList || []).forEach((comp) => {
+          if (comp.companyName) {
+            addConsignor({
+              id: comp.id,
+              name: comp.companyName,
+              code: comp.companyCode || '',
+              gstin: comp.gstin || '',
+              address: comp.billing?.address || '',
+              city: comp.billing?.city || '',
+              state: comp.billing?.state || '',
+              pin: comp.billing?.pinCode || '',
+              contact: comp.primaryContact?.phone || ''
+            });
+            addConsignee({
+              id: comp.id,
+              name: comp.companyName,
+              code: comp.companyCode || '',
+              gstin: comp.gstin || '',
+              address: comp.billing?.address || '',
+              city: comp.billing?.city || '',
+              state: comp.billing?.state || '',
+              pin: comp.billing?.pinCode || '',
+              contact: comp.primaryContact?.phone || ''
+            });
+          }
           if (comp.hubs && Array.isArray(comp.hubs)) {
             comp.hubs.forEach((hub) => {
               addConsignor({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
@@ -294,11 +313,16 @@ export const ShipmentFormPage = () => {
           }
         });
 
+        (shipmentList || []).forEach((s) => {
+          if (s.consignor) addConsignor(s.consignor);
+          if (s.consignee) addConsignee(s.consignee);
+        });
+
         const sortedConsignors = Array.from(consignorMap.values()).sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
         );
         const sortedConsignees = Array.from(consigneeMap.values()).sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
         );
 
         setSavedConsignorsList(sortedConsignors);
