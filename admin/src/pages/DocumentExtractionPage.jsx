@@ -641,7 +641,7 @@ export const DocumentExtractionPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* EXTRACTED FORM PANE (FIRST ON MOBILE, RIGHT ON DESKTOP) */}
             <div className="lg:order-2 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Extracted Shipment Information</h3>
                   <p className="text-xs text-slate-500">Verify and edit extracted values before confirming</p>
@@ -650,10 +650,37 @@ export const DocumentExtractionPage = () => {
                 <button
                   type="button"
                   onClick={() => setStage('upload')}
-                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded"
+                  className="self-start sm:self-auto px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded"
                 >
                   Upload Different File
                 </button>
+              </div>
+
+              {/* QUICK ACCESS BANNER FOR ADDING ADDITIONAL INVOICES ON MOBILE & DESKTOP */}
+              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs font-bold text-sm">
+                    {1 + extraInvoices.length}
+                  </div>
+                  <div>
+                    <span className="text-xs font-extrabold text-amber-950 block">
+                      {1 + extraInvoices.length} Invoice{1 + extraInvoices.length > 1 ? 's' : ''} Attached
+                    </span>
+                    <span className="text-[11px] text-amber-800">
+                      {extraInvoices.length === 0 ? 'Need to add more invoices to this shipment?' : `${extraInvoices.length} additional invoice photo(s) added`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <label
+                    htmlFor="pageExtraInvoiceCameraInput"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-all shadow-xs active:scale-95"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>+ Add Additional Invoice</span>
+                  </label>
+                </div>
               </div>
 
               <div className="space-y-6 text-xs">
@@ -1117,18 +1144,24 @@ export const DocumentExtractionPage = () => {
                     ))}
 
                     {/* BUTTON TO ADD ANOTHER INVOICE */}
-                    <div className="sm:col-span-2 pt-2 border-t border-slate-200">
-                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3.5 space-y-2">
-                        <span className="text-xs font-bold text-slate-800 block">
-                          + Add Additional Invoice to this Shipment
-                        </span>
-                        <p className="text-[11px] text-slate-500">
-                          You can take a photo or upload another commercial invoice. All invoice details and photos will be attached together on this CN.
+                    <div className="sm:col-span-2 pt-3 border-t-2 border-slate-200">
+                      <div className="bg-amber-50/90 border-2 border-amber-300 rounded-xl p-4 space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                            <Plus className="w-4 h-4 text-amber-600" />
+                            + Add Additional Invoice to this Shipment
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-300">
+                            {extraInvoices.length} Added
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                          You can take a photo or upload another commercial invoice. All invoice photos & details will be attached together on this Consignment Note.
                         </p>
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
                           <input
                             type="file"
-                            id="extraInvoiceCameraInput"
+                            id="pageExtraInvoiceCameraInput"
                             accept="image/*"
                             capture="environment"
                             onChange={handleExtraInvoiceSelect}
@@ -1136,27 +1169,25 @@ export const DocumentExtractionPage = () => {
                           />
                           <input
                             type="file"
-                            id="extraInvoiceGalleryInput"
+                            id="pageExtraInvoiceGalleryInput"
                             accept="image/*,.pdf"
                             onChange={handleExtraInvoiceSelect}
                             className="hidden"
                           />
 
                           <label
-                            htmlFor="extraInvoiceCameraInput"
-                            onClick={() => document.getElementById('extraInvoiceCameraInput')?.click()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                            htmlFor="pageExtraInvoiceCameraInput"
+                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-all shadow-md active:scale-95 text-center"
                           >
-                            <Camera className="w-4 h-4" />
+                            <Camera className="w-4 h-4 shrink-0" />
                             <span>📷 Take Invoice Photo</span>
                           </label>
 
                           <label
-                            htmlFor="extraInvoiceGalleryInput"
-                            onClick={() => document.getElementById('extraInvoiceGalleryInput')?.click()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                            htmlFor="pageExtraInvoiceGalleryInput"
+                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-amber-100/60 text-slate-800 border-2 border-amber-300 font-bold text-xs rounded-xl cursor-pointer transition-colors shadow-xs text-center"
                           >
-                            <UploadCloud className="w-4 h-4 text-setu-600" />
+                            <UploadCloud className="w-4 h-4 text-amber-600 shrink-0" />
                             <span>📁 Upload Photo / File</span>
                           </label>
                         </div>
@@ -1238,7 +1269,7 @@ export const DocumentExtractionPage = () => {
           {/* Hidden File Inputs for Extra Invoice Scanning */}
           <input
             type="file"
-            id="extraInvoiceCameraInput"
+            id="modalExtraInvoiceCameraInput"
             accept="image/*"
             capture="environment"
             onChange={handleExtraInvoiceSelect}
@@ -1246,7 +1277,7 @@ export const DocumentExtractionPage = () => {
           />
           <input
             type="file"
-            id="extraInvoiceFileInput"
+            id="modalExtraInvoiceFileInput"
             accept=".pdf,.png,.jpg,.jpeg"
             onChange={handleExtraInvoiceSelect}
             className="hidden"
@@ -1404,7 +1435,7 @@ export const DocumentExtractionPage = () => {
           {/* Action Buttons to scan photo or add manual invoice */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <label
-              htmlFor="extraInvoiceCameraInput"
+              htmlFor="modalExtraInvoiceCameraInput"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
@@ -1412,7 +1443,7 @@ export const DocumentExtractionPage = () => {
             </label>
 
             <label
-              htmlFor="extraInvoiceFileInput"
+              htmlFor="modalExtraInvoiceFileInput"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-colors cursor-pointer"
             >
               <UploadCloud className="w-4 h-4 text-setu-600" />
