@@ -558,12 +558,12 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
           {/* Action Buttons Row: Option 1 (Single) and Option 2 (Split 2-in-1 Duplicate) */}
           <div className="pt-2.5 grid grid-cols-1 lg:grid-cols-2 gap-2">
             {/* Option 1 Card: Single Page CN */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
-              <div className="min-w-0 mr-2">
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="min-w-0">
                 <span className="text-[11px] font-bold text-slate-200 block truncate">1. Single Page CN</span>
                 <span className="text-[10px] text-slate-400 block truncate">Normal 1 copy</span>
               </div>
-              <div className="flex items-center space-x-1.5 flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 <button
                   onClick={handlePrintSingle}
                   disabled={isGeneratingPdf}
@@ -612,12 +612,12 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
             </div>
 
             {/* Option 2 Card: Split 2-in-1 Duplicate CN */}
-            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-2 sm:p-2.5 flex items-center justify-between">
-              <div className="min-w-0 mr-2">
+            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="min-w-0">
                 <span className="text-[11px] font-bold text-amber-400 block truncate">2. Split 2-in-1 Duplicate</span>
                 <span className="text-[10px] text-slate-400 block truncate">2 copies per A4 sheet</span>
               </div>
-              <div className="flex items-center space-x-1.5 flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 <button
                   onClick={handlePrintSplit}
                   disabled={isGeneratingPdf}
@@ -651,7 +651,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         </div>
 
         {/* MASTER SVG DOCUMENT CONTAINER */}
-        <div id="printable-cn" className="p-2 sm:p-3 bg-white print:p-0 svg-document-wrap" ref={printRef}>
+        <div id="printable-cn" className="p-2 sm:p-3 bg-white print:p-0 svg-document-wrap overflow-x-auto" ref={printRef}>
           
           <svg
             xmlns="http://www.w3.org/2000/svg"
