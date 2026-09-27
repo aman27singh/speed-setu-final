@@ -190,7 +190,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     .font-sans-regular { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 400; }
     .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: 600; }
     .static-text { fill: #000000; }
-    .brand-title-text { fill: #0052cc !important; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+    .brand-title-text { fill: #0B315B !important; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
     .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; letter-spacing: 0.2px; }
     .dynamic-digit-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; text-anchor: middle; }
   `;
@@ -633,7 +633,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               .font-sans-regular { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 400; }
               .font-mono-bold { font-family: "Courier New", Courier, monospace; font-weight: 600; }
               .static-text { fill: #000000; }
-              .brand-title-text { fill: #0052cc !important; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
+              .brand-title-text { fill: #0B315B !important; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 700; }
               .dynamic-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; letter-spacing: 0.2px; }
               .dynamic-digit-text { fill: #000000; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; text-anchor: middle; }
             `}</style>
@@ -667,7 +667,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
               {/* Header Center: Registered Company Title & Address */}
               <g transform="translate(700, 48)">
-                <text x="0" y="0" textAnchor="middle" className="font-serif-title brand-title-text" fill="#0052cc" fontSize="34" letterSpacing="0.5">SPEED SETU LOGISTICS PVT. LTD.</text>
+                <text x="0" y="0" textAnchor="middle" className="font-serif-title brand-title-text" fill="#0B315B" fontSize="34" letterSpacing="0.5">SPEED SETU LOGISTICS PVT. LTD.</text>
                 <text x="0" y="24" textAnchor="middle" className="font-sans-bold static-text" fontSize="15">Haripur, Bhiwani Haryana-127 021</text>
                 <text x="0" y="44" textAnchor="middle" className="font-sans-bold static-text" fontSize="14">Customer Care No. : 8884199555, 9996321200</text>
                 <text x="0" y="64" textAnchor="middle" className="font-sans-bold static-text" fontSize="13.5">Email : speedsetu@gmail.com | Website : www.speedsetu.com</text>
@@ -961,7 +961,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
                 <text x="10" y="36" className="font-sans-bold static-text" fontSize="11">printed money receipt at the time of freight pay ment.</text>
 
                 <g transform="translate(10, 75)">
-                  <text x="0" y="0" className="font-serif-title brand-title-text" fill="#0052cc" fontSize="15">For SPEED SETU LOGISTICS PVT. LTD.</text>
+                  <text x="0" y="0" className="font-serif-title brand-title-text" fill="#0B315B" fontSize="15">For SPEED SETU LOGISTICS PVT. LTD.</text>
                   
                   {/* Left Signature Line */}
                   <text x="0" y="50" className="font-sans-bold static-text" fontSize="12.5">Sign.</text>
