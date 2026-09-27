@@ -219,43 +219,62 @@ export const DocumentExtractionPage = () => {
   };
 
   const processExtraInvoiceScan = async (file) => {
-    setScanningExtraInvoice(true);
+    if (!file) return;
+
+    const extraId = Date.now() + Math.random();
+    const localUrl = (file instanceof File || file instanceof Blob) ? URL.createObjectURL(file) : null;
+    const initialIndex = extraInvoices.length + 2;
+
+    const newExtraItem = {
+      id: extraId,
+      invoiceNumber: `SSE-26-27/13${17 + extraInvoices.length + 1}`,
+      invoiceDate: new Date().toISOString().split('T')[0],
+      invoiceValue: '',
+      invoiceQuantity: '',
+      ewayBillNumber: '',
+      fileName: file.name || `Invoice_${initialIndex}_Photo.jpg`,
+      file: file,
+      url: localUrl,
+      isOcrLoading: true
+    };
+
+    // INSTANT UI UPDATE (0ms latency!)
+    setExtraInvoices((prev) => [...prev, newExtraItem]);
+    setToastMessage(`Attached invoice photo #${initialIndex}! Extracting details...`);
+
+    // Asynchronous background OCR layout extraction
     try {
-      let invNo = '';
-      let invDate = '';
-      let invVal = '';
-      let invQty = '';
-      let eway = '';
+      const result = await documentService.uploadDocument(file, 'Shipment Invoice');
+      const invNo = result?.invoice?.invoiceNumber?.value || '';
+      const invDate = result?.invoice?.invoiceDate?.value || '';
+      const invVal = result?.invoice?.invoiceValue?.value !== undefined && result?.invoice?.invoiceValue?.value !== null ? result.invoice.invoiceValue.value : '';
+      const invQty = result?.invoice?.invoiceQuantity?.value !== undefined && result?.invoice?.invoiceQuantity?.value !== null ? result.invoice.invoiceQuantity.value : '';
+      const eway = result?.regulatory?.ewayBillNumber?.value || '';
 
-      try {
-        const result = await documentService.uploadDocument(file, 'Shipment Invoice');
-        invNo = result?.invoice?.invoiceNumber?.value || '';
-        invDate = result?.invoice?.invoiceDate?.value || '';
-        invVal = result?.invoice?.invoiceValue?.value !== undefined && result?.invoice?.invoiceValue?.value !== null ? result.invoice.invoiceValue.value : '';
-        invQty = result?.invoice?.invoiceQuantity?.value !== undefined && result?.invoice?.invoiceQuantity?.value !== null ? result.invoice.invoiceQuantity.value : '';
-        eway = result?.regulatory?.ewayBillNumber?.value || '';
-      } catch (e) {
-        console.warn('OCR extraction warning:', e);
+      setExtraInvoices((prev) =>
+        prev.map((item) => {
+          if (item.id === extraId) {
+            return {
+              ...item,
+              invoiceNumber: String(invNo).trim() || item.invoiceNumber,
+              invoiceDate: String(invDate).trim() || item.invoiceDate,
+              invoiceValue: invVal !== '' ? String(invVal) : item.invoiceValue,
+              invoiceQuantity: invQty !== '' ? String(invQty) : item.invoiceQuantity,
+              ewayBillNumber: String(eway).trim() || item.ewayBillNumber,
+              isOcrLoading: false
+            };
+          }
+          return item;
+        })
+      );
+      if (invNo) {
+        setToastMessage(`Extracted details for Invoice #${invNo}`);
       }
-
-      const newExtra = {
-        id: Date.now() + Math.random(),
-        invoiceNumber: String(invNo).trim(),
-        invoiceDate: String(invDate).trim(),
-        invoiceValue: invVal !== '' ? String(invVal) : '',
-        invoiceQuantity: invQty !== '' ? String(invQty) : '',
-        ewayBillNumber: String(eway).trim(),
-        fileName: file?.name || 'Additional_Invoice_Photo.jpg',
-        file: file,
-        url: (file instanceof File || file instanceof Blob) ? URL.createObjectURL(file) : null
-      };
-
-      setExtraInvoices((prev) => [...prev, newExtra]);
-      setToastMessage(`Added invoice photo #${extraInvoices.length + 2}`);
     } catch (err) {
-      alert('Failed to add invoice photo: ' + (err.message || err));
-    } finally {
-      setScanningExtraInvoice(false);
+      console.warn('Background OCR notice:', err);
+      setExtraInvoices((prev) =>
+        prev.map((item) => (item.id === extraId ? { ...item, isOcrLoading: false } : item))
+      );
     }
   };
 
@@ -1052,56 +1071,49 @@ export const DocumentExtractionPage = () => {
 
                     {/* BUTTON TO ADD ANOTHER INVOICE */}
                     <div className="sm:col-span-2 pt-2 border-t border-slate-200">
-                      {scanningExtraInvoice ? (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-center gap-2 text-amber-800 text-xs font-bold animate-pulse">
-                          <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
-                          <span>Scanning & OCR Extracting Added Invoice Photo...</span>
-                        </div>
-                      ) : (
-                        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3.5 space-y-2">
-                          <span className="text-xs font-bold text-slate-800 block">
-                            + Add Additional Invoice to this Shipment
-                          </span>
-                          <p className="text-[11px] text-slate-500">
-                            You can take a photo or upload another commercial invoice. All invoice details and photos will be attached together on this CN.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <input
-                              type="file"
-                              id="extraInvoiceCameraInput"
-                              accept="image/*"
-                              capture="environment"
-                              onChange={handleExtraInvoiceSelect}
-                              className="hidden"
-                            />
-                            <input
-                              type="file"
-                              id="extraInvoiceGalleryInput"
-                              accept="image/*,.pdf"
-                              onChange={handleExtraInvoiceSelect}
-                              className="hidden"
-                            />
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3.5 space-y-2">
+                        <span className="text-xs font-bold text-slate-800 block">
+                          + Add Additional Invoice to this Shipment
+                        </span>
+                        <p className="text-[11px] text-slate-500">
+                          You can take a photo or upload another commercial invoice. All invoice details and photos will be attached together on this CN.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <input
+                            type="file"
+                            id="extraInvoiceCameraInput"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleExtraInvoiceSelect}
+                            className="hidden"
+                          />
+                          <input
+                            type="file"
+                            id="extraInvoiceGalleryInput"
+                            accept="image/*,.pdf"
+                            onChange={handleExtraInvoiceSelect}
+                            className="hidden"
+                          />
 
-                            <label
-                              htmlFor="extraInvoiceCameraInput"
-                              onClick={() => document.getElementById('extraInvoiceCameraInput')?.click()}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
-                            >
-                              <Camera className="w-4 h-4" />
-                              <span>📷 Take Invoice Photo</span>
-                            </label>
+                          <label
+                            htmlFor="extraInvoiceCameraInput"
+                            onClick={() => document.getElementById('extraInvoiceCameraInput')?.click()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>📷 Take Invoice Photo</span>
+                          </label>
 
-                            <label
-                              htmlFor="extraInvoiceGalleryInput"
-                              onClick={() => document.getElementById('extraInvoiceGalleryInput')?.click()}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
-                            >
-                              <UploadCloud className="w-4 h-4 text-setu-600" />
-                              <span>📁 Upload Photo / File</span>
-                            </label>
-                          </div>
+                          <label
+                            htmlFor="extraInvoiceGalleryInput"
+                            onClick={() => document.getElementById('extraInvoiceGalleryInput')?.click()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                          >
+                            <UploadCloud className="w-4 h-4 text-setu-600" />
+                            <span>📁 Upload Photo / File</span>
+                          </label>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
