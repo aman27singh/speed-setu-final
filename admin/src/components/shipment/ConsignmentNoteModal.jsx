@@ -418,11 +418,21 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
   // 3. Single Page CN Print
   const handlePrintSingle = async () => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.print();
+      return;
+    }
     triggerDirectPrint(false);
   };
 
   // 4. Split 2-in-1 Duplicate CN Print
   const handlePrintSplit = async () => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.print();
+      return;
+    }
     triggerDirectPrint(true);
   };
 

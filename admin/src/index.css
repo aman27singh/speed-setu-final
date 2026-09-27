@@ -79,30 +79,29 @@
     print-color-adjust: exact !important;
   }
 
-  /* When printing a direct print target or invoice, hide React #root completely */
+  /* When printing via direct target injection on desktop, hide React #root completely */
   body.printing-direct #root,
   body:has(#speed-setu-direct-print-target) #root {
     display: none !important;
   }
 
-  body > *:not(#speed-setu-direct-print-target):not(#root) {
-    display: none !important;
-  }
-
   /* Hide navigation, headers, sidebars, buttons, status timeline overlays, no-print elements */
-  header, nav, sidebar, aside, button, .no-print, [role="navigation"], .backdrop-blur-md {
+  header, nav, sidebar, aside, button, .no-print, [role="navigation"] {
     display: none !important;
   }
 
-  /* Ensure modal backdrop and layout wrappers collapse to 0 height in print mode */
+  /* Ensure modal backdrop and layout wrappers collapse cleanly in print mode for mobile AirPrint */
   .fixed.inset-0 {
-    position: static !important;
-    background: transparent !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
-    height: auto !important;
-    min-height: 0 !important;
+    z-index: 99999 !important;
   }
 
   /* Direct Print Target Container injected dynamically on print trigger */
