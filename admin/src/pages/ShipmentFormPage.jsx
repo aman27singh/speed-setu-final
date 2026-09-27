@@ -812,7 +812,7 @@ export const ShipmentFormPage = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                  <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignee Details (Receiver)</h3>
                 </div>
                 <span className="text-xs text-slate-400">Select receiver or enter name</span>
@@ -902,7 +902,7 @@ export const ShipmentFormPage = () => {
           {/* STEP 2: PICKUP FROM (ORIGIN) & DELIVER TO (DESTINATION) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-extrabold text-xs flex items-center justify-center">3</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Pickup & Delivery Locations</h3>
             </div>
 
@@ -936,7 +936,7 @@ export const ShipmentFormPage = () => {
           {/* STEP 3: TRANSPORT MODE (AIR, TRAIN, ROAD, AIR EXPRESS) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Select Transport Mode</h3>
             </div>
 
@@ -981,7 +981,7 @@ export const ShipmentFormPage = () => {
           {/* STEP 4: BOX COUNT & WEIGHT */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Cargo Quantity & Weight</h3>
             </div>
 
@@ -1023,7 +1023,7 @@ export const ShipmentFormPage = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full bg-rose-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
+                <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
                 <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Commercial Invoices</h3>
               </div>
               <button
