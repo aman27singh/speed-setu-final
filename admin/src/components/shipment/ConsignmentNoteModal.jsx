@@ -325,14 +325,8 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     }, 400);
   };
 
-  // 3. Single Page CN Print
-  const handlePrintSingle = async () => {
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      window.print();
-      return;
-    }
-
+  // Universal direct print handler (iOS Safari AirPrint + Desktop Compatible)
+  const triggerDirectPrint = (isSplit = false) => {
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
@@ -341,26 +335,78 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const svgElement = printContent.querySelector('svg');
     const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-    createAndPrintIframe(svgHtml, false);
+
+    // Clean up any old print target
+    const oldTarget = document.getElementById('speed-setu-direct-print-target');
+    if (oldTarget) {
+      try { oldTarget.remove(); } catch (e) {}
+    }
+
+    const printTarget = document.createElement('div');
+    printTarget.id = 'speed-setu-direct-print-target';
+
+    // Dynamic @page orientation rule: Landscape for Single Page CN, Portrait for Split 2-Up CN
+    const pageOrientationStyle = isSplit ? `
+      @media print {
+        @page {
+          size: A4 portrait !important;
+          margin: 2mm 3mm !important;
+        }
+      }
+    ` : `
+      @media print {
+        @page {
+          size: A4 landscape !important;
+          margin: 2mm 3mm !important;
+        }
+      }
+    `;
+
+    if (!isSplit) {
+      printTarget.innerHTML = `
+        <style>${pageOrientationStyle}</style>
+        <div class="cn-single-print-wrapper">${svgHtml}</div>
+      `;
+    } else {
+      printTarget.innerHTML = `
+        <style>${pageOrientationStyle}</style>
+        <div class="cn-split-print-wrapper">
+          <div class="cn-copy-half">${svgHtml}</div>
+          <div class="cn-cut-line">
+            <div class="cn-cut-line-dashed"></div>
+            <span class="cn-cut-text">- - - CUT HERE FOR DUPLICATE COPY - - -</span>
+          </div>
+          <div class="cn-copy-half">${svgHtml}</div>
+        </div>
+      `;
+    }
+
+    document.body.appendChild(printTarget);
+
+    setTimeout(() => {
+      try {
+        window.print();
+      } catch (err) {
+        console.error('Direct print error:', err);
+      }
+      setTimeout(() => {
+        try {
+          if (document.body.contains(printTarget)) {
+            printTarget.remove();
+          }
+        } catch (e) {}
+      }, 1200);
+    }, 150);
+  };
+
+  // 3. Single Page CN Print
+  const handlePrintSingle = async () => {
+    triggerDirectPrint(false);
   };
 
   // 4. Split 2-in-1 Duplicate CN Print
   const handlePrintSplit = async () => {
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      window.print();
-      return;
-    }
-
-    const printContent = printRef.current;
-    if (!printContent) {
-      window.print();
-      return;
-    }
-
-    const svgElement = printContent.querySelector('svg');
-    const svgHtml = svgElement ? svgElement.outerHTML : printContent.innerHTML;
-    createAndPrintIframe(svgHtml, true);
+    triggerDirectPrint(true);
   };
 
   // Formatting helpers for exact digit arrays
@@ -565,7 +611,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         </div>
 
         {/* MASTER SVG DOCUMENT CONTAINER */}
-        <div className="p-2 sm:p-3 bg-white print:p-0 svg-document-wrap" ref={printRef}>
+        <div id="printable-cn" className="p-2 sm:p-3 bg-white print:p-0 svg-document-wrap" ref={printRef}>
           
           <svg
             xmlns="http://www.w3.org/2000/svg"

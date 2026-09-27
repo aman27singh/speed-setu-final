@@ -61,11 +61,11 @@
   @apply bg-blue-50/40 transition-colors duration-150;
 }
 
-/* @media print styles to ensure ONLY tax invoice or consignment note is printed on A4 */
+/* @media print styles to ensure ONLY tax invoice or consignment note is printed on a single A4 page */
 @media print {
   @page {
     size: A4 landscape;
-    margin: 3mm 4mm;
+    margin: 0mm !important;
   }
 
   html, body {
@@ -74,35 +74,151 @@
     padding: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* Hide all top navigation, sidebar, headers, footers, and buttons */
-  header, nav, sidebar, aside, button, .no-print, [role="navigation"] {
+  /* When printing a direct print target or invoice, hide ALL other top-level elements */
+  body > *:not(#speed-setu-direct-print-target):not(#root) {
     display: none !important;
   }
 
-  body * {
-    visibility: hidden !important;
+  /* Hide navigation, headers, sidebars, buttons, dialog overlays, no-print elements */
+  header, nav, sidebar, aside, button, .no-print, [role="navigation"], .backdrop-blur-md {
+    display: none !important;
   }
 
-  #printable-invoice, #printable-invoice *,
-  #printable-cn, #printable-cn * {
-    visibility: visible !important;
-  }
-
-  #printable-invoice, #printable-cn {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
+  /* Ensure modal backdrop and layout wrappers collapse to 0 height in print mode */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
     padding: 0 !important;
+    margin: 0 !important;
     box-shadow: none !important;
-    border: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  /* Direct Print Target Container injected dynamically on print trigger */
+  #speed-setu-direct-print-target {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
     background: #ffffff !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Single Page CN Print Layout */
+  .cn-single-print-wrapper {
+    width: 100%;
+    height: 98vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .cn-single-print-wrapper svg, #printable-cn svg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 96vh !important;
+    display: block !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Split 2-in-1 Duplicate CN Print Layout (2 copies on 1 A4 portrait sheet) */
+  .cn-split-print-wrapper {
+    width: 100%;
+    height: 98vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .cn-copy-half {
+    width: 100%;
+    height: 47vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .cn-copy-half svg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 46vh !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  .cn-cut-line {
+    width: 100%;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin: 1px 0;
+  }
+
+  .cn-cut-line-dashed {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 1.5px dashed #000000;
+  }
+
+  .cn-cut-text {
+    position: relative;
+    z-index: 2;
+    background: #ffffff;
+    padding: 0 8px;
+    font-size: 8px;
+    font-weight: bold;
+    color: #333333;
+    font-family: Arial, sans-serif;
+  }
+
+  /* Tax Invoice Print View Styling */
+  #printable-invoice, #printable-cn {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   tr, th, td, table, div {
