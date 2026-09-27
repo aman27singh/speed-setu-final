@@ -582,6 +582,23 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
                   <span>PDF</span>
                 </button>
                 <button
+                  onClick={() => {
+                    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
+                    const consignor = shipment.consignor?.name || 'Shipper';
+                    const consignee = shipment.consignee?.name || 'Receiver';
+                    const pkgs = shipment.packages || '0';
+                    const wt = shipment.actualWeight || '0';
+                    const invs = shipment.invoiceDetails?.invoiceNumber || (shipment.commercialInvoices || []).map(i => i.invoiceNumber).join(', ') || 'N/A';
+                    const text = `🚚 *SPEED SETU CONSIGNMENT NOTE (CN)*\n\n*CN Number:* ${cnNo}\n*Consignor:* ${consignor}\n*Consignee:* ${consignee}\n*Packages:* ${pkgs} Boxes\n*Actual Weight:* ${wt} Kg\n*Invoices:* ${invs}\n\nSpeed Setu Logistics Portal`;
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Share Consignment Note details on WhatsApp"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-white" />
+                  <span>WhatsApp</span>
+                </button>
+                <button
                   onClick={() => handleSharePdf(false)}
                   disabled={isGeneratingPdf}
                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"

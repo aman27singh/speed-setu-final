@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ZoomIn, ZoomOut, RotateCw, Maximize2, FileText, ChevronLeft, ChevronRight, Upload, FileCheck } from 'lucide-react';
 
-export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl = '', url = '', onUpload }) => {
+export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl = '', url = '', allImages = [], onUpload }) => {
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedUrl, setUploadedUrl] = useState(initialUrl || url || null);
   const [displayUrl, setDisplayUrl] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
+    if (allImages && allImages.length > 0 && allImages[selectedImageIndex]?.url) {
+      setDisplayUrl(allImages[selectedImageIndex].url);
+      return;
+    }
     const raw = uploadedUrl || initialUrl || url;
     if (uploadedFile) {
       setDisplayUrl(URL.createObjectURL(uploadedFile));
@@ -36,7 +41,7 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
     } else {
       setDisplayUrl(raw);
     }
-  }, [uploadedFile, uploadedUrl, initialUrl, url]);
+  }, [uploadedFile, uploadedUrl, initialUrl, url, allImages, selectedImageIndex]);
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 20, 200));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 20, 60));
@@ -80,7 +85,7 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col w-full">
       {/* Top Document Preview Toolbar */}
-      <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white text-xs">
+      <div className="p-3 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-white text-xs">
         {/* LEFT SIDE: UPLOAD POD PDF BUTTON */}
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs">
@@ -95,6 +100,26 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
           </label>
         </div>
 
+        {/* MULTI-PHOTO SELECTOR TABS */}
+        {allImages && allImages.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+            {allImages.map((imgItem, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedImageIndex(idx)}
+                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  selectedImageIndex === idx
+                    ? 'bg-setu-500 text-white shadow-sm'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                📷 {imgItem.label || `Invoice #${idx + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Rotation Controls */}
         <div className="flex items-center gap-1.5">
           <button
@@ -108,25 +133,25 @@ export const DocumentPreviewer = ({ fileName = '', fileType = 'pdf', initialUrl 
         </div>
       </div>
 
-      {/* Full Uncropped Document View Canvas */}
-      <div className="p-2 sm:p-4 bg-slate-950 flex items-center justify-center relative w-full overflow-hidden">
+      {/* Full Uncropped Document View Canvas - Scaled to fit phone screen */}
+      <div className="p-2 sm:p-4 bg-slate-950 flex items-center justify-center relative w-full overflow-hidden min-h-[260px] sm:min-h-[380px]">
         {displayUrl ? (
           <div className="w-full flex justify-center items-center">
             {isImage ? (
               <img
                 src={displayUrl}
-                alt="Full Uploaded Invoice Document"
+                alt="Uploaded Invoice Document"
                 style={{
                   transform: `rotate(${rotation}deg)`,
                   transition: 'transform 0.2s ease-out'
                 }}
-                className="w-full h-auto max-w-full rounded-lg border border-slate-800 shadow-2xl bg-white object-contain block mx-auto"
+                className="max-h-[350px] sm:max-h-[480px] w-auto max-w-full rounded-lg border border-slate-800 shadow-2xl bg-white object-contain block mx-auto"
               />
             ) : (
               <iframe
                 src={displayUrl}
                 title="Uploaded Document"
-                className="w-full h-[600px] sm:h-[800px] rounded-lg border border-slate-700 shadow-2xl bg-white"
+                className="w-full h-[450px] sm:h-[650px] rounded-lg border border-slate-700 shadow-2xl bg-white"
               />
             )}
           </div>

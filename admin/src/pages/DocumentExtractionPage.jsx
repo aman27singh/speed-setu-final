@@ -6,6 +6,7 @@ import { shipmentService } from '../services/shipmentService';
 import { validateExtractionResult } from '../utils/extractionValidation';
 import { PageHeader } from '../components/common/PageHeader';
 import { DocumentPreviewer } from '../components/document/DocumentPreviewer';
+import { ConsignmentNoteModal } from '../components/shipment/ConsignmentNoteModal';
 import { ConfidenceBadge } from '../components/document/ConfidenceBadge';
 import { LoadingState } from '../components/common/LoadingState';
 import { Modal } from '../components/common/Modal';
@@ -63,6 +64,8 @@ export const DocumentExtractionPage = () => {
   // Multiple Invoice & Package/Weight Modal states
   const [showMultiInvoiceModal, setShowMultiInvoiceModal] = useState(false);
   const [showPackageWeightModal, setShowPackageWeightModal] = useState(false);
+  const [showCreatedCNModal, setShowCreatedCNModal] = useState(false);
+  const [createdShipment, setCreatedShipment] = useState(null);
   const [pendingAttachTarget, setPendingAttachTarget] = useState(null);
   const [extraInvoices, setExtraInvoices] = useState([]);
   const [scanningExtraInvoice, setScanningExtraInvoice] = useState(false);
@@ -205,7 +208,7 @@ export const DocumentExtractionPage = () => {
     }
 
     setPendingAttachTarget(attachToExistingCN);
-    setShowMultiInvoiceModal(true);
+    handleProceedToPackageWeight();
   };
 
   const handleExtraInvoiceSelect = (e) => {
@@ -226,12 +229,15 @@ export const DocumentExtractionPage = () => {
       const eway = result?.regulatory?.ewayBillNumber?.value || '';
 
       const newExtra = {
+        id: Date.now() + Math.random(),
         invoiceNumber: String(invNo).trim(),
         invoiceDate: String(invDate).trim(),
         invoiceValue: invVal !== '' ? String(invVal) : '',
         invoiceQuantity: invQty !== '' ? String(invQty) : '',
         ewayBillNumber: String(eway).trim(),
-        fileName: file.name
+        fileName: file.name,
+        file: file,
+        url: (file instanceof File || file instanceof Blob) ? URL.createObjectURL(file) : null
       };
 
       setExtraInvoices((prev) => [...prev, newExtra]);
@@ -348,19 +354,27 @@ export const DocumentExtractionPage = () => {
         pendingAttachTarget || targetShipmentId
       );
 
-      if (result.actionTaken === 'updated') {
-        setToastMessage(`Document & ${finalInvoices.length} commercial invoice(s) attached to existing shipment ${pendingAttachTarget || targetShipmentId}!`);
-        setTimeout(() => navigate(`/admin/shipments/${pendingAttachTarget || targetShipmentId}`), 1000);
-      } else {
-        setToastMessage(`Shipment ${result.cnNumber} created with ${finalInvoices.length} commercial invoice(s)!`);
-        setTimeout(() => navigate(`/admin/shipments/${result.id}`), 1000);
-      }
+      setCreatedShipment(result);
+      setShowCreatedCNModal(true);
+      setToastMessage(`Consignment Note ${result.cnNumber || result.id} Created Successfully!`);
     } catch (err) {
-      alert(err.message || 'Failed to create shipment with multiple invoices.');
+      alert(err.message || 'Failed to create shipment.');
     } finally {
       setSaving(false);
     }
   };
+
+  const primaryDocUrl = uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob)
+    ? URL.createObjectURL(uploadedFile)
+    : (typeof uploadedFile === 'string' ? uploadedFile : null);
+
+  const allDocumentImages = [
+    ...(primaryDocUrl ? [{ label: `Invoice #1 (${extractionData?.invoice?.invoiceNumber?.value || 'Primary'})`, url: primaryDocUrl }] : []),
+    ...extraInvoices.map((inv, idx) => ({
+      label: `Invoice #${idx + 2} (${inv.invoiceNumber || 'Extra'})`,
+      url: inv.url
+    }))
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -927,6 +941,137 @@ export const DocumentExtractionPage = () => {
                         placeholder="12-digit E-Way Bill Number (if generated)"
                       />
                     </div>
+
+                    {/* ADDED EXTRA INVOICES CARDS */}
+                    {extraInvoices.map((extraInv, index) => (
+                      <div key={extraInv.id || index} className="sm:col-span-2 p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                          <span className="font-bold text-amber-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                            <FileText className="w-4 h-4 text-amber-600" />
+                            Commercial Invoice #{index + 2} Details
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExtraInvoices(prev => prev.filter((_, i) => i !== index));
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer"
+                            title="Remove Invoice"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Invoice Number</label>
+                            <input
+                              type="text"
+                              value={extraInv.invoiceNumber || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceNumber: val } : item));
+                              }}
+                              className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-xs"
+                              placeholder="e.g. SSE-26-27/1318"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Invoice Date</label>
+                            <input
+                              type="text"
+                              value={extraInv.invoiceDate || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceDate: val } : item));
+                              }}
+                              className="w-full p-2 bg-white border border-slate-300 rounded font-mono text-xs"
+                              placeholder="e.g. 09/09/2026"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Declared Value (₹)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={extraInv.invoiceValue ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceValue: val } : item));
+                              }}
+                              className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-emerald-700 text-xs"
+                              placeholder="0.00"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Quantity (Pcs/Nos)</label>
+                            <input
+                              type="number"
+                              value={extraInv.invoiceQuantity ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, invoiceQuantity: val } : item));
+                              }}
+                              className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-xs"
+                              placeholder="0"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <label className="font-bold text-slate-700 block mb-1">E-Way Bill Number</label>
+                            <input
+                              type="text"
+                              value={extraInv.ewayBillNumber || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExtraInvoices(prev => prev.map((item, i) => i === index ? { ...item, ewayBillNumber: val } : item));
+                              }}
+                              className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-xs"
+                              placeholder="E-Way Bill Number for Invoice #"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* BUTTON TO ADD ANOTHER INVOICE */}
+                    <div className="sm:col-span-2 pt-2 border-t border-slate-200">
+                      {scanningExtraInvoice ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-center gap-2 text-amber-800 text-xs font-bold animate-pulse">
+                          <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
+                          <span>Scanning & OCR Extracting Added Invoice Photo...</span>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3.5 space-y-2">
+                          <span className="text-xs font-bold text-slate-800 block">
+                            + Add Additional Invoice to this Shipment
+                          </span>
+                          <p className="text-[11px] text-slate-500">
+                            You can take a photo or upload another commercial invoice. All invoice details and photos will be attached together on this CN.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <label
+                              htmlFor="extraInvoiceCameraInput"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-setu-600 hover:bg-setu-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                            >
+                              <Camera className="w-4 h-4" />
+                              <span>📷 Take Invoice Photo</span>
+                            </label>
+
+                            <label
+                              htmlFor="extraInvoiceGalleryInput"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs rounded-lg cursor-pointer transition-colors shadow-xs"
+                            >
+                              <UploadCloud className="w-4 h-4 text-setu-600" />
+                              <span>📁 Upload Photo / File</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -948,6 +1093,7 @@ export const DocumentExtractionPage = () => {
                   fileType={extractionData.fileType}
                   initialUrl={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
                   url={uploadedFile && (uploadedFile instanceof File || uploadedFile instanceof Blob) ? URL.createObjectURL(uploadedFile) : null}
+                  allImages={allDocumentImages}
                 />
               </div>
 
@@ -1365,6 +1511,16 @@ export const DocumentExtractionPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 3. FINAL CREATED CONSIGNMENT NOTE (CN) MODAL WITH PRINT, DOWNLOAD & WHATSAPP SHARE */}
+      <ConsignmentNoteModal
+        isOpen={showCreatedCNModal}
+        onClose={() => {
+          setShowCreatedCNModal(false);
+          navigate('/admin/shipments');
+        }}
+        shipment={createdShipment}
+      />
     </div>
   );
 };
