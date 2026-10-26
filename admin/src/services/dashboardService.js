@@ -3,16 +3,18 @@ import { shipmentService } from './shipmentService';
 import { billingService } from './billingService';
 import { payableService } from './payableService';
 import { expenseService } from './expenseService';
+import { companyService } from './companyService';
 
 export const dashboardService = {
   async getDashboardSummary() {
     try {
-      const [reportOverview, shipments, invoices, payables, expenses] = await Promise.all([
+      const [reportOverview, shipments, invoices, payables, expenses, companies] = await Promise.all([
         apiRequest('/reports/overview').catch(() => null),
         shipmentService.getShipments().catch(() => []),
         billingService.getInvoices().catch(() => []),
         payableService.getPayables().catch(() => []),
-        expenseService.getExpenses().catch(() => [])
+        expenseService.getExpenses().catch(() => []),
+        companyService.getCompanies().catch(() => [])
       ]);
 
       const totalShipments = shipments.length;
@@ -205,6 +207,196 @@ export const dashboardService = {
         .sort((a, b) => b.profit - a.profit)
         .slice(0, 7);
 
+      // Build Company Billing Accounts breakdown for each company we bill to
+      const getNorm = (str) => (str || '').toLowerCase().trim();
+      const companyMap = new Map();
+
+      // 1. Add all registered companies
+      (companies || []).forEach((comp) => {
+        const name = comp.companyName || comp.name || '';
+        const code = comp.companyCode || comp.code || '';
+        const id = comp.id || comp.companyId || comp._id || code.toLowerCase();
+        const key = getNorm(name) || getNorm(code) || getNorm(id);
+        if (!key) return;
+
+        companyMap.set(key, {
+          id,
+          companyName: name || 'Client Company',
+          companyCode: code || 'CLIENT',
+          gstin: comp.gstin || comp.taxId || '-',
+          state: comp.billing?.state || comp.state || '-',
+          city: comp.billing?.city || comp.city || '-',
+          address: comp.billing?.address || comp.address || '-',
+          paymentTerms: comp.billing?.paymentTerms || comp.paymentTerms || 'Net 30',
+          primaryContact: comp.primaryContact || null
+        });
+      });
+
+      // 2. Discover any additional companies from shipments and invoices
+      shipments.forEach((s) => {
+        const name = s.companyName || s.company || s.consignee?.name || '';
+        const code = s.companyCode || '';
+        const id = s.companyId || '';
+        const key = getNorm(name) || getNorm(code) || getNorm(id);
+        if (!key) return;
+
+        if (!companyMap.has(key)) {
+          companyMap.set(key, {
+            id: id || code.toLowerCase() || `comp-${key}`,
+            companyName: name || 'Client Company',
+            companyCode: code || 'CLIENT',
+            gstin: s.consignee?.gstin || s.consignor?.gstin || '-',
+            state: s.destination || '-',
+            city: s.origin || '-',
+            address: s.consignee?.address || '-',
+            paymentTerms: 'Net 30',
+            primaryContact: null
+          });
+        }
+      });
+
+      invoices.forEach((inv) => {
+        const name = inv.companyName || '';
+        const code = inv.companyCode || '';
+        const id = inv.companyId || '';
+        const key = getNorm(name) || getNorm(code) || getNorm(id);
+        if (!key) return;
+
+        if (!companyMap.has(key)) {
+          companyMap.set(key, {
+            id: id || code.toLowerCase() || `comp-${key}`,
+            companyName: name || 'Client Company',
+            companyCode: code || 'CLIENT',
+            gstin: inv.customerGstin || '-',
+            state: '-',
+            city: '-',
+            address: inv.customerAddress || '-',
+            paymentTerms: 'Net 30',
+            primaryContact: null
+          });
+        }
+      });
+
+      // Match and aggregate data for each company
+      const companyBillingAccounts = Array.from(companyMap.values()).map((comp) => {
+        const compNameNorm = getNorm(comp.companyName);
+        const compCodeNorm = getNorm(comp.companyCode);
+        const compIdNorm = getNorm(comp.id);
+
+        const matchesThisCompany = (record) => {
+          if (!record) return false;
+          const rId = getNorm(record.companyId);
+          const rCode = getNorm(record.companyCode);
+          const rName = getNorm(record.companyName || record.company);
+
+          if (compIdNorm && rId && compIdNorm === rId) return true;
+          if (compCodeNorm && rCode && compCodeNorm === rCode) return true;
+          if (compCodeNorm && rId && compCodeNorm === rId) return true;
+          if (compIdNorm && rCode && compIdNorm === rCode) return true;
+
+          if (compNameNorm && rName) {
+            if (compNameNorm === rName) return true;
+            if (compNameNorm.includes(rName) || rName.includes(compNameNorm)) return true;
+            const cleanA = compNameNorm.replace(/[^a-z0-9]/gi, '');
+            const cleanB = rName.replace(/[^a-z0-9]/gi, '');
+            if (cleanA && cleanB && (cleanA.includes(cleanB) || cleanB.includes(cleanA))) return true;
+          }
+          return false;
+        };
+
+        const compShipments = shipments.filter(matchesThisCompany);
+        const compInvoices = validInvoices.filter(matchesThisCompany);
+
+        // Map shipments with bill made vs not made status
+        const processedShipments = compShipments.map((s) => {
+          const bStatus = (s.billingStatus || '').toLowerCase();
+
+          const matchedInvoice = compInvoices.find((inv) => {
+            if (s.invoiceId && (inv.id === s.invoiceId || inv.invoiceNumber === s.invoiceId)) return true;
+            if (s.invoiceNumber && (inv.id === s.invoiceNumber || inv.invoiceNumber === s.invoiceNumber)) return true;
+            if (Array.isArray(inv.cns) && inv.cns.includes(s.cnNumber)) return true;
+            if (Array.isArray(inv.items) && inv.items.some((item) => item.cnNumber === s.cnNumber)) return true;
+            return false;
+          });
+
+          const isBillMade = Boolean(
+            matchedInvoice ||
+            s.invoiceId ||
+            ['invoiced', 'billed', 'generated', 'sent'].includes(bStatus)
+          );
+
+          const invoiceNumber = matchedInvoice?.invoiceNumber || s.invoiceId || (isBillMade ? 'Generated' : null);
+
+          const weight = s.chargeableWeight || s.actualWeight || 0;
+          const rate = s.ratePerKg || s.rate || 0;
+          const basicF = s.freightCharges || s.basicFreight || (rate > 0 && weight > 0 ? rate * weight : 0);
+          const otherCharges = (s.packingCharges || 0) + (s.laborCharges || 0) + (s.pickupCharges || 0) + (s.deliveryCharges || 0) + (s.godownCharges || 0);
+          const subtotal = basicF + otherCharges;
+          const gstRate = s.isGstExempt ? 0 : (s.gstRate || 18);
+          const gst = Math.round((subtotal * gstRate) / 100);
+          const totalFreight = s.grandTotal || (subtotal + gst) || 0;
+
+          return {
+            ...s,
+            id: s.id || s.cnNumber,
+            cnNumber: s.cnNumber,
+            cnDate: s.cnDate || s.bookingDate || s.createdAt || '-',
+            origin: s.origin || (s.consignor && s.consignor.city) || '-',
+            destination: s.destination || (s.consignee && s.consignee.city) || '-',
+            packages: s.packages || s.numberOfBoxes || s.noOfBoxes || 0,
+            actualWeight: s.actualWeight || 0,
+            chargeableWeight: s.chargeableWeight || 0,
+            materialDescription: s.materialDescription || 'General Cargo',
+            isBillMade,
+            invoiceNumber,
+            invoiceId: matchedInvoice?.id || s.invoiceId,
+            invoice: matchedInvoice || null,
+            freightAmount: totalFreight,
+            status: s.status || 'Booked',
+            podStatus: s.podStatus || 'Pending',
+            billingStatus: isBillMade ? 'Invoiced' : (s.billingStatus || 'Not Ready')
+          };
+        });
+
+        const billsMadeCount = processedShipments.filter((s) => s.isBillMade).length;
+        const billsNotMadeCount = processedShipments.filter((s) => !s.isBillMade).length;
+
+        // Pending amount that company has to pay to my company (unpaid invoice balance)
+        const pendingAmount = compInvoices.reduce((acc, inv) => {
+          const bal = typeof inv.balanceAmount === 'number'
+            ? inv.balanceAmount
+            : (inv.balanceDue !== undefined ? inv.balanceDue : ((inv.grandTotal || inv.totalAmount || 0) - (inv.paidAmount || 0)));
+          return acc + Math.max(0, bal);
+        }, 0);
+
+        const totalBilledAmount = compInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.totalAmount || 0), 0);
+        const totalPaidAmount = compInvoices.reduce((acc, inv) => acc + (inv.paidAmount || 0), 0);
+
+        const unbilledFreightAmount = processedShipments
+          .filter((s) => !s.isBillMade)
+          .reduce((acc, s) => acc + (s.freightAmount || 0), 0);
+
+        return {
+          ...comp,
+          totalShipments: processedShipments.length,
+          billsMade: billsMadeCount,
+          billsNotMade: billsNotMadeCount,
+          pendingAmount, // Amount company has to pay to my company
+          totalBilledAmount,
+          totalPaidAmount,
+          unbilledFreightAmount,
+          shipments: processedShipments,
+          invoices: compInvoices
+        };
+      });
+
+      // Sort: companies with pending balance or shipments first
+      companyBillingAccounts.sort((a, b) => {
+        if (b.pendingAmount !== a.pendingAmount) return b.pendingAmount - a.pendingAmount;
+        if (b.totalShipments !== a.totalShipments) return b.totalShipments - a.totalShipments;
+        return (b.totalBilledAmount || 0) - (a.totalBilledAmount || 0);
+      });
+
       return {
         kpis,
         statusOverview,
@@ -213,7 +405,8 @@ export const dashboardService = {
         revenueVsExpenses,
         recentShipments,
         paymentFollowUps,
-        pendingPayables: pendingPayablesList
+        pendingPayables: pendingPayablesList,
+        companyBillingAccounts
       };
     } catch (err) {
       console.warn('[MongoDB Client] Dashboard summary error:', err.message);
@@ -234,7 +427,8 @@ export const dashboardService = {
       statusOverview: [],
       recentShipments: [],
       paymentFollowUps: [],
-      pendingPayables: []
+      pendingPayables: [],
+      companyBillingAccounts: []
     };
   },
 

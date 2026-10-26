@@ -11,6 +11,7 @@ import { SearchBar } from '../components/common/SearchBar';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { Modal } from '../components/common/Modal';
+import { CompanyBillingSection } from '../components/dashboard/CompanyBillingSection';
 import {
   ResponsiveContainer,
   BarChart,
@@ -72,7 +73,15 @@ export const DashboardPage = () => {
   if (loading) return <LoadingState message="Loading Speed Setu Dashboard Metrics..." />;
   if (error) return <ErrorState message={error} onRetry={fetchDashboard} />;
 
-  const { kpis, companyTurnover = [], companyProfit = [], recentShipments, paymentFollowUps, pendingPayables } = data;
+  const {
+    kpis,
+    companyTurnover = [],
+    companyProfit = [],
+    recentShipments,
+    paymentFollowUps,
+    pendingPayables,
+    companyBillingAccounts = []
+  } = data;
 
   const q = searchQuery.toLowerCase().trim();
 
@@ -321,7 +330,10 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* 2. CHARTS SECTION */}
+      {/* 2. CLIENT BILLING ACCOUNTS & OUTSTANDING COMMAND SECTION */}
+      <CompanyBillingSection companies={companyBillingAccounts} />
+
+      {/* 3. CHARTS SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Company Monthly Turnover Chart */}
         <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 shadow-xs">
