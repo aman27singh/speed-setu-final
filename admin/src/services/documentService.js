@@ -550,53 +550,53 @@ export const documentService = {
       createdBy: creatorId,
       createdByName: creatorName,
       driverId: creatorId,
-      companyId: getStr(finalData.companyId, 'com-001'),
-      companyName: getStr(finalData.companyName || finalData.company?.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
-      companyCode: getStr(finalData.companyCode, 'COM-008'),
+      companyId: getStr(finalData.companyId, ''),
+      companyName: getStr(finalData.companyName || finalData.company?.name, ''),
+      companyCode: getStr(finalData.companyCode, ''),
 
       consignor: {
-        name: getStr(finalData.consignor?.name, 'S S Enterprises'),
-        gstin: getStr(finalData.consignor?.gstin, '27CIOPK3596D2ZU'),
-        address: getStr(finalData.consignor?.address, 'Gat No 215, Chakan-Talegaon Road, Mahalunge Ingale, Chakan, Khed, Pune'),
-        city: getStr(finalData.consignor?.city, 'Pune'),
-        state: getStr(finalData.consignor?.state, 'Maharashtra'),
-        pin: getStr(finalData.consignor?.pin, '410501'),
-        contact: getStr(finalData.consignor?.contact, 'ssenterprises.nk2021@gmail.com')
+        name: getStr(finalData.consignor?.name, ''),
+        gstin: getStr(finalData.consignor?.gstin, ''),
+        address: getStr(finalData.consignor?.address, ''),
+        city: getStr(finalData.consignor?.city, ''),
+        state: getStr(finalData.consignor?.state, ''),
+        pin: getStr(finalData.consignor?.pin, ''),
+        contact: getStr(finalData.consignor?.contact, '')
       },
 
       consignee: {
-        name: getStr(finalData.consignee?.name, 'ADVIK AUTOCOMP PVT LTD - P40'),
-        gstin: getStr(finalData.consignee?.gstin, '29AASCA8132C1ZJ'),
-        address: getStr(finalData.consignee?.address, 'Plot No. 205, 206, 239 & 240, Narsapura Industrial Area, Kolar'),
-        city: getStr(finalData.consignee?.city, 'Narsapura'),
-        state: getStr(finalData.consignee?.state, 'Karnataka'),
-        pin: getStr(finalData.consignee?.pin, '563133'),
+        name: getStr(finalData.consignee?.name, ''),
+        gstin: getStr(finalData.consignee?.gstin, ''),
+        address: getStr(finalData.consignee?.address, ''),
+        city: getStr(finalData.consignee?.city, ''),
+        state: getStr(finalData.consignee?.state, ''),
+        pin: getStr(finalData.consignee?.pin, ''),
         contact: getStr(finalData.consignee?.contact, '')
       },
 
-      origin: getStr(finalData.shipment?.origin, 'Pune'),
-      destination: getStr(finalData.shipment?.destination, 'Narsapura'),
+      origin: getStr(finalData.shipment?.origin, ''),
+      destination: getStr(finalData.shipment?.destination, ''),
       mode: getStr(finalData.shipment?.mode, 'Air'),
       packages: parseInt(getStr(finalData.shipment?.packages, '0'), 10) || 0,
       actualWeight: parseFloat(getStr(finalData.shipment?.actualWeight, '0')) || 0,
       chargeableWeight: parseFloat(getStr(finalData.shipment?.chargeableWeight, '0')) || 0,
-      materialDescription: getStr(finalData.shipment?.materialDescription, 'B462 LEVER RH (HSN: 87141090) — Qty: 800 Nos'),
+      materialDescription: getStr(finalData.shipment?.materialDescription, ''),
 
       invoiceDetails: {
-        invoiceNumber: getStr(finalData.invoice?.invoiceNumber, 'SSE-26-27/1317'),
-        invoiceDate: getStr(finalData.invoice?.invoiceDate, '2026-09-09'),
-        invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '37004.80')) || 0,
-        invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '800'), 10) || 0
+        invoiceNumber: getStr(finalData.invoice?.invoiceNumber, ''),
+        invoiceDate: getStr(finalData.invoice?.invoiceDate, ''),
+        invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '0')) || 0,
+        invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '0'), 10) || 0
       },
 
       commercialInvoices: finalData.commercialInvoices && finalData.commercialInvoices.length > 0
         ? finalData.commercialInvoices
         : [
             {
-              invoiceNumber: getStr(finalData.invoice?.invoiceNumber, 'SSE-26-27/1317'),
-              invoiceDate: getStr(finalData.invoice?.invoiceDate, '2026-09-09'),
-              invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '37004.80')) || 0,
-              invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '800'), 10) || 0,
+              invoiceNumber: getStr(finalData.invoice?.invoiceNumber, ''),
+              invoiceDate: getStr(finalData.invoice?.invoiceDate, ''),
+              invoiceValue: parseFloat(getStr(finalData.invoice?.invoiceValue, '0')) || 0,
+              invoiceQuantity: parseInt(getStr(finalData.invoice?.invoiceQuantity, '0'), 10) || 0,
               ewayBillNumber: getStr(finalData.regulatory?.ewayBillNumber, '')
             }
           ],

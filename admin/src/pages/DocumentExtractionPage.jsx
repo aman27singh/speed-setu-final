@@ -228,7 +228,7 @@ export const DocumentExtractionPage = () => {
     const newExtraItem = {
       id: extraId,
       invoiceNumber: '',
-      invoiceDate: extractionData?.invoice?.invoiceDate?.value || new Date().toISOString().split('T')[0],
+      invoiceDate: extractionData?.invoice?.invoiceDate?.value || '',
       invoiceValue: '',
       invoiceQuantity: '',
       ewayBillNumber: '',
@@ -1453,12 +1453,11 @@ export const DocumentExtractionPage = () => {
             <button
               type="button"
               onClick={() => {
-                const today = new Date().toISOString().split('T')[0];
                 setExtraInvoices([
                   ...extraInvoices,
                   {
                     invoiceNumber: '',
-                    invoiceDate: today,
+                    invoiceDate: '',
                     invoiceValue: '',
                     invoiceQuantity: '',
                     ewayBillNumber: ''

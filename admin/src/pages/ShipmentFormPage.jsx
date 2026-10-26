@@ -94,7 +94,7 @@ const INITIAL_FORM_STATE = {
 
   invoiceDetails: {
     invoiceNumber: '',
-    invoiceDate: new Date().toISOString().split('T')[0],
+    invoiceDate: '',
     invoiceValue: 0,
     invoiceQuantity: 0
   },
@@ -295,17 +295,23 @@ export const ShipmentFormPage = () => {
         const addConsignor = (c) => {
           if (c && c.name && c.name.trim()) {
             const key = c.name.trim().toLowerCase();
+            const isSSE = key.includes('ss enterprise') || key.includes('s s enterprise') || key.includes('ss enter');
+            const cleanGstin = !isSSE && c.gstin === '27CIOPK3596D2ZU' ? '' : (c.gstin || c.gstNo || '');
+            const cleanContact = !isSSE && c.contact === 'ssenterprises.nk2021@gmail.com' ? '' : (c.contact || c.contactPhone || c.phone || '');
+            const cleanPin = !isSSE && c.pin === '410501' ? '' : (c.pin || c.pinCode || '');
+            const cleanAddress = !isSSE && (c.address || '').includes('Chakan-Talegaon Road') ? '' : (c.address || c.pickupAddress || '');
+
             if (!consignorMap.has(key)) {
               consignorMap.set(key, {
                 id: c.id || `consignor-${consignorMap.size + 1}`,
                 name: c.name.trim(),
                 code: c.code || '',
-                gstin: c.gstin || c.gstNo || '',
-                address: c.address || c.pickupAddress || '',
+                gstin: cleanGstin,
+                address: cleanAddress,
                 city: c.city || '',
                 state: c.state || '',
-                pin: c.pin || c.pinCode || '',
-                contact: c.contact || c.contactPhone || c.phone || ''
+                pin: cleanPin,
+                contact: cleanContact
               });
             }
           }
@@ -314,16 +320,21 @@ export const ShipmentFormPage = () => {
         const addConsignee = (c) => {
           if (c && c.name && c.name.trim()) {
             const key = c.name.trim().toLowerCase();
+            const isAdvik = key.includes('advik');
+            const cleanGstin = !isAdvik && c.gstin === '29AASCA8132C1ZJ' ? '' : (c.gstin || c.gstNo || '');
+            const cleanPin = !isAdvik && c.pin === '563133' ? '' : (c.pin || c.pinCode || '');
+            const cleanAddress = !isAdvik && (c.address || '').includes('Plot No. 205, 206') ? '' : (c.address || c.deliveryAddress || '');
+
             if (!consigneeMap.has(key)) {
               consigneeMap.set(key, {
                 id: c.id || `consignee-${consigneeMap.size + 1}`,
                 name: c.name.trim(),
                 code: c.code || '',
-                gstin: c.gstin || c.gstNo || '',
-                address: c.address || c.deliveryAddress || '',
+                gstin: cleanGstin,
+                address: cleanAddress,
                 city: c.city || '',
                 state: c.state || '',
-                pin: c.pin || c.pinCode || '',
+                pin: cleanPin,
                 contact: c.contact || c.contactPhone || c.phone || ''
               });
             }
@@ -465,18 +476,33 @@ export const ShipmentFormPage = () => {
 
     const found = savedConsignorsList.find((c) => c.name === val || c.id === val);
     if (found) {
+      // Auto-detect billing company from consignor if not already set
+      let matchedComp = null;
+      if (!formData.companyId) {
+        const valNorm = (found.name || '').toLowerCase().trim();
+        matchedComp = companies.find((comp) => {
+          const compNorm = (comp.companyName || '').toLowerCase().trim();
+          return compNorm && valNorm && (compNorm.includes(valNorm) || valNorm.includes(compNorm));
+        });
+      }
+
       setFormData((prev) => ({
         ...prev,
         origin: found.city || prev.origin,
+        ...(matchedComp ? {
+          companyId: matchedComp.id,
+          companyName: matchedComp.companyName,
+          companyCode: matchedComp.companyCode
+        } : {}),
         consignor: {
           ...prev.consignor,
           name: found.name,
-          gstin: found.gstin || prev.consignor?.gstin || '',
-          contact: found.contact || prev.consignor?.contact || '',
-          address: found.address || prev.consignor?.address || '',
-          city: found.city || prev.consignor?.city || '',
-          state: found.state || prev.consignor?.state || '',
-          pin: found.pin || prev.consignor?.pin || ''
+          gstin: found.gstin || '',
+          contact: found.contact || '',
+          address: found.address || '',
+          city: found.city || '',
+          state: found.state || '',
+          pin: found.pin || ''
         }
       }));
     }
@@ -503,25 +529,40 @@ export const ShipmentFormPage = () => {
 
     const found = savedConsigneesList.find((e) => e.name === val || e.id === val);
     if (found) {
+      // Auto-detect billing company from consignee if not already set
+      let matchedComp = null;
+      if (!formData.companyId) {
+        const valNorm = (found.name || '').toLowerCase().trim();
+        matchedComp = companies.find((comp) => {
+          const compNorm = (comp.companyName || '').toLowerCase().trim();
+          return compNorm && valNorm && (compNorm.includes(valNorm) || valNorm.includes(compNorm));
+        });
+      }
+
       setFormData((prev) => ({
         ...prev,
         destination: found.city || prev.destination,
+        ...(matchedComp ? {
+          companyId: matchedComp.id,
+          companyName: matchedComp.companyName,
+          companyCode: matchedComp.companyCode
+        } : {}),
         consignee: {
           ...prev.consignee,
           name: found.name,
-          gstin: found.gstin || prev.consignee?.gstin || '',
-          contact: found.contact || prev.consignee?.contact || '',
-          address: found.address || prev.consignee?.address || '',
-          city: found.city || prev.consignee?.city || '',
-          state: found.state || prev.consignee?.state || '',
-          pin: found.pin || prev.consignee?.pin || ''
+          gstin: found.gstin || '',
+          contact: found.contact || '',
+          address: found.address || '',
+          city: found.city || '',
+          state: found.state || '',
+          pin: found.pin || ''
         }
       }));
     }
   };
 
   const handleAutofillSectionB = (compObj) => {
-    const targetComp = compObj || companies.find((c) => c.id === formData.companyId) || companies[0];
+    const targetComp = compObj || companies.find((c) => c.id === formData.companyId);
     if (!targetComp) return;
     setFormData((prev) => ({
       ...prev,
@@ -544,7 +585,7 @@ export const ShipmentFormPage = () => {
   };
 
   const handleAutofillSectionC = (compObj) => {
-    const targetComp = compObj || companies.find((c) => c.id === formData.companyId) || companies[0];
+    const targetComp = compObj || companies.find((c) => c.id === formData.companyId);
     if (!targetComp) return;
     setFormData((prev) => ({
       ...prev,
@@ -597,7 +638,25 @@ export const ShipmentFormPage = () => {
 
     setSaving(true);
     try {
-      const defaultCompany = companies.find((c) => c.id === formData.companyId) || companies[0] || {};
+      // Find selected company, or match from consignor/consignee, NEVER blindly fallback to companies[0]!
+      let targetComp = companies.find((c) => c.id === formData.companyId);
+      if (!targetComp && formData.companyName) {
+        targetComp = companies.find((c) => c.companyName.toLowerCase().trim() === formData.companyName.toLowerCase().trim());
+      }
+      if (!targetComp) {
+        const cNorm = (formData.consignor?.name || '').toLowerCase().trim();
+        const ceNorm = (formData.consignee?.name || '').toLowerCase().trim();
+        targetComp = companies.find((c) => {
+          const compNameNorm = (c.companyName || '').toLowerCase().trim();
+          return (cNorm && (compNameNorm.includes(cNorm) || cNorm.includes(compNameNorm))) ||
+                 (ceNorm && (compNameNorm.includes(ceNorm) || ceNorm.includes(compNameNorm)));
+        });
+      }
+
+      const finalCompId = targetComp?.id || formData.companyId || '';
+      const finalCompName = targetComp?.companyName || formData.companyName || formData.consignor?.name || '';
+      const finalCompCode = targetComp?.companyCode || formData.companyCode || 'CLIENT';
+
       const creatorId = user?.id || user?._id || user?.username || user?.email || 'driver-user';
       const creatorName = user?.name || user?.username || 'Driver User';
       const creatorRole = user?.role || 'Driver';
@@ -608,9 +667,9 @@ export const ShipmentFormPage = () => {
         createdByName: formData.createdByName || creatorName,
         createdByRole: formData.createdByRole || creatorRole,
         driverId: formData.driverId || user?.driverId || (user?.role === 'Driver' ? creatorId : null),
-        companyId: formData.companyId || defaultCompany.id || '',
-        companyName: formData.companyName || defaultCompany.companyName || '',
-        companyCode: formData.companyCode || defaultCompany.companyCode || '',
+        companyId: finalCompId,
+        companyName: finalCompName,
+        companyCode: finalCompCode,
         consignor: {
           ...formData.consignor,
           name: formData.consignor?.name || '',
@@ -643,9 +702,9 @@ export const ShipmentFormPage = () => {
           setFormData({
             ...INITIAL_FORM_STATE,
             cnNumber: '',
-            companyId: companies[0]?.id || '',
-            companyName: companies[0]?.companyName || '',
-            companyCode: companies[0]?.companyCode || ''
+            companyId: '',
+            companyName: '',
+            companyCode: ''
           });
           setErrors({});
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -715,14 +774,64 @@ export const ShipmentFormPage = () => {
       {/* DRIVER EXPRESS CN FORM */}
       {formMode === 'driver' && !isEditMode ? (
         <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
-          {/* STEP 1: CONSIGNOR & CONSIGNEE DETAILS */}
+          {/* STEP 1: BILLING COMPANY (CORPORATE CLIENT) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Billing Company (Corporate Client)</h3>
+              </div>
+              <span className="text-xs text-slate-400">Account billed for freight</span>
+            </div>
+
+            <div className="text-xs">
+              <label className="block font-bold text-slate-700 mb-1">
+                Select Client Company to Bill <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required
+                value={formData.companyId || ''}
+                onChange={(e) => {
+                  const comp = companies.find((c) => c.id === e.target.value);
+                  if (comp) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      companyId: comp.id,
+                      companyName: comp.companyName,
+                      companyCode: comp.companyCode
+                    }));
+                  } else {
+                    setFormData((prev) => ({
+                      ...prev,
+                      companyId: '',
+                      companyName: '',
+                      companyCode: ''
+                    }));
+                  }
+                }}
+                className="w-full p-3 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-setu-600 cursor-pointer"
+              >
+                <option value="">-- Choose Billing Company (e.g. Advik Autocomp, Techniques Surfaces, DK Automotive...) --</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.companyName} ({c.companyCode || 'CLIENT'})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {formData.companyName ? `Currently billing to: ${formData.companyName}` : 'Select which registered corporate client will be billed for this shipment'}
+              </p>
+            </div>
+          </div>
+
+          {/* STEP 2: CONSIGNOR & CONSIGNEE DETAILS */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
             
             {/* CONSIGNOR BLOCK */}
             <div className="space-y-3 pb-6 border-b border-slate-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">1</span>
+                  <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignor Details (Shipper)</h3>
                 </div>
                 <span className="text-xs text-slate-400">Select shipper or enter name</span>
@@ -794,7 +903,7 @@ export const ShipmentFormPage = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
+                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignee Details (Receiver)</h3>
                 </div>
                 <span className="text-xs text-slate-400">Select receiver or enter name</span>
@@ -863,10 +972,10 @@ export const ShipmentFormPage = () => {
             </div>
           </div>
 
-          {/* STEP 2: PICKUP FROM (ORIGIN) & DELIVER TO (DESTINATION) */}
+          {/* STEP 4: PICKUP FROM (ORIGIN) & DELIVER TO (DESTINATION) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Pickup & Delivery Locations</h3>
             </div>
 
@@ -897,10 +1006,10 @@ export const ShipmentFormPage = () => {
             </div>
           </div>
 
-          {/* STEP 3: TRANSPORT MODE (AIR, TRAIN, ROAD, AIR EXPRESS) */}
+          {/* STEP 5: TRANSPORT MODE (AIR, TRAIN, ROAD, AIR EXPRESS) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">4</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Select Transport Mode</h3>
             </div>
 
@@ -942,10 +1051,10 @@ export const ShipmentFormPage = () => {
             </div>
           </div>
 
-          {/* STEP 4: BOX COUNT & WEIGHT */}
+          {/* STEP 6: BOX COUNT & WEIGHT */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">5</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Cargo Quantity & Weight</h3>
             </div>
 
@@ -983,10 +1092,10 @@ export const ShipmentFormPage = () => {
             </div>
           </div>
 
-          {/* STEP 5: MULTIPLE COMMERCIAL INVOICES */}
+          {/* STEP 7: MULTIPLE COMMERCIAL INVOICES */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
-              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">6</span>
+              <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">7</span>
               <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Commercial Invoices</h3>
             </div>
 

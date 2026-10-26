@@ -1097,7 +1097,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
               {/* Invoices */}
               <text x="150" y="555" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceNumber || shipment.commercialInvoices?.[0]?.invoiceNumber || ''}</text>
-              <text x="150" y="583" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceDate || shipment.cnDate || ''}</text>
+              <text x="150" y="583" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceDate || shipment.commercialInvoices?.[0]?.invoiceDate || ''}</text>
               <text x="150" y="611" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
               <text x="150" y="639" className="dynamic-text" fontSize="14">
                 {shipment.invoiceDetails?.invoiceQuantity !== undefined && shipment.invoiceDetails?.invoiceQuantity !== null && shipment.invoiceDetails?.invoiceQuantity !== ''
