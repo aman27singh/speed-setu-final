@@ -75,7 +75,14 @@ export function sanitizeShipment(s) {
       invoiceNumber: toStr(s.invoiceDetails?.invoiceNumber, ''),
       invoiceDate: toStr(s.invoiceDetails?.invoiceDate, toStr(s.commercialInvoices?.[0]?.invoiceDate, '')),
       invoiceValue: parseFloat(toStr(s.invoiceDetails?.invoiceValue, '0')) || 0,
-      invoiceQuantity: parseInt(toStr(s.invoiceDetails?.invoiceQuantity, '0'), 10) || 0
+      invoiceQuantity: (() => {
+        const raw = s.invoiceDetails?.invoiceQuantity !== undefined && s.invoiceDetails?.invoiceQuantity !== null
+          ? s.invoiceDetails.invoiceQuantity
+          : s.commercialInvoices?.[0]?.invoiceQuantity;
+        if (raw === '' || raw === null || raw === undefined || raw === 0 || raw === '0') return '';
+        const num = parseInt(raw, 10);
+        return isNaN(num) || num <= 0 ? '' : num;
+      })()
     }
   };
 }

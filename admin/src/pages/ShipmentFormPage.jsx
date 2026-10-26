@@ -97,7 +97,7 @@ const INITIAL_FORM_STATE = {
     invoiceNumber: '',
     invoiceDate: '',
     invoiceValue: 0,
-    invoiceQuantity: 0
+    invoiceQuantity: ''
   },
 
   ewayBillNumber: '',
@@ -232,7 +232,8 @@ export const ShipmentFormPage = () => {
       const updated = (prev.commercialInvoices || []).filter((_, i) => i !== idx);
       const safeList = updated.length > 0 ? updated : [{ invoiceNumber: '', invoiceDate: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' }];
       const totalVal = safeList.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0);
-      const totalQty = safeList.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0);
+      const hasAnyQty = safeList.some((inv) => inv.invoiceQuantity !== '' && inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null && inv.invoiceQuantity !== 0 && inv.invoiceQuantity !== '0');
+      const totalQty = hasAnyQty ? safeList.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0) : '';
       const combinedInvoices = safeList.map((inv) => inv.invoiceNumber).filter(Boolean).join(', ');
       const combinedEway = safeList.map((inv) => inv.ewayBillNumber).filter(Boolean).join(', ');
       const combinedAwb = safeList.map((inv) => inv.awbNumber).filter(Boolean).join(', ');
@@ -261,7 +262,8 @@ export const ShipmentFormPage = () => {
       list[idx] = { ...list[idx], [field]: value };
 
       const totalVal = list.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0);
-      const totalQty = list.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0);
+      const hasAnyQty = list.some((inv) => inv.invoiceQuantity !== '' && inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null && inv.invoiceQuantity !== 0 && inv.invoiceQuantity !== '0');
+      const totalQty = hasAnyQty ? list.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0) : '';
       const combinedInvoices = list.map((inv) => inv.invoiceNumber).filter(Boolean).join(', ');
       const combinedEway = list.map((inv) => inv.ewayBillNumber).filter(Boolean).join(', ');
       const combinedAwb = list.map((inv) => inv.awbNumber).filter(Boolean).join(', ');
@@ -1156,8 +1158,8 @@ export const ShipmentFormPage = () => {
                       <label className="block font-bold text-slate-600 mb-1">Invoice Quantity (Boxes)</label>
                       <input
                         type="number"
-                        value={inv.invoiceQuantity || ''}
-                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceQuantity', e.target.value)}
+                        value={inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null && inv.invoiceQuantity !== 0 && inv.invoiceQuantity !== '0' ? inv.invoiceQuantity : ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceQuantity', e.target.value === '' ? '' : (parseInt(e.target.value, 10) || ''))}
                         placeholder="e.g. 5"
                         className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
                       />
@@ -1861,8 +1863,8 @@ export const ShipmentFormPage = () => {
                     <input
                       type="number"
                       min="0"
-                      value={inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null ? inv.invoiceQuantity : ''}
-                      onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceQuantity', e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0)}
+                      value={inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null && inv.invoiceQuantity !== 0 && inv.invoiceQuantity !== '0' ? inv.invoiceQuantity : ''}
+                      onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceQuantity', e.target.value === '' ? '' : (parseInt(e.target.value, 10) || ''))}
                       placeholder="e.g. 50"
                       className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-bold text-slate-900"
                     />
@@ -1913,7 +1915,17 @@ export const ShipmentFormPage = () => {
           {/* Summary Box */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-blue-50/60 border border-blue-100 rounded-lg text-xs font-semibold text-slate-700">
             <span>Total Commercial Invoices: <strong>{(formData.commercialInvoices || []).length || 1}</strong></span>
-            <span>Total Invoice Qty: <strong className="text-blue-700 font-mono text-sm">{((formData.commercialInvoices || []).reduce((sum, i) => sum + (parseInt(i.invoiceQuantity, 10) || 0), 0) || formData.invoiceDetails?.invoiceQuantity || 0).toLocaleString('en-IN')} Units</strong></span>
+            <span>Total Invoice Qty: <strong className="text-blue-700 font-mono text-sm">{(() => {
+              const hasQty = (formData.commercialInvoices || []).some(i => i.invoiceQuantity !== '' && i.invoiceQuantity !== undefined && i.invoiceQuantity !== null && i.invoiceQuantity !== 0 && i.invoiceQuantity !== '0');
+              if (hasQty) {
+                const total = (formData.commercialInvoices || []).reduce((sum, i) => sum + (parseInt(i.invoiceQuantity, 10) || 0), 0);
+                return `${total.toLocaleString('en-IN')} Units`;
+              }
+              if (formData.invoiceDetails?.invoiceQuantity && formData.invoiceDetails?.invoiceQuantity !== 0 && formData.invoiceDetails?.invoiceQuantity !== '0') {
+                return `${Number(formData.invoiceDetails.invoiceQuantity).toLocaleString('en-IN')} Units`;
+              }
+              return '-';
+            })()}</strong></span>
             <span>Total Declared Cargo Value: <strong className="text-setu-700 font-mono text-sm">₹{((formData.commercialInvoices || []).reduce((sum, i) => sum + (parseFloat(i.invoiceValue) || 0), 0) || formData.invoiceDetails?.invoiceValue || 0).toLocaleString('en-IN')}</strong></span>
           </div>
 

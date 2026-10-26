@@ -1100,9 +1100,16 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               <text x="150" y="583" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceDate || shipment.commercialInvoices?.[0]?.invoiceDate || ''}</text>
               <text x="150" y="611" className="dynamic-text" fontSize="14">{shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue ? `₹ ${shipment.invoiceDetails?.invoiceValue || shipment.commercialInvoices?.[0]?.invoiceValue}` : ''}</text>
               <text x="150" y="639" className="dynamic-text" fontSize="14">
-                {shipment.invoiceDetails?.invoiceQuantity !== undefined && shipment.invoiceDetails?.invoiceQuantity !== null && shipment.invoiceDetails?.invoiceQuantity !== ''
-                  ? shipment.invoiceDetails.invoiceQuantity
-                  : ((shipment.commercialInvoices || []).map(i => i.invoiceQuantity).filter((q) => q !== undefined && q !== null && q !== '').join(', ') || '')}
+                {(() => {
+                  const qty = shipment.invoiceDetails?.invoiceQuantity;
+                  if (qty !== undefined && qty !== null && qty !== '' && qty !== 0 && qty !== '0') {
+                    return qty;
+                  }
+                  const commQtys = (shipment.commercialInvoices || [])
+                    .map((i) => i.invoiceQuantity)
+                    .filter((q) => q !== undefined && q !== null && q !== '' && q !== 0 && q !== '0');
+                  return commQtys.join(', ');
+                })()}
               </text>
               <text x="150" y="667" className="dynamic-text" fontSize="14">{shipment.ewayBillNumber || ''}</text>
               <text x="150" y="687" className="dynamic-text" fontSize="14">{shipment.awbNumber || ''}</text>

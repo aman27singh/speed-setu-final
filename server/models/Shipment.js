@@ -56,7 +56,7 @@ const ShipmentSchema = new mongoose.Schema({
     invoiceNumber: String,
     invoiceDate: String,
     invoiceValue: { type: Number, default: 0 },
-    invoiceQuantity: { type: Number, default: 0 }
+    invoiceQuantity: { type: mongoose.Schema.Types.Mixed, default: '' }
   },
 
   ewayBillNumber: String,
