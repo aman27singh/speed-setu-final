@@ -73,7 +73,7 @@ export function sanitizeShipment(s) {
     },
     invoiceDetails: {
       invoiceNumber: toStr(s.invoiceDetails?.invoiceNumber, ''),
-      invoiceDate: toStr(s.invoiceDetails?.invoiceDate, ''),
+      invoiceDate: toStr(s.invoiceDetails?.invoiceDate, toStr(s.commercialInvoices?.[0]?.invoiceDate, '')),
       invoiceValue: parseFloat(toStr(s.invoiceDetails?.invoiceValue, '0')) || 0,
       invoiceQuantity: parseInt(toStr(s.invoiceDetails?.invoiceQuantity, '0'), 10) || 0
     }

@@ -456,7 +456,7 @@ export const ShipmentDetailPage = () => {
                       <div>
                         <span className="font-bold text-slate-900 block">Inv #{inv.invoiceNumber || 'N/A'}</span>
                         <span className="text-[10px] text-slate-500 font-sans">
-                          E-Way: {inv.ewayBillNumber || 'N/A'} {inv.invoiceQuantity ? `| Qty: ${inv.invoiceQuantity} Pcs` : ''} {inv.awbNumber || shipment.awbNumber ? `| AWB: ${inv.awbNumber || shipment.awbNumber}` : ''}
+                          {inv.invoiceDate ? `Date: ${inv.invoiceDate} | ` : ''}E-Way: {inv.ewayBillNumber || 'N/A'} {inv.invoiceQuantity ? `| Qty: ${inv.invoiceQuantity} Pcs` : ''} {inv.awbNumber || shipment.awbNumber ? `| AWB: ${inv.awbNumber || shipment.awbNumber}` : ''}
                         </span>
                       </div>
                       <span className="font-bold text-emerald-700">{formatINR(inv.invoiceValue || 0)}</span>

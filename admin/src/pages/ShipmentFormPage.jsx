@@ -86,6 +86,7 @@ const INITIAL_FORM_STATE = {
   commercialInvoices: [
     {
       invoiceNumber: '',
+      invoiceDate: '',
       invoiceQuantity: '',
       invoiceValue: '',
       ewayBillNumber: ''
@@ -221,7 +222,7 @@ export const ShipmentFormPage = () => {
       ...prev,
       commercialInvoices: [
         ...(prev.commercialInvoices || []),
-        { invoiceNumber: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' }
+        { invoiceNumber: '', invoiceDate: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' }
       ]
     }));
   };
@@ -229,12 +230,13 @@ export const ShipmentFormPage = () => {
   const handleRemoveCommercialInvoice = (idx) => {
     setFormData((prev) => {
       const updated = (prev.commercialInvoices || []).filter((_, i) => i !== idx);
-      const safeList = updated.length > 0 ? updated : [{ invoiceNumber: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' }];
+      const safeList = updated.length > 0 ? updated : [{ invoiceNumber: '', invoiceDate: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' }];
       const totalVal = safeList.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0);
       const totalQty = safeList.reduce((sum, inv) => sum + (parseInt(inv.invoiceQuantity, 10) || 0), 0);
       const combinedInvoices = safeList.map((inv) => inv.invoiceNumber).filter(Boolean).join(', ');
       const combinedEway = safeList.map((inv) => inv.ewayBillNumber).filter(Boolean).join(', ');
       const combinedAwb = safeList.map((inv) => inv.awbNumber).filter(Boolean).join(', ');
+      const firstInvoiceDate = safeList.find((inv) => inv.invoiceDate)?.invoiceDate || '';
 
       return {
         ...prev,
@@ -242,6 +244,7 @@ export const ShipmentFormPage = () => {
         invoiceDetails: {
           ...prev.invoiceDetails,
           invoiceNumber: combinedInvoices || prev.invoiceDetails?.invoiceNumber || '',
+          invoiceDate: firstInvoiceDate || prev.invoiceDetails?.invoiceDate || '',
           invoiceValue: totalVal,
           invoiceQuantity: totalQty
         },
@@ -254,7 +257,7 @@ export const ShipmentFormPage = () => {
   const handleCommercialInvoiceChange = (idx, field, value) => {
     setFormData((prev) => {
       const list = [...(prev.commercialInvoices || [])];
-      if (!list[idx]) list[idx] = { invoiceNumber: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' };
+      if (!list[idx]) list[idx] = { invoiceNumber: '', invoiceDate: '', invoiceQuantity: '', invoiceValue: 0, ewayBillNumber: '', awbNumber: '' };
       list[idx] = { ...list[idx], [field]: value };
 
       const totalVal = list.reduce((sum, inv) => sum + (parseFloat(inv.invoiceValue) || 0), 0);
@@ -262,6 +265,7 @@ export const ShipmentFormPage = () => {
       const combinedInvoices = list.map((inv) => inv.invoiceNumber).filter(Boolean).join(', ');
       const combinedEway = list.map((inv) => inv.ewayBillNumber).filter(Boolean).join(', ');
       const combinedAwb = list.map((inv) => inv.awbNumber).filter(Boolean).join(', ');
+      const firstInvoiceDate = list.find((inv) => inv.invoiceDate)?.invoiceDate || '';
 
       return {
         ...prev,
@@ -269,6 +273,7 @@ export const ShipmentFormPage = () => {
         invoiceDetails: {
           ...prev.invoiceDetails,
           invoiceNumber: combinedInvoices || prev.invoiceDetails?.invoiceNumber || '',
+          invoiceDate: firstInvoiceDate || prev.invoiceDetails?.invoiceDate || '',
           invoiceValue: totalVal,
           invoiceQuantity: totalQty
         },
@@ -392,10 +397,19 @@ export const ShipmentFormPage = () => {
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
           const commInvoices = existing.commercialInvoices && existing.commercialInvoices.length > 0
-            ? existing.commercialInvoices
+            ? existing.commercialInvoices.map((inv) => ({
+                invoiceNumber: inv.invoiceNumber || '',
+                invoiceDate: inv.invoiceDate || existing.invoiceDetails?.invoiceDate || '',
+                invoiceQuantity: inv.invoiceQuantity !== undefined && inv.invoiceQuantity !== null ? inv.invoiceQuantity : '',
+                invoiceValue: inv.invoiceValue || 0,
+                ewayBillNumber: inv.ewayBillNumber || '',
+                awbNumber: inv.awbNumber || ''
+              }))
             : [
                 {
                   invoiceNumber: existing.invoiceDetails?.invoiceNumber || '',
+                  invoiceDate: existing.invoiceDetails?.invoiceDate || '',
+                  invoiceQuantity: existing.invoiceDetails?.invoiceQuantity || '',
                   invoiceValue: existing.invoiceDetails?.invoiceValue || 0,
                   ewayBillNumber: existing.ewayBillNumber || '',
                   awbNumber: existing.awbNumber || ''
@@ -1116,7 +1130,7 @@ export const ShipmentFormPage = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Invoice Number</label>
                       <input
@@ -1125,6 +1139,16 @@ export const ShipmentFormPage = () => {
                         onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceNumber', e.target.value)}
                         placeholder="e.g. INV-2024-889"
                         className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Invoice Date</label>
+                      <input
+                        type="date"
+                        value={inv.invoiceDate || ''}
+                        onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceDate', e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900"
                       />
                     </div>
 
@@ -1797,14 +1821,14 @@ export const ShipmentFormPage = () => {
           <div className="space-y-3">
             {(formData.commercialInvoices && formData.commercialInvoices.length > 0
               ? formData.commercialInvoices
-              : [{ invoiceNumber: formData.invoiceDetails?.invoiceNumber || '', invoiceQuantity: formData.invoiceDetails?.invoiceQuantity || '', invoiceValue: formData.invoiceDetails?.invoiceValue || 0, ewayBillNumber: formData.ewayBillNumber || '' }]
+              : [{ invoiceNumber: formData.invoiceDetails?.invoiceNumber || '', invoiceDate: formData.invoiceDetails?.invoiceDate || '', invoiceQuantity: formData.invoiceDetails?.invoiceQuantity || '', invoiceValue: formData.invoiceDetails?.invoiceValue || 0, ewayBillNumber: formData.ewayBillNumber || '' }]
             ).map((inv, idx) => (
               <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                 <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0">
                   #{idx + 1}
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-3 w-full">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 w-full">
                   <div>
                     <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1 text-[11px]">
                       Invoice Number
@@ -1814,6 +1838,18 @@ export const ShipmentFormPage = () => {
                       value={inv.invoiceNumber || ''}
                       onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceNumber', e.target.value)}
                       placeholder="e.g. INV-904128"
+                      className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-semibold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1 text-[11px]">
+                      Invoice Date
+                    </label>
+                    <input
+                      type="date"
+                      value={inv.invoiceDate || ''}
+                      onChange={(e) => handleCommercialInvoiceChange(idx, 'invoiceDate', e.target.value)}
                       className="w-full p-2 bg-white border border-slate-300 rounded font-mono font-semibold text-slate-900"
                     />
                   </div>
