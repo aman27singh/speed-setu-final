@@ -207,105 +207,108 @@ export const dashboardService = {
         .sort((a, b) => b.profit - a.profit)
         .slice(0, 7);
 
-      // Build Company Billing Accounts breakdown for each company we bill to
-      const getNorm = (str) => (str || '').toLowerCase().trim();
-      const companyMap = new Map();
+      // Build Clean Canonical Company Billing Accounts breakdown
+      const normalizeCompanyKey = (name = '') => {
+        return (name || '')
+          .toLowerCase()
+          .replace(/autocamp/g, 'autocomp') // normalize typo
+          .replace(/\b(pvt|pvt\.|private|ltd|ltd\.|limited|llp|corp|corporation)\b/gi, '')
+          .replace(/[^a-z0-9]/gi, '')
+          .trim();
+      };
 
-      // 1. Add all registered companies
-      (companies || []).forEach((comp) => {
-        const name = comp.companyName || comp.name || '';
+      // 1. Build canonical company accounts from registered companies
+      const canonicalCompanies = (companies || []).map((comp) => {
+        const id = comp.id || comp.companyId || comp._id;
         const code = comp.companyCode || comp.code || '';
-        const id = comp.id || comp.companyId || comp._id || code.toLowerCase();
-        const key = getNorm(name) || getNorm(code) || getNorm(id);
-        if (!key) return;
-
-        companyMap.set(key, {
-          id,
-          companyName: name || 'Client Company',
+        const name = comp.companyName || comp.name || 'Client Company';
+        return {
+          id: id || code.toLowerCase(),
+          companyId: id,
+          companyName: name,
           companyCode: code || 'CLIENT',
           gstin: comp.gstin || comp.taxId || '-',
           state: comp.billing?.state || comp.state || '-',
           city: comp.billing?.city || comp.city || '-',
           address: comp.billing?.address || comp.address || '-',
           paymentTerms: comp.billing?.paymentTerms || comp.paymentTerms || 'Net 30',
-          primaryContact: comp.primaryContact || null
+          primaryContact: comp.primaryContact || null,
+          normName: normalizeCompanyKey(name),
+          normCode: (code || '').toLowerCase().trim(),
+          normId: (id || '').toLowerCase().trim()
+        };
+      });
+
+      // 2. Helper to find which canonical company a record belongs to
+      const findCompanyForRecord = (record) => {
+        if (!record) return null;
+        const rId = (record.companyId || '').toLowerCase().trim();
+        const rCode = (record.companyCode || '').toLowerCase().trim();
+        const rawName = record.companyName || record.company || '';
+        const rName = normalizeCompanyKey(rawName);
+
+        return canonicalCompanies.find((c) => {
+          if (rId && (c.normId === rId || c.normCode === rId)) return true;
+          if (rCode && (c.normCode === rCode || c.normId === rCode)) return true;
+          // Map historical alias ADV -> COM-001 (Advik Autocomp)
+          if (c.companyCode === 'COM-001' && (rCode === 'adv' || rCode === 'advik')) return true;
+          if (rName && c.normName) {
+            if (c.normName === rName) return true;
+            if (c.normName.includes(rName) || rName.includes(c.normName)) return true;
+          }
+          return false;
+        }) || null;
+      };
+
+      // 3. Discover only genuine unregistered client companies from shipments/invoices (NEVER consignee)
+      const additionalCompaniesMap = new Map();
+      [...shipments, ...invoices].forEach((item) => {
+        const rawName = item.companyName || item.company;
+        if (!rawName || rawName.trim().length === 0) return;
+        const existing = findCompanyForRecord(item);
+        if (existing) return; // Already belongs to a registered company
+
+        const normK = normalizeCompanyKey(rawName);
+        if (!normK || additionalCompaniesMap.has(normK)) return;
+
+        const genId = item.companyId || `comp-${normK}`;
+        additionalCompaniesMap.set(normK, {
+          id: genId,
+          companyId: genId,
+          companyName: rawName.trim(),
+          companyCode: item.companyCode || 'CLIENT',
+          gstin: item.customerGstin || '-',
+          state: '-',
+          city: '-',
+          address: item.customerAddress || '-',
+          paymentTerms: 'Net 30',
+          primaryContact: null,
+          normName: normK,
+          normCode: (item.companyCode || '').toLowerCase().trim(),
+          normId: (genId || '').toLowerCase().trim()
         });
       });
 
-      // 2. Discover any additional companies from shipments and invoices
-      shipments.forEach((s) => {
-        const name = s.companyName || s.company || s.consignee?.name || '';
-        const code = s.companyCode || '';
-        const id = s.companyId || '';
-        const key = getNorm(name) || getNorm(code) || getNorm(id);
-        if (!key) return;
+      const allCompaniesList = [
+        ...canonicalCompanies,
+        ...Array.from(additionalCompaniesMap.values())
+      ];
 
-        if (!companyMap.has(key)) {
-          companyMap.set(key, {
-            id: id || code.toLowerCase() || `comp-${key}`,
-            companyName: name || 'Client Company',
-            companyCode: code || 'CLIENT',
-            gstin: s.consignee?.gstin || s.consignor?.gstin || '-',
-            state: s.destination || '-',
-            city: s.origin || '-',
-            address: s.consignee?.address || '-',
-            paymentTerms: 'Net 30',
-            primaryContact: null
-          });
-        }
-      });
+      // 4. Match and aggregate data for each company
+      const companyBillingAccounts = allCompaniesList.map((comp) => {
+        const compShipments = shipments.filter((s) => {
+          const matched = findCompanyForRecord(s);
+          if (matched && matched.id === comp.id) return true;
+          const sNameNorm = normalizeCompanyKey(s.companyName || s.company);
+          return sNameNorm && comp.normName && sNameNorm === comp.normName;
+        });
 
-      invoices.forEach((inv) => {
-        const name = inv.companyName || '';
-        const code = inv.companyCode || '';
-        const id = inv.companyId || '';
-        const key = getNorm(name) || getNorm(code) || getNorm(id);
-        if (!key) return;
-
-        if (!companyMap.has(key)) {
-          companyMap.set(key, {
-            id: id || code.toLowerCase() || `comp-${key}`,
-            companyName: name || 'Client Company',
-            companyCode: code || 'CLIENT',
-            gstin: inv.customerGstin || '-',
-            state: '-',
-            city: '-',
-            address: inv.customerAddress || '-',
-            paymentTerms: 'Net 30',
-            primaryContact: null
-          });
-        }
-      });
-
-      // Match and aggregate data for each company
-      const companyBillingAccounts = Array.from(companyMap.values()).map((comp) => {
-        const compNameNorm = getNorm(comp.companyName);
-        const compCodeNorm = getNorm(comp.companyCode);
-        const compIdNorm = getNorm(comp.id);
-
-        const matchesThisCompany = (record) => {
-          if (!record) return false;
-          const rId = getNorm(record.companyId);
-          const rCode = getNorm(record.companyCode);
-          const rName = getNorm(record.companyName || record.company);
-
-          if (compIdNorm && rId && compIdNorm === rId) return true;
-          if (compCodeNorm && rCode && compCodeNorm === rCode) return true;
-          if (compCodeNorm && rId && compCodeNorm === rId) return true;
-          if (compIdNorm && rCode && compIdNorm === rCode) return true;
-
-          if (compNameNorm && rName) {
-            if (compNameNorm === rName) return true;
-            if (compNameNorm.includes(rName) || rName.includes(compNameNorm)) return true;
-            const cleanA = compNameNorm.replace(/[^a-z0-9]/gi, '');
-            const cleanB = rName.replace(/[^a-z0-9]/gi, '');
-            if (cleanA && cleanB && (cleanA.includes(cleanB) || cleanB.includes(cleanA))) return true;
-          }
-          return false;
-        };
-
-        const compShipments = shipments.filter(matchesThisCompany);
-        const compInvoices = validInvoices.filter(matchesThisCompany);
+        const compInvoices = validInvoices.filter((inv) => {
+          const matched = findCompanyForRecord(inv);
+          if (matched && matched.id === comp.id) return true;
+          const invNameNorm = normalizeCompanyKey(inv.companyName);
+          return invNameNorm && comp.normName && invNameNorm === comp.normName;
+        });
 
         // Map shipments with bill made vs not made status
         const processedShipments = compShipments.map((s) => {
@@ -390,12 +393,14 @@ export const dashboardService = {
         };
       });
 
-      // Sort: companies with pending balance or shipments first
-      companyBillingAccounts.sort((a, b) => {
-        if (b.pendingAmount !== a.pendingAmount) return b.pendingAmount - a.pendingAmount;
-        if (b.totalShipments !== a.totalShipments) return b.totalShipments - a.totalShipments;
-        return (b.totalBilledAmount || 0) - (a.totalBilledAmount || 0);
-      });
+      // Filter out empty ghost records and sort
+      const validCompanyBillingAccounts = companyBillingAccounts
+        .filter((c) => c.totalShipments > 0 || c.totalBilledAmount > 0 || (c.companyCode && c.companyCode.startsWith('COM-')))
+        .sort((a, b) => {
+          if (b.pendingAmount !== a.pendingAmount) return b.pendingAmount - a.pendingAmount;
+          if (b.totalShipments !== a.totalShipments) return b.totalShipments - a.totalShipments;
+          return (b.totalBilledAmount || 0) - (a.totalBilledAmount || 0);
+        });
 
       return {
         kpis,
@@ -406,7 +411,7 @@ export const dashboardService = {
         recentShipments,
         paymentFollowUps,
         pendingPayables: pendingPayablesList,
-        companyBillingAccounts
+        companyBillingAccounts: validCompanyBillingAccounts
       };
     } catch (err) {
       console.warn('[MongoDB Client] Dashboard summary error:', err.message);
@@ -455,5 +460,30 @@ export const dashboardService = {
   async getPendingPayables() {
     const summary = await this.getDashboardSummary();
     return summary.pendingPayables;
+  },
+
+  async getCompanyBillingAccount(idOrCode) {
+    const summary = await this.getDashboardSummary();
+    const accounts = summary.companyBillingAccounts || [];
+    if (!idOrCode) return accounts[0] || null;
+
+    const target = idOrCode.toLowerCase().trim();
+    const cleanTarget = target
+      .replace(/autocamp/g, 'autocomp')
+      .replace(/\b(pvt|pvt\.|private|ltd|ltd\.|limited|llp)\b/gi, '')
+      .replace(/[^a-z0-9]/gi, '')
+      .trim();
+
+    return accounts.find((c) => {
+      const cId = (c.id || '').toLowerCase().trim();
+      const cCode = (c.companyCode || '').toLowerCase().trim();
+      const cName = (c.companyName || '').toLowerCase().trim();
+      const cNorm = (c.normName || '').toLowerCase().trim();
+
+      if (cId === target || cCode === target) return true;
+      if (cName === target || cNorm === cleanTarget) return true;
+      if (cleanTarget && cNorm && (cNorm.includes(cleanTarget) || cleanTarget.includes(cNorm))) return true;
+      return false;
+    }) || null;
   }
 };

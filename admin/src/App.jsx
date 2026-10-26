@@ -12,6 +12,7 @@ import { DocumentExtractionPage } from './pages/DocumentExtractionPage';
 import { CompaniesPage } from './pages/CompaniesPage';
 import { CompanyFormPage } from './pages/CompanyFormPage';
 import { CompanyDetailPage } from './pages/CompanyDetailPage';
+import { CompanyBillingDetailPage } from './pages/CompanyBillingDetailPage';
 import { QuotationsPage } from './pages/QuotationsPage';
 import { QuotationFormPage } from './pages/QuotationFormPage';
 import { QuotationDetailPage } from './pages/QuotationDetailPage';
@@ -122,6 +123,8 @@ export const AppRoutes = () => {
         <Route path="companies/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyFormPage /></ProtectedRoute>} />
         <Route path="companies/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyDetailPage /></ProtectedRoute>} />
         <Route path="companies/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyFormPage /></ProtectedRoute>} />
+        <Route path="companies/:id/billing" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyBillingDetailPage /></ProtectedRoute>} />
+        <Route path="company-billing/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><CompanyBillingDetailPage /></ProtectedRoute>} />
 
         <Route path="quotations" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationsPage /></ProtectedRoute>} />
         <Route path="quotations/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><QuotationFormPage /></ProtectedRoute>} />
