@@ -116,7 +116,8 @@ export const PartiesPage = () => {
           (p.gstin || '').toLowerCase().includes(q) ||
           (p.address || '').toLowerCase().includes(q) ||
           (p.contact || '').toLowerCase().includes(q) ||
-          (p.phone || '').toLowerCase().includes(q);
+          (p.phone || '').toLowerCase().includes(q) ||
+          (p.email || '').toLowerCase().includes(q);
         if (!match) return false;
       }
 
@@ -134,17 +135,20 @@ export const PartiesPage = () => {
   // Open Edit Modal
   const handleOpenEdit = (party) => {
     setEditingParty(party);
+    const existingEmail = party.email || (party.contact && party.contact.includes('@') ? party.contact : '');
+    const existingPhone = party.phone || (party.contact && !party.contact.includes('@') ? party.contact : '');
+
     setFormData({
       name: party.name || '',
-      type: party.type || 'Both',
+      type: 'Both',
       address: party.address || '',
       city: party.city || '',
       state: party.state || '',
       pin: party.pin || '',
       gstin: party.gstin || '',
-      contact: party.contact || '',
-      phone: party.phone || '',
-      email: party.email || '',
+      contact: party.contact || existingPhone,
+      phone: existingPhone,
+      email: existingEmail,
       updatePastShipments: false
     });
     setIsCreateModalOpen(true);
@@ -157,15 +161,23 @@ export const PartiesPage = () => {
 
     setIsSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        type: 'Both',
+        email: (formData.email || '').trim(),
+        phone: (formData.phone || '').trim(),
+        contact: (formData.phone || formData.email || formData.contact || '').trim()
+      };
+
       if (editingParty) {
         await partyService.updateParty(
           editingParty.id || editingParty._id,
-          formData,
+          payload,
           formData.updatePastShipments
         );
         showToast(`Party "${formData.name}" updated successfully.`);
       } else {
-        await partyService.createParty(formData);
+        await partyService.createParty(payload);
         showToast(`New party "${formData.name}" added to directory.`);
       }
       setIsCreateModalOpen(false);
@@ -563,10 +575,16 @@ export const PartiesPage = () => {
                             ) : (
                               <span className="text-slate-400 text-[10px] block">-</span>
                             )}
-                            {(party.phone || party.contact) && (
+                            {(party.phone || (party.contact && !party.contact.includes('@'))) && (
                               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                                <Phone className="w-2.5 h-2.5 text-slate-400" />
+                                <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span>{party.phone || party.contact}</span>
+                              </span>
+                            )}
+                            {(party.email || (party.contact && party.contact.includes('@'))) && (
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5" title={party.email || party.contact}>
+                                <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                <span className="truncate max-w-[170px]">{party.email || party.contact}</span>
                               </span>
                             )}
                           </td>
@@ -696,13 +714,25 @@ export const PartiesPage = () => {
 
               {/* Contact Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Phone / Contact</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Phone / Mobile</label>
                 <input
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="e.g. +91 9876543210"
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
+                />
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="e.g. accounts@company.com"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
                 />
               </div>
 

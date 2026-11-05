@@ -33,7 +33,8 @@ router.get('/', async (req, res) => {
         { gstin: { $regex: escaped, $options: 'i' } },
         { address: { $regex: escaped, $options: 'i' } },
         { contact: { $regex: escaped, $options: 'i' } },
-        { phone: { $regex: escaped, $options: 'i' } }
+        { phone: { $regex: escaped, $options: 'i' } },
+        { email: { $regex: escaped, $options: 'i' } }
       ];
     }
 
@@ -235,6 +236,16 @@ router.post('/seed', async (req, res) => {
       // Filter placeholder / invalid entries
       if (key === '-' || key === 'n/a' || key === 'null' || key === 'undefined' || key.length < 2) return;
 
+      const rawContact = (item.contact || item.contactPhone || item.phone || '').trim();
+      let email = (item.email || '').trim();
+      let phone = (item.phone || item.contactPhone || '').trim();
+      if (!email && rawContact.includes('@')) {
+        email = rawContact;
+      }
+      if (!phone && !rawContact.includes('@')) {
+        phone = rawContact;
+      }
+
       if (!partyMap.has(key)) {
         partyMap.set(key, {
           name: rawName,
@@ -244,9 +255,9 @@ router.post('/seed', async (req, res) => {
           state: (item.state || '').trim(),
           pin: (item.pin || item.pinCode || '').trim(),
           gstin: (item.gstin || '').trim(),
-          contact: (item.contact || item.phone || '').trim(),
-          phone: (item.phone || item.contactPhone || '').trim(),
-          email: (item.email || '').trim()
+          contact: rawContact,
+          phone: phone,
+          email: email
         });
       } else {
         // Enrich existing entry if newer record has more details
@@ -256,7 +267,9 @@ router.post('/seed', async (req, res) => {
         if (!existing.state && item.state) existing.state = item.state.trim();
         if (!existing.pin && (item.pin || item.pinCode)) existing.pin = (item.pin || item.pinCode).trim();
         if (!existing.gstin && item.gstin) existing.gstin = item.gstin.trim();
-        if (!existing.contact && item.contact) existing.contact = item.contact.trim();
+        if (!existing.contact && rawContact) existing.contact = rawContact;
+        if (!existing.email && email) existing.email = email;
+        if (!existing.phone && phone) existing.phone = phone;
       }
     };
 

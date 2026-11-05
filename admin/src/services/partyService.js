@@ -69,15 +69,26 @@ export const partyService = {
     // Check Local Storage
     let local = getLocalParties();
 
-    // Ensure all existing cached records have type = 'Both'
+    // Ensure all existing cached records have type = 'Both' and separate email/phone
     if (local && local.length > 0) {
       let modified = false;
       local = local.map(p => {
-        if (p.type !== 'Both') {
-          modified = true;
-          return { ...p, type: 'Both' };
+        let changed = false;
+        let item = { ...p };
+        if (item.type !== 'Both') {
+          item.type = 'Both';
+          changed = true;
         }
-        return p;
+        if (!item.email && item.contact && item.contact.includes('@')) {
+          item.email = item.contact.trim();
+          changed = true;
+        }
+        if (!item.phone && item.contact && !item.contact.includes('@')) {
+          item.phone = item.contact.trim();
+          changed = true;
+        }
+        if (changed) modified = true;
+        return item;
       });
       if (modified) saveLocalParties(local);
     }
@@ -110,7 +121,8 @@ export const partyService = {
           (p.gstin || '').toLowerCase().includes(q) ||
           (p.address || '').toLowerCase().includes(q) ||
           (p.contact || '').toLowerCase().includes(q) ||
-          (p.phone || '').toLowerCase().includes(q);
+          (p.phone || '').toLowerCase().includes(q) ||
+          (p.email || '').toLowerCase().includes(q);
         if (!match) return false;
       }
       return true;
@@ -145,6 +157,14 @@ export const partyService = {
       const cleanPin = c.pin || c.pinCode || '';
       const cleanCity = c.city || '';
       const cleanContact = c.contact || c.contactPhone || c.phone || '';
+      let cleanEmail = (c.email || '').trim();
+      let cleanPhone = (c.phone || c.contactPhone || '').trim();
+      if (!cleanEmail && cleanContact.includes('@')) {
+        cleanEmail = cleanContact.trim();
+      }
+      if (!cleanPhone && !cleanContact.includes('@')) {
+        cleanPhone = cleanContact.trim();
+      }
 
       if (!partyMap.has(key)) {
         partyMap.set(key, {
@@ -157,8 +177,8 @@ export const partyService = {
           pin: cleanPin,
           gstin: cleanGstin,
           contact: cleanContact,
-          phone: c.phone || '',
-          email: c.email || '',
+          phone: cleanPhone,
+          email: cleanEmail,
           shipmentCount: 1
         });
       } else {
@@ -169,6 +189,8 @@ export const partyService = {
         if (!existing.pin && cleanPin) existing.pin = cleanPin;
         if (!existing.gstin && cleanGstin) existing.gstin = cleanGstin;
         if (!existing.contact && cleanContact) existing.contact = cleanContact;
+        if (!existing.email && cleanEmail) existing.email = cleanEmail;
+        if (!existing.phone && cleanPhone) existing.phone = cleanPhone;
         if (existing.type !== defaultType) existing.type = 'Both';
       }
     };
@@ -265,7 +287,19 @@ export const partyService = {
     }
 
     const current = getLocalParties();
-    const updated = current.map(p => (p.id === id || p._id === id ? { ...p, ...partyData } : p));
+    const updated = current.map(p => {
+      if (p.id === id || p._id === id) {
+        return {
+          ...p,
+          ...partyData,
+          type: 'Both',
+          email: (partyData.email !== undefined ? partyData.email : (p.email || '')).trim(),
+          phone: (partyData.phone !== undefined ? partyData.phone : (p.phone || '')).trim(),
+          contact: (partyData.contact || partyData.phone || partyData.email || p.contact || '').trim()
+        };
+      }
+      return p;
+    });
     saveLocalParties(updated);
     return { ...partyData, id };
   },
