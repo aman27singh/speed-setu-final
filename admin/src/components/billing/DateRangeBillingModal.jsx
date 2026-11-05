@@ -15,7 +15,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Package,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
@@ -200,6 +201,9 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
             noPack: s.packages || s.numberOfBoxes || s.noOfBoxes || 1,
             chargeableWeight: wt,
             rate: rate,
+            isRouteNotFound: !!calc.isRouteNotFound,
+            isCompanyNotFound: !!calc.isCompanyNotFound,
+            rateCardMissing: !calc.hasValidRateCard,
             freightAmount: freightAmt,
             docketCharges: docketAmt,
             pickupCharges: pickupAmt,
@@ -289,6 +293,14 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
     if (selectedCNsList.length === 0) {
       alert('Please select at least one Consignment Note to generate an invoice.');
       return;
+    }
+
+    const missingRouteCNs = selectedCNsList.filter((f) => f.isRouteNotFound);
+    if (missingRouteCNs.length > 0) {
+      const cnListStr = missingRouteCNs.map((c) => `${c.cnNumber} (${c.origin} → ${c.destination})`).join('\n');
+      if (!window.confirm(`Warning: Route rate card not found for ${missingRouteCNs.length} selected shipment(s):\n${cnListStr}\n\nFreight rate for these routes is ₹0 (random rates were not applied). Do you still wish to generate the invoice?`)) {
+        return;
+      }
     }
 
     setGenerating(true);
@@ -576,6 +588,37 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                 )}
               </div>
 
+              {fetchedCNs.some((f) => f.isRouteNotFound) && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-950 font-medium flex items-start gap-2 shadow-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-rose-800 block text-xs">This route rate card not found:</span>
+                    <span className="text-[11px] text-rose-900 leading-relaxed block mt-0.5">
+                      No rate card rule exists for route(s):{' '}
+                      <strong>
+                        {fetchedCNs
+                          .filter((f) => f.isRouteNotFound)
+                          .map((f) => `${f.cnNumber} (${f.origin} → ${f.destination})`)
+                          .join(', ')}
+                      </strong>.
+                      Random rate cards were <strong>not</strong> applied (Freight rate set to ₹0).
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {fetchedCNs.some((f) => f.isCompanyNotFound) && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-950 font-medium flex items-start gap-2 shadow-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-rose-800 block text-xs">Billing company rate card not found:</span>
+                    <span className="text-[11px] text-rose-900 leading-relaxed block mt-0.5">
+                      No active rate card / quotation was found for this company. Random rate cards were <strong>not</strong> applied.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {fetchedCNs.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs">
                   No un-billed shipments found for <strong>{availableCompanies.find(c => c.id === selectedCompanyId || c.companyId === selectedCompanyId || c.companyName === selectedCompanyId)?.companyName || selectedCompanyId}</strong> between <strong>{fromDate}</strong> and <strong>{toDate}</strong>.
@@ -625,7 +668,19 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                             <td className="p-2 text-slate-700">{cn.origin} → {cn.destination}</td>
                             <td className="p-2 text-center font-mono">{cn.noPack || 1}</td>
                             <td className="p-2 text-right font-mono font-bold">{cn.chargeableWeight > 0 ? `${cn.chargeableWeight} Kg` : '-'}</td>
-                            <td className="p-2 text-right font-mono">₹{cn.rate || 65}</td>
+                            <td className="p-2 text-right font-mono">
+                              {cn.isRouteNotFound ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 whitespace-nowrap" title={`Route rate card not found for ${cn.origin} → ${cn.destination}`}>
+                                  Route Rate Not Found
+                                </span>
+                              ) : cn.rateCardMissing && (!cn.rate || cn.rate === 0) ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap" title="No Rate Card Found">
+                                  Rate Not Found
+                                </span>
+                              ) : (
+                                <span>₹{cn.rate || 0}</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

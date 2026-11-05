@@ -536,13 +536,19 @@ export const ShipmentDetailPage = () => {
                           </div>
                         </>
                       ) : (
-                        <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1.5 text-amber-900">
-                          <div className="flex items-center gap-1.5 font-bold text-amber-950">
-                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                            <span>No Active Quotation / Rate Card Found</span>
+                        <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-lg text-xs space-y-1.5 text-rose-900">
+                          <div className="flex items-center gap-1.5 font-bold text-rose-950">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>
+                              {billingCalculation?.isRouteNotFound
+                                ? `Route Rate Card Not Found (${shipment.origin || ''} → ${shipment.destination || ''})`
+                                : `No Active Quotation / Rate Card Found for ${shipment.companyName || 'Company'}`}
+                            </span>
                           </div>
-                          <p className="text-[11px] text-amber-800 leading-relaxed">
-                            No rate card exists in MongoDB for <strong>{shipment.companyName || 'this company'}</strong>. Create a Quotation in <em>Commercial → Quotations</em> to configure freight rates and automated charges.
+                          <p className="text-[11px] text-rose-800 leading-relaxed">
+                            {billingCalculation?.isRouteNotFound
+                              ? `No rate card rule exists for route ${shipment.origin || ''} → ${shipment.destination || ''} under ${shipment.companyName || 'this company'}. Random rate cards were not applied.`
+                              : `No rate card exists in MongoDB for ${shipment.companyName || 'this company'}. Create a Quotation in Commercial → Quotations to configure freight rates.`}
                           </p>
                         </div>
                       )}

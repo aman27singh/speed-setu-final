@@ -114,20 +114,19 @@ export const billingService = {
             return {
               ...s,
               chargeableWeight: calc.weight || s.chargeableWeight || Math.max(s.actualWeight || 0, s.volumetricWeight || 0, 1),
-              matchedQuotation: calc.matchedQuotation || (calc.hasValidRateCard ? 'Matched Rate Card' : 'Standard Rate Card'),
+              matchedQuotation: calc.isRouteNotFound
+                ? 'Route Rate Card Not Found'
+                : (!calc.hasValidRateCard ? 'Rate Card Not Found' : (calc.matchedQuotation || 'Matched Rate Card')),
               estimatedTotal: estTotal,
               billingCalculation: calc
             };
           } catch (e) {
             const wt = s.chargeableWeight || Math.max(s.actualWeight || 0, s.volumetricWeight || 0, 1);
-            const modeLower = (s.mode || s.freightMode || '').toLowerCase();
-            const estRate = modeLower.includes('air') ? 45 : 12;
-            const fallbackEst = Math.round((wt * estRate + 100 + 500 + 500) * 1.18);
             return {
               ...s,
               chargeableWeight: wt,
-              matchedQuotation: 'Standard Rate Card',
-              estimatedTotal: fallbackEst
+              matchedQuotation: 'Rate Card Not Found',
+              estimatedTotal: 0
             };
           }
         })
@@ -410,8 +409,9 @@ export const billingService = {
       const matchingRule =
         rulesList.find((r) => isRouteMatch(r) && isExactMode(r)) ||
         rulesList.find((r) => isRouteMatch(r) && isLooseMode(r)) ||
-        rulesList.find((r) => isRouteMatch(r)) ||
-        rulesList[0];
+        rulesList.find((r) => isRouteMatch(r));
+
+      let isRouteNotFound = false;
 
       if (matchingRule) {
         matchedRuleInfo = matchingRule;
@@ -461,6 +461,9 @@ export const billingService = {
         if (matchingRule.taxConfiguration && typeof matchingRule.taxConfiguration.gstRate === 'number') {
           gstRate = matchingRule.taxConfiguration.gstRate;
         }
+      } else {
+        isRouteNotFound = true;
+        warnings.push(`Rate card not found for route '${shipment.origin || 'Origin'} → ${shipment.destination || 'Destination'}' under ${shipment.companyName || 'this company'}. Random rate cards were not applied.`);
       }
 
       if (shipment.isGstExempt || shipment.gstRate === 0) {
@@ -481,13 +484,13 @@ export const billingService = {
       console.warn('[Billing Engine] Rate card lookup error:', err.message);
     }
 
-    const hasRateCard = !!matchedRuleInfo || !!activeQuotation;
+    const hasRateCard = !isRouteNotFound && !!matchedRuleInfo && isRateFoundFromCard;
 
-    // Override with custom pickup/delivery charges ONLY if explicitly entered as positive values on the shipment (> 0) and no rate card exists
-    if (!hasRateCard && typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
+    // Override with custom pickup/delivery charges ONLY if explicitly entered as positive values on the shipment (> 0)
+    if (typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
       pickupCharge = shipment.pickupCharges;
     }
-    if (!hasRateCard && typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
+    if (typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
       deliveryCharge = shipment.deliveryCharges;
     }
 
@@ -495,21 +498,16 @@ export const billingService = {
       docketCharge = 0;
     }
 
-    // Fallback rate detection ONLY if no rate card or explicit rate was found
+    // Explicit rate fallback only if entered directly on the shipment record itself (NO random numbers!)
     if (!isRateFoundFromCard) {
       if (typeof shipment.ratePerKg === 'number' && !isNaN(shipment.ratePerKg) && shipment.ratePerKg > 0) {
         ratePerKg = shipment.ratePerKg;
       } else if (typeof shipment.rate === 'number' && !isNaN(shipment.rate) && shipment.rate > 0) {
         ratePerKg = shipment.rate;
-      } else if (!activeQuotation) {
-        const modeLower = (shipment.mode || shipment.freightMode || '').toLowerCase();
-        ratePerKg = modeLower.includes('air') ? 45 : 12;
+      } else {
+        ratePerKg = 0;
       }
     }
-
-    if (docketCharge === 0 && !shipment.isGstExempt && !hasRateCard) docketCharge = 100;
-    if (pickupCharge === 0 && !hasRateCard) pickupCharge = 500;
-    if (deliveryCharge === 0 && !hasRateCard) deliveryCharge = 500;
 
     const actualRawWeight = shipment.chargeableWeight || shipment.actualWeight || shipment.volumetricWeight || 0;
     const effectiveWeight = (hasRateCard && minChargeableWeight > 0)
@@ -672,10 +670,16 @@ export const billingService = {
       minChargeableWeight,
       weight: effectiveWeight,
       ratePerKg,
-      hasValidRateCard: lineItems.length > 0,
+      hasValidRateCard: !isRouteNotFound && isRateFoundFromCard,
+      isRouteNotFound: !!isRouteNotFound,
+      isCompanyNotFound: !activeQuotation,
+      rateCardMissingReason: isRouteNotFound ? 'route' : (!activeQuotation ? 'company' : null),
+      error: isRouteNotFound
+        ? `Rate card not found for route ${shipment.origin || 'Origin'} → ${shipment.destination || 'Destination'}`
+        : (!activeQuotation ? `No active Quotation or Rate Card found for company '${shipment.companyName}'` : null),
       warnings,
-      matchedQuotation: matchedQuotationNum,
-      quotationVersion,
+      matchedQuotation: isRouteNotFound ? null : matchedQuotationNum,
+      quotationVersion: isRouteNotFound ? 0 : quotationVersion,
       matchedRule: matchedRuleInfo,
       lineItems,
       taxableAmount: subTotal,
