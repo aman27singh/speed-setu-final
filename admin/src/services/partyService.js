@@ -79,12 +79,17 @@ export const partyService = {
           item.type = 'Both';
           changed = true;
         }
-        if (!item.email && item.contact && item.contact.includes('@')) {
+        if (item.email === undefined && item.contact && item.contact.includes('@')) {
           item.email = item.contact.trim();
           changed = true;
         }
-        if (!item.phone && item.contact && !item.contact.includes('@')) {
+        if (item.phone === undefined && item.contact && !item.contact.includes('@')) {
           item.phone = item.contact.trim();
+          changed = true;
+        }
+        // If email was explicitly cleared/empty, ensure contact does not retain the stale email address
+        if (item.email === '' && item.contact && item.contact.includes('@')) {
+          item.contact = item.phone || '';
           changed = true;
         }
         if (changed) modified = true;
@@ -289,13 +294,17 @@ export const partyService = {
     const current = getLocalParties();
     const updated = current.map(p => {
       if (p.id === id || p._id === id) {
+        const cleanEmail = partyData.email !== undefined ? (partyData.email || '').trim() : (p.email || '').trim();
+        const cleanPhone = partyData.phone !== undefined ? (partyData.phone || '').trim() : (p.phone || '').trim();
+        const cleanContact = cleanPhone || cleanEmail || '';
+
         return {
           ...p,
           ...partyData,
           type: 'Both',
-          email: (partyData.email !== undefined ? partyData.email : (p.email || '')).trim(),
-          phone: (partyData.phone !== undefined ? partyData.phone : (p.phone || '')).trim(),
-          contact: (partyData.contact || partyData.phone || partyData.email || p.contact || '').trim()
+          email: cleanEmail,
+          phone: cleanPhone,
+          contact: cleanContact
         };
       }
       return p;

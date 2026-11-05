@@ -115,6 +115,17 @@ router.put('/:id', async (req, res) => {
     }
 
     const oldName = oldParty.name;
+
+    if (updateFields.email !== undefined) {
+      updateFields.email = (updateFields.email || '').trim();
+    }
+    if (updateFields.phone !== undefined) {
+      updateFields.phone = (updateFields.phone || '').trim();
+    }
+    if (updateFields.phone !== undefined || updateFields.email !== undefined) {
+      updateFields.contact = updateFields.phone || updateFields.email || '';
+    }
+
     const updated = await Party.findByIdAndUpdate(id, updateFields, { new: true });
 
     // Optionally update past shipments if party name or address was standardized

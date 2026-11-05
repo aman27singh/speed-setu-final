@@ -135,8 +135,11 @@ export const PartiesPage = () => {
   // Open Edit Modal
   const handleOpenEdit = (party) => {
     setEditingParty(party);
-    const existingEmail = party.email || (party.contact && party.contact.includes('@') ? party.contact : '');
-    const existingPhone = party.phone || (party.contact && !party.contact.includes('@') ? party.contact : '');
+    const hasExplicitEmail = party.email !== undefined && party.email !== null;
+    const existingEmail = hasExplicitEmail ? party.email : (party.contact && party.contact.includes('@') ? party.contact : '');
+
+    const hasExplicitPhone = party.phone !== undefined && party.phone !== null;
+    const existingPhone = hasExplicitPhone ? party.phone : (party.contact && !party.contact.includes('@') ? party.contact : '');
 
     setFormData({
       name: party.name || '',
@@ -146,7 +149,7 @@ export const PartiesPage = () => {
       state: party.state || '',
       pin: party.pin || '',
       gstin: party.gstin || '',
-      contact: party.contact || existingPhone,
+      contact: existingPhone || existingEmail || '',
       phone: existingPhone,
       email: existingEmail,
       updatePastShipments: false
@@ -161,12 +164,16 @@ export const PartiesPage = () => {
 
     setIsSubmitting(true);
     try {
+      const cleanEmail = (formData.email || '').trim();
+      const cleanPhone = (formData.phone || '').trim();
+      const cleanContact = cleanPhone || cleanEmail || '';
+
       const payload = {
         ...formData,
         type: 'Both',
-        email: (formData.email || '').trim(),
-        phone: (formData.phone || '').trim(),
-        contact: (formData.phone || formData.email || formData.contact || '').trim()
+        email: cleanEmail,
+        phone: cleanPhone,
+        contact: cleanContact
       };
 
       if (editingParty) {
@@ -575,13 +582,13 @@ export const PartiesPage = () => {
                             ) : (
                               <span className="text-slate-400 text-[10px] block">-</span>
                             )}
-                            {(party.phone || (party.contact && !party.contact.includes('@'))) && (
+                            {Boolean(party.phone ? party.phone.trim() : (party.phone === undefined && party.contact && !party.contact.includes('@') ? party.contact.trim() : '')) && (
                               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
                                 <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span>{party.phone || party.contact}</span>
                               </span>
                             )}
-                            {(party.email || (party.contact && party.contact.includes('@'))) && (
+                            {Boolean(party.email ? party.email.trim() : (party.email === undefined && party.contact && party.contact.includes('@') ? party.contact.trim() : '')) && (
                               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5" title={party.email || party.contact}>
                                 <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span className="truncate max-w-[170px]">{party.email || party.contact}</span>
@@ -726,12 +733,25 @@ export const PartiesPage = () => {
 
               {/* Email Address */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Email Address <span className="font-normal text-slate-400 text-[11px]">(Optional)</span>
+                  </label>
+                  {Boolean(formData.email) && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, email: '' })}
+                      className="text-[10px] font-semibold text-rose-500 hover:text-rose-600 transition-colors"
+                    >
+                      Clear Email
+                    </button>
+                  )}
+                </div>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="e.g. accounts@company.com"
+                  placeholder="e.g. accounts@company.com (leave empty if none)"
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
                 />
               </div>
