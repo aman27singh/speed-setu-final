@@ -276,7 +276,7 @@ export const partyService = {
   /**
    * Update an existing party
    */
-  async updateParty(id, partyData, updatePastShipments = false) {
+  async updateParty(id, partyData, updatePastShipments = false, originalParty = null) {
     const payload = {
       ...partyData,
       updatePastShipments
@@ -291,13 +291,23 @@ export const partyService = {
       console.warn('Remote party update failed, saving locally:', err.message);
     }
 
-    const current = getLocalParties();
-    const updated = current.map(p => {
-      if (p.id === id || p._id === id) {
-        const cleanEmail = partyData.email !== undefined ? (partyData.email || '').trim() : (p.email || '').trim();
-        const cleanPhone = partyData.phone !== undefined ? (partyData.phone || '').trim() : (p.phone || '').trim();
-        const cleanContact = cleanPhone || cleanEmail || '';
+    const cleanEmail = partyData.email !== undefined ? (partyData.email || '').trim() : '';
+    const cleanPhone = partyData.phone !== undefined ? (partyData.phone || '').trim() : '';
+    const cleanContact = cleanPhone || cleanEmail || '';
 
+    const current = getLocalParties();
+    let matchedAny = false;
+    const updated = current.map(p => {
+      const isMatch =
+        (id && (p.id == id || p._id == id || p.companyId == id)) ||
+        (originalParty?.id && (p.id == originalParty.id || p._id == originalParty.id)) ||
+        (originalParty?._id && (p.id == originalParty._id || p._id == originalParty._id)) ||
+        (originalParty?.name && p.name && p.name.trim().toLowerCase() === originalParty.name.trim().toLowerCase()) ||
+        (partyData?.name && p.name && p.name.trim().toLowerCase() === partyData.name.trim().toLowerCase()) ||
+        (originalParty?.gstin && p.gstin && p.gstin.trim().toLowerCase() === originalParty.gstin.trim().toLowerCase());
+
+      if (isMatch) {
+        matchedAny = true;
         return {
           ...p,
           ...partyData,
@@ -309,8 +319,20 @@ export const partyService = {
       }
       return p;
     });
+
+    if (!matchedAny) {
+      updated.unshift({
+        id: id || `party-${Date.now()}`,
+        ...partyData,
+        type: 'Both',
+        email: cleanEmail,
+        phone: cleanPhone,
+        contact: cleanContact
+      });
+    }
+
     saveLocalParties(updated);
-    return { ...partyData, id };
+    return { ...partyData, id, email: cleanEmail, phone: cleanPhone, contact: cleanContact };
   },
 
   /**

@@ -170,6 +170,7 @@ export const PartiesPage = () => {
 
       const payload = {
         ...formData,
+        name: formData.name.trim(),
         type: 'Both',
         email: cleanEmail,
         phone: cleanPhone,
@@ -177,19 +178,46 @@ export const PartiesPage = () => {
       };
 
       if (editingParty) {
+        const targetId = editingParty.id || editingParty._id;
         await partyService.updateParty(
-          editingParty.id || editingParty._id,
+          targetId,
           payload,
-          formData.updatePastShipments
+          formData.updatePastShipments,
+          editingParty
         );
+
+        // Immediately update React state so the UI reflects the change with zero delay
+        setParties((prev) =>
+          prev.map((p) => {
+            const isMatch =
+              (targetId && (p.id == targetId || p._id == targetId)) ||
+              (editingParty.id && (p.id == editingParty.id || p._id == editingParty.id)) ||
+              (editingParty._id && (p.id == editingParty._id || p._id == editingParty._id)) ||
+              (editingParty.name && p.name && p.name.trim().toLowerCase() === editingParty.name.trim().toLowerCase()) ||
+              (payload.name && p.name && p.name.trim().toLowerCase() === payload.name.trim().toLowerCase());
+
+            if (isMatch) {
+              return {
+                ...p,
+                ...payload,
+                email: cleanEmail,
+                phone: cleanPhone,
+                contact: cleanContact
+              };
+            }
+            return p;
+          })
+        );
+
         showToast(`Party "${formData.name}" updated successfully.`);
       } else {
-        await partyService.createParty(payload);
+        const created = await partyService.createParty(payload);
+        setParties((prev) => [created, ...prev]);
         showToast(`New party "${formData.name}" added to directory.`);
       }
+
       setIsCreateModalOpen(false);
       setEditingParty(null);
-      await fetchParties();
     } catch (err) {
       alert(err.message || 'Failed to save party.');
     } finally {
@@ -582,13 +610,13 @@ export const PartiesPage = () => {
                             ) : (
                               <span className="text-slate-400 text-[10px] block">-</span>
                             )}
-                            {Boolean(party.phone ? party.phone.trim() : (party.phone === undefined && party.contact && !party.contact.includes('@') ? party.contact.trim() : '')) && (
+                            {Boolean(party.phone !== undefined ? (party.phone && party.phone.trim()) : (party.contact && !party.contact.includes('@') ? party.contact.trim() : '')) && (
                               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
                                 <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span>{party.phone || party.contact}</span>
                               </span>
                             )}
-                            {Boolean(party.email ? party.email.trim() : (party.email === undefined && party.contact && party.contact.includes('@') ? party.contact.trim() : '')) && (
+                            {Boolean(party.email !== undefined ? (party.email && party.email.trim()) : (party.contact && party.contact.includes('@') ? party.contact.trim() : '')) && (
                               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5" title={party.email || party.contact}>
                                 <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span className="truncate max-w-[170px]">{party.email || party.contact}</span>
