@@ -5,6 +5,28 @@ import { expenseService } from './expenseService';
 let shipmentsStore = [];
 let baseCNCounter = 2000; // Next auto-generated CN will be in the 2000 series (SS2000, SS2001, ...)
 
+let invoicesCache = null;
+let invoicesCacheTime = 0;
+const INVOICES_CACHE_TTL = 30000; // 30s cache
+
+async function getCachedInvoices() {
+  const now = Date.now();
+  if (invoicesCache && now - invoicesCacheTime < INVOICES_CACHE_TTL) {
+    return invoicesCache;
+  }
+  try {
+    const res = await apiRequest('/invoices').catch(() => []);
+    if (Array.isArray(res)) {
+      invoicesCache = res;
+      invoicesCacheTime = now;
+      return res;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return invoicesCache || [];
+}
+
 /**
  * Ensures all shipment fields are primitive strings/numbers and unwraps any nested { value } objects.
  */
@@ -126,7 +148,7 @@ export const shipmentService = {
 
       const [remoteShipments, remoteInvoices] = await Promise.all([
         apiRequest(`/shipments?${queryParams.toString()}`).catch(() => null),
-        apiRequest('/invoices').catch(() => [])
+        getCachedInvoices()
       ]);
 
       if (Array.isArray(remoteShipments)) {

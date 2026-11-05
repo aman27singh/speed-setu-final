@@ -14,20 +14,21 @@ router.get('/', async (req, res) => {
     }
     if (search && search.trim()) {
       const q = search.trim();
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { cnNumber: { $regex: q, $options: 'i' } },
-        { companyName: { $regex: q, $options: 'i' } },
-        { companyCode: { $regex: q, $options: 'i' } },
-        { origin: { $regex: q, $options: 'i' } },
-        { destination: { $regex: q, $options: 'i' } },
-        { ewayBillNumber: { $regex: q, $options: 'i' } },
-        { awbNumber: { $regex: q, $options: 'i' } },
-        { 'consignor.name': { $regex: q, $options: 'i' } },
-        { 'consignee.name': { $regex: q, $options: 'i' } },
-        { 'invoiceDetails.invoiceNumber': { $regex: q, $options: 'i' } },
-        { 'commercialInvoices.invoiceNumber': { $regex: q, $options: 'i' } },
-        { 'commercialInvoices.ewayBillNumber': { $regex: q, $options: 'i' } },
-        { 'commercialInvoices.awbNumber': { $regex: q, $options: 'i' } }
+        { cnNumber: { $regex: escaped, $options: 'i' } },
+        { companyName: { $regex: escaped, $options: 'i' } },
+        { companyCode: { $regex: escaped, $options: 'i' } },
+        { origin: { $regex: escaped, $options: 'i' } },
+        { destination: { $regex: escaped, $options: 'i' } },
+        { ewayBillNumber: { $regex: escaped, $options: 'i' } },
+        { awbNumber: { $regex: escaped, $options: 'i' } },
+        { 'consignor.name': { $regex: escaped, $options: 'i' } },
+        { 'consignee.name': { $regex: escaped, $options: 'i' } },
+        { 'invoiceDetails.invoiceNumber': { $regex: escaped, $options: 'i' } },
+        { 'commercialInvoices.invoiceNumber': { $regex: escaped, $options: 'i' } },
+        { 'commercialInvoices.ewayBillNumber': { $regex: escaped, $options: 'i' } },
+        { 'commercialInvoices.awbNumber': { $regex: escaped, $options: 'i' } }
       ];
     }
     const list = await Shipment.find(query).sort({ createdAt: -1 });

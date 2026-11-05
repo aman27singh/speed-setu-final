@@ -40,7 +40,7 @@ export const ShipmentsPage = () => {
     user?.username?.toLowerCase() === 'driver' ||
     user?.email?.toLowerCase().includes('driver');
 
-  const [shipments, setShipments] = useState([]);
+  const [baseShipments, setBaseShipments] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -63,15 +63,168 @@ export const ShipmentsPage = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [deletingBulk, setDeletingBulk] = useState(false);
 
-  // Keep local search synced with global header search query
-  useEffect(() => {
-    setSearch(searchQuery);
-  }, [searchQuery]);
-
+  // Instant local search change
   const handleSearchChange = (val) => {
     setSearch(val);
-    setSearchQuery(val);
   };
+
+  // Debounce syncing local search to global header searchQuery
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, setSearchQuery]);
+
+  // Sync from header to local search if header query changes
+  useEffect(() => {
+    if (searchQuery !== search) {
+      setSearch(searchQuery || '');
+    }
+  }, [searchQuery]);
+
+  // Load companies once on component mount
+  useEffect(() => {
+    companyService.getCompanies().then(setCompanies).catch(() => {});
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const shipmentsData = await shipmentService.getShipments({
+        companyId: companyFilter,
+        status: statusFilter,
+        mode: modeFilter,
+        podStatus: podStatusFilter,
+        billingStatus: billingStatusFilter,
+        paymentStatus: paymentStatusFilter
+      });
+
+      let finalShipments = shipmentsData || [];
+
+      if (isDriverAccount && user) {
+        const driverIdentifiers = [
+          user.id,
+          user._id,
+          user.username,
+          user.email,
+          user.driverId,
+          user.name
+        ]
+          .filter(Boolean)
+          .map((val) => String(val).toLowerCase().trim());
+
+        finalShipments = (shipmentsData || []).filter((s) => {
+          const createdByVal = String(s.createdBy || '').toLowerCase().trim();
+          const driverIdVal = String(s.driverId || '').toLowerCase().trim();
+          const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
+          const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
+
+          const isCreatorMatch = driverIdentifiers.some((id) =>
+            (createdByVal && createdByVal === id) ||
+            (driverIdVal && driverIdVal === id) ||
+            (createdByNameVal && createdByNameVal === id) ||
+            (operationalDriverVal && operationalDriverVal === id)
+          );
+
+          return isCreatorMatch;
+        });
+      }
+
+      setBaseShipments(finalShipments);
+    } catch (err) {
+      setError(err.message || 'Failed to load shipments records.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch shipments when dropdown filters change
+  useEffect(() => {
+    fetchData();
+  }, [companyFilter, statusFilter, modeFilter, podStatusFilter, billingStatusFilter, paymentStatusFilter]);
+
+  // Instant in-memory search filtering (0ms latency, runs at 60fps)
+  const shipments = React.useMemo(() => {
+    const q = (search || searchQuery || '').toLowerCase().trim();
+    if (!q) return baseShipments;
+
+    return baseShipments.filter((s) => {
+      const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
+      const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
+      const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
+      const consignorMatch = s.consignor?.name && s.consignor.name.toLowerCase().includes(q);
+      const consigneeMatch = s.consignee?.name && s.consignee.name.toLowerCase().includes(q);
+      const originMatch = s.origin && s.origin.toLowerCase().includes(q);
+      const destMatch = s.destination && s.destination.toLowerCase().includes(q);
+      const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
+      const ewayMatch = s.ewayBillNumber && s.ewayBillNumber.toLowerCase().includes(q);
+      const awbMatch = s.awbNumber && s.awbNumber.toLowerCase().includes(q);
+      const commMatch = (s.commercialInvoices || []).some(
+        (inv) =>
+          (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(q)) ||
+          (inv.ewayBillNumber && inv.ewayBillNumber.toLowerCase().includes(q)) ||
+          (inv.awbNumber && inv.awbNumber.toLowerCase().includes(q))
+      );
+
+      return (
+        cnMatch ||
+        compNameMatch ||
+        compCodeMatch ||
+        consignorMatch ||
+        consigneeMatch ||
+        originMatch ||
+        destMatch ||
+        invoiceMatch ||
+        ewayMatch ||
+        awbMatch ||
+        commMatch
+      );
+    });
+  }, [baseShipments, search, searchQuery]);
+
+  // Optional background fetch if query is not found locally, without blocking the UI
+  useEffect(() => {
+    const q = (search || searchQuery || '').trim();
+    if (!q || q.length < 2) return;
+
+    const localMatch = baseShipments.some(s => {
+      const qLower = q.toLowerCase();
+      return (s.cnNumber && s.cnNumber.toLowerCase().includes(qLower)) ||
+             (s.companyName && s.companyName.toLowerCase().includes(qLower));
+    });
+    if (localMatch) return;
+
+    let isCurrent = true;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await shipmentService.getShipments({
+          search: q,
+          companyId: companyFilter,
+          status: statusFilter,
+          mode: modeFilter,
+          podStatus: podStatusFilter,
+          billingStatus: billingStatusFilter,
+          paymentStatus: paymentStatusFilter
+        });
+        if (isCurrent && Array.isArray(results) && results.length > 0) {
+          setBaseShipments(prev => {
+            const existing = new Set(prev.map(p => p.id || p.cnNumber || p._id));
+            const fresh = results.filter(r => !existing.has(r.id || r.cnNumber || r._id));
+            return fresh.length > 0 ? [...fresh, ...prev] : prev;
+          });
+        }
+      } catch (e) {
+        // background check fallback
+      }
+    }, 400);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [search, searchQuery, baseShipments, companyFilter, statusFilter, modeFilter, podStatusFilter, billingStatusFilter, paymentStatusFilter]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -113,69 +266,6 @@ export const ShipmentsPage = () => {
       }
     }
   };
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const activeSearch = search || searchQuery || '';
-      const [shipmentsData, compData] = await Promise.all([
-        shipmentService.getShipments({
-          search: activeSearch,
-          companyId: companyFilter,
-          status: statusFilter,
-          mode: modeFilter,
-          podStatus: podStatusFilter,
-          billingStatus: billingStatusFilter,
-          paymentStatus: paymentStatusFilter
-        }),
-        companyService.getCompanies()
-      ]);
-
-      let finalShipments = shipmentsData;
-
-      if (isDriverAccount && user) {
-        const driverIdentifiers = [
-          user.id,
-          user._id,
-          user.username,
-          user.email,
-          user.driverId,
-          user.name
-        ]
-          .filter(Boolean)
-          .map((val) => String(val).toLowerCase().trim());
-
-        finalShipments = shipmentsData.filter((s) => {
-          const createdByVal = String(s.createdBy || '').toLowerCase().trim();
-          const driverIdVal = String(s.driverId || '').toLowerCase().trim();
-          const createdByNameVal = String(s.createdByName || '').toLowerCase().trim();
-          const operationalDriverVal = String(s.operational?.driver || '').toLowerCase().trim();
-
-          // Strictly match if shipment was explicitly created by or assigned to THIS SPECIFIC DRIVER
-          const isCreatorMatch = driverIdentifiers.some((id) =>
-            (createdByVal && createdByVal === id) ||
-            (driverIdVal && driverIdVal === id) ||
-            (createdByNameVal && createdByNameVal === id) ||
-            (operationalDriverVal && operationalDriverVal === id)
-          );
-
-          return isCreatorMatch;
-        });
-      }
-
-      setShipments(finalShipments);
-      setCompanies(compData);
-    } catch (err) {
-      setError(err.message || 'Failed to load shipments records.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [search, searchQuery, companyFilter, statusFilter, modeFilter, podStatusFilter, billingStatusFilter, paymentStatusFilter]);
 
   const statusFilterOptions = [
     { label: 'All Statuses', value: 'All' },

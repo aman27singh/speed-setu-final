@@ -117,7 +117,7 @@ export const Header = ({ onToggleSidebar }) => {
   // Dynamically fetch live search results from shipments store / MongoDB API
   useEffect(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) {
+    if (!q || !isSearchFocused) {
       setMatchedShipments([]);
       return;
     }
@@ -136,13 +136,13 @@ export const Header = ({ onToggleSidebar }) => {
       } finally {
         if (isMounted) setIsSearching(false);
       }
-    }, 100);
+    }, 350);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [searchQuery]);
+  }, [searchQuery, isSearchFocused]);
 
   const q = searchQuery.toLowerCase().trim();
 
