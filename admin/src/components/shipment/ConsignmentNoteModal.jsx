@@ -6,10 +6,36 @@ import logoImg from '../../assets/logo2.png';
 
 // Global module-level preloading: logo is converted to high-res inline Base64 immediately on load
 let preloadedLogoBase64 = null;
+let preloadedLogoImage = null;
 let preloadPromise = null;
 
+const ensureDecodedImage = (src) => {
+  return new Promise((resolve) => {
+    if (!src || typeof window === 'undefined') return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = async () => {
+      if ('decode' in img) {
+        try { await img.decode(); } catch (_) {}
+      }
+      resolve(img);
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+    if (img.complete && img.naturalWidth > 0) {
+      if ('decode' in img) {
+        img.decode().then(() => resolve(img)).catch(() => resolve(img));
+      } else {
+        resolve(img);
+      }
+    }
+  });
+};
+
 const ensureLogoBase64 = () => {
-  if (preloadedLogoBase64) return Promise.resolve(preloadedLogoBase64);
+  if (preloadedLogoBase64 && preloadedLogoImage) {
+    return Promise.resolve(preloadedLogoBase64);
+  }
   if (preloadPromise) return preloadPromise;
 
   preloadPromise = new Promise((resolve) => {
@@ -18,17 +44,35 @@ const ensureLogoBase64 = () => {
     }
     const img = new Image();
     img.crossOrigin = 'Anonymous';
-    img.onload = () => {
+    img.onload = async () => {
       try {
+        if ('decode' in img) {
+          try { await img.decode(); } catch (_) {}
+        }
+        preloadedLogoImage = img;
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        const maxW = 1200;
+        const scale = img.width > maxW ? maxW / img.width : 1;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0);
-        const dataUri = canvas.toDataURL('image/png', 1.0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const dataUri = canvas.toDataURL('image/png', 0.95);
         preloadedLogoBase64 = dataUri;
+
+        // Also decode the dataUri in memory so it's ready for immediate painting
+        const dataUriImg = new Image();
+        dataUriImg.src = dataUri;
+        if ('decode' in dataUriImg) {
+          try { await dataUriImg.decode(); } catch (_) {}
+        }
+        preloadedLogoImage = dataUriImg;
+
         resolve(dataUri);
       } catch (e) {
         resolve(logoImg);
@@ -36,6 +80,9 @@ const ensureLogoBase64 = () => {
     };
     img.onerror = () => resolve(logoImg);
     img.src = logoImg;
+    if (img.complete && img.naturalWidth > 0) {
+      img.onload();
+    }
   });
 
   return preloadPromise;
@@ -156,6 +203,65 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         }
       }
     });
+
+    // 4. DIRECT CANVAS OVERLAY (CRITICAL FOR IPHONE FIRST-TAP GUARANTEE):
+    // On iOS Safari / WebKit, html2canvas renders SVG elements via an internal Image snapshot.
+    // WebKit frequently drops SVG <image> sub-elements on the first rasterization pass before its internal cache warms up.
+    // Explicitly stamping the pre-decoded logo image directly onto the canvas context guarantees the logo is ALWAYS present on the first tap!
+    try {
+      const activeLogoImg = preloadedLogoImage || (await ensureDecodedImage(readyLogoUri || logoImg));
+      if (activeLogoImg && activeLogoImg.naturalWidth > 0) {
+        const svgEl = printContent.querySelector('svg');
+        const printRect = printContent.getBoundingClientRect();
+        const svgRect = svgEl ? svgEl.getBoundingClientRect() : printRect;
+
+        const scaleCanvasX = canvas.width / (printRect.width || 1);
+        const scaleCanvasY = canvas.height / (printRect.height || 1);
+
+        const canvasSvgX = (svgRect.left - printRect.left) * scaleCanvasX;
+        const canvasSvgY = (svgRect.top - printRect.top) * scaleCanvasY;
+        const canvasSvgW = svgRect.width * scaleCanvasX;
+        const canvasSvgH = svgRect.height * scaleCanvasY;
+
+        const svgToCanvasX = canvasSvgW / 1400;
+        const svgToCanvasY = canvasSvgH / 980;
+
+        // In SVG viewBox 1400x980, the logo is placed at transform="translate(25, 18)" with width 415 and height 114
+        const destBoxX = canvasSvgX + (25 * svgToCanvasX);
+        const destBoxY = canvasSvgY + (18 * svgToCanvasY);
+        const destBoxW = 415 * svgToCanvasX;
+        const destBoxH = 114 * svgToCanvasY;
+
+        // Match SVG's preserveAspectRatio="xMinYMid meet"
+        const imgRatio = activeLogoImg.naturalWidth / (activeLogoImg.naturalHeight || 1);
+        const boxRatio = destBoxW / destBoxH;
+        let drawW = destBoxW;
+        let drawH = destBoxH;
+        let drawX = destBoxX;
+        let drawY = destBoxY;
+
+        if (imgRatio > boxRatio) {
+          drawH = destBoxW / imgRatio;
+          drawY = destBoxY + (destBoxH - drawH) / 2;
+        } else {
+          drawW = destBoxH * imgRatio;
+          drawX = destBoxX;
+          drawY = destBoxY + (destBoxH - drawH) / 2;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.save();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(destBoxX, destBoxY, destBoxW, destBoxH);
+          ctx.drawImage(activeLogoImg, drawX, drawY, drawW, drawH);
+          ctx.restore();
+        }
+      }
+    } catch (overlayErr) {
+      console.warn('Direct canvas logo overlay fallback skipped:', overlayErr);
+    }
+
     const imgData = canvas.toDataURL('image/png', 1.0);
 
     let pdf;
