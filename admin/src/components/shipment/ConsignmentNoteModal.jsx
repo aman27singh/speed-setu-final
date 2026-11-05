@@ -4,15 +4,18 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import logoImg from '../../assets/logo2.png';
 
-export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
-  const printRef = useRef(null);
-  const [copiedToast, setCopiedToast] = useState(null);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [logoBase64, setLogoBase64] = useState(logoImg);
+// Global module-level preloading: logo is converted to high-res inline Base64 immediately on load
+let preloadedLogoBase64 = null;
+let preloadPromise = null;
 
-  // Convert logo to high-resolution inline Base64 data URI on mount with high-quality smoothing
-  useEffect(() => {
-    if (!logoImg) return;
+const ensureLogoBase64 = () => {
+  if (preloadedLogoBase64) return Promise.resolve(preloadedLogoBase64);
+  if (preloadPromise) return preloadPromise;
+
+  preloadPromise = new Promise((resolve) => {
+    if (!logoImg || typeof window === 'undefined') {
+      return resolve(logoImg);
+    }
     const img = new Image();
     img.crossOrigin = 'Anonymous';
     img.onload = () => {
@@ -24,13 +27,38 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/png', 1.0));
+        const dataUri = canvas.toDataURL('image/png', 1.0);
+        preloadedLogoBase64 = dataUri;
+        resolve(dataUri);
       } catch (e) {
-        setLogoBase64(logoImg);
+        resolve(logoImg);
       }
     };
-    img.onerror = () => setLogoBase64(logoImg);
+    img.onerror = () => resolve(logoImg);
     img.src = logoImg;
+  });
+
+  return preloadPromise;
+};
+
+// Start preload as soon as module loads in the browser
+if (typeof window !== 'undefined') {
+  ensureLogoBase64();
+}
+
+export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
+  const printRef = useRef(null);
+  const [copiedToast, setCopiedToast] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [logoBase64, setLogoBase64] = useState(() => preloadedLogoBase64 || logoImg);
+
+  // Ensure high-resolution inline Base64 data URI is ready
+  useEffect(() => {
+    ensureLogoBase64().then((uri) => {
+      if (uri && uri.startsWith('data:image')) {
+        setLogoBase64(uri);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -71,14 +99,37 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
 
-    // Capture SVG layout at 4x high resolution scaling (300+ DPI) with base64 embedded assets
+    // 1. Force guarantee logo is converted to high-res Base64 before running html2canvas
+    const readyLogoUri = await ensureLogoBase64();
+    if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
+      setLogoBase64(readyLogoUri);
+      const svgImages = printContent.querySelectorAll('image');
+      svgImages.forEach((imgEl) => {
+        imgEl.setAttribute('href', readyLogoUri);
+        imgEl.setAttribute('xlink:href', readyLogoUri);
+      });
+    }
+
+    // 2. Allow iOS WebKit a frame to render the inline data URI in the SVG
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 60)));
+
+    // 3. Capture SVG layout at 4x high resolution scaling (300+ DPI) with base64 embedded assets
     const canvas = await html2canvas(printContent, {
       scale: 4,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
-      imageTimeout: 0,
+      imageTimeout: 10000,
+      onclone: (clonedDoc) => {
+        if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
+          const clonedSvgImages = clonedDoc.querySelectorAll('image');
+          clonedSvgImages.forEach((imgEl) => {
+            imgEl.setAttribute('href', readyLogoUri);
+            imgEl.setAttribute('xlink:href', readyLogoUri);
+          });
+        }
+      }
     });
     const imgData = canvas.toDataURL('image/png', 1.0);
 
@@ -341,11 +392,20 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   };
 
   // Universal direct print handler (iOS Safari AirPrint + Desktop Compatible)
-  const triggerDirectPrint = (isSplit = false) => {
+  const triggerDirectPrint = async (isSplit = false) => {
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
       return;
+    }
+
+    const readyLogoUri = await ensureLogoBase64();
+    if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
+      const svgImages = printContent.querySelectorAll('image');
+      svgImages.forEach((imgEl) => {
+        imgEl.setAttribute('href', readyLogoUri);
+        imgEl.setAttribute('xlink:href', readyLogoUri);
+      });
     }
 
     const svgElement = printContent.querySelector('svg');
@@ -692,7 +752,8 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               {/* Header Left: Official Speed Setu Brand Image Logo */}
               <g transform="translate(25, 18)">
                 <image
-                  href={logoBase64 || logoImg}
+                  href={logoBase64 || preloadedLogoBase64 || logoImg}
+                  xlinkHref={logoBase64 || preloadedLogoBase64 || logoImg}
                   x="0"
                   y="0"
                   width="415"
