@@ -84,12 +84,37 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
   if (!isOpen || !shipment) return null;
 
-  const getShareText = (isSplit = false) => {
+  const getShareText = () => {
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
-    const consignorName = shipment.consignor?.name || 'Shipper';
-    const consigneeName = shipment.consignee?.name || 'Receiver';
-    const layoutType = isSplit ? 'Split 2-in-1 Duplicate CN (2 Copies/A4)' : 'Single Page CN';
-    return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}`;
+    const consignor = shipment.consignor?.name || 'Shipper';
+    const consignee = shipment.consignee?.name || 'Receiver';
+
+    // Format packages: e.g. "2 Boxes"
+    let pkgs = shipment.packages;
+    if (pkgs === undefined || pkgs === null || pkgs === '') {
+      pkgs = '0 Boxes';
+    } else {
+      const pkgsStr = String(pkgs).trim();
+      pkgs = /box|pkg|ctn|carton|piece|nos/i.test(pkgsStr) ? pkgsStr : `${pkgsStr} Boxes`;
+    }
+
+    // Format actual weight: e.g. "0 Kg"
+    let wt = shipment.actualWeight;
+    if (wt === undefined || wt === null || wt === '') {
+      wt = '0 Kg';
+    } else {
+      const wtStr = String(wt).trim();
+      wt = /kg/i.test(wtStr) ? wtStr : `${wtStr} Kg`;
+    }
+
+    // Format invoices: e.g. "DC/26-27/2025738"
+    const invs =
+      shipment.invoiceDetails?.invoiceNumber ||
+      (shipment.commercialInvoices || []).map((i) => i.invoiceNumber).filter(Boolean).join(', ') ||
+      shipment.invoiceNo ||
+      'N/A';
+
+    return `SPEED SETU CONSIGNMENT NOTE (CN)\n\nCN Number: ${cnNo}\nConsignor: ${consignor}\nConsignee: ${consignee}\nPackages: ${pkgs}\nActual Weight: ${wt}\nInvoices: ${invs}\n\nSpeed Setu Logistics Portal`;
   };
 
   // Helper function to build 300+ DPI razor-sharp PDF File object using html2canvas & jsPDF
@@ -175,26 +200,59 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     return { pdfBlob, pdfFile, fileName };
   };
 
-  // 1. Native Mobile PDF Share (Shares high-res .pdf file via Web Share API with logo intact)
+  // 1. Native Mobile PDF Share (Shares high-res .pdf file via Web Share API with logo intact and detailed message)
   const handleSharePdf = async (isSplit = false) => {
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
+    const shareText = getShareText();
     setIsGeneratingPdf(true);
 
     try {
       const { pdfFile, pdfBlob, fileName } = await generateCnPdfFile(isSplit);
 
-      // Try native Web Share API with file attachment (iOS Safari / Android / Mobile Chrome)
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        await navigator.share({
+      // Try native Web Share API with file attachment and formatted details
+      if (navigator.share) {
+        const shareDataWithFile = {
           title: `Consignment Note ${cnNo}`,
-          text: `Speed Setu Consignment Note - ${cnNo}`,
+          text: shareText,
           files: [pdfFile],
-        });
-        setIsGeneratingPdf(false);
-        return;
+        };
+
+        if (navigator.canShare && navigator.canShare(shareDataWithFile)) {
+          try {
+            await navigator.share(shareDataWithFile);
+            setIsGeneratingPdf(false);
+            return;
+          } catch (shareErr) {
+            if (shareErr.name === 'AbortError') {
+              setIsGeneratingPdf(false);
+              return;
+            }
+            console.warn('Share with text and files failed, falling back:', shareErr);
+          }
+        }
+
+        // If sharing with both text & files was rejected by the OS, try files alone
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          try {
+            await navigator.share({
+              title: `Consignment Note ${cnNo}`,
+              files: [pdfFile],
+            });
+            try {
+              await navigator.clipboard.writeText(shareText);
+            } catch (_) {}
+            setIsGeneratingPdf(false);
+            return;
+          } catch (fileErr) {
+            if (fileErr.name === 'AbortError') {
+              setIsGeneratingPdf(false);
+              return;
+            }
+          }
+        }
       }
 
-      // Fallback for browsers that don't support file sharing: Download PDF file directly
+      // Fallback for browsers that don't support file sharing: Download PDF file directly & copy text
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -204,13 +262,20 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      try {
+        await navigator.clipboard.writeText(shareText);
+      } catch (_) {}
+
       setCopiedToast(isSplit ? 'split-download' : 'single-download');
       setTimeout(() => setCopiedToast(null), 3000);
     } catch (err) {
+      if (err.name === 'AbortError') {
+        setIsGeneratingPdf(false);
+        return;
+      }
       console.error('Share PDF error:', err);
       // Secondary fallback: Copy text summary
       try {
-        const shareText = getShareText(isSplit);
         await navigator.clipboard.writeText(shareText);
         setCopiedToast(isSplit ? 'split-text' : 'single-text');
         setTimeout(() => setCopiedToast(null), 2500);
@@ -644,13 +709,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
                 </button>
                 <button
                   onClick={() => {
-                    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
-                    const consignor = shipment.consignor?.name || 'Shipper';
-                    const consignee = shipment.consignee?.name || 'Receiver';
-                    const pkgs = shipment.packages || '0';
-                    const wt = shipment.actualWeight || '0';
-                    const invs = shipment.invoiceDetails?.invoiceNumber || (shipment.commercialInvoices || []).map(i => i.invoiceNumber).join(', ') || 'N/A';
-                    const text = `🚚 *SPEED SETU CONSIGNMENT NOTE (CN)*\n\n*CN Number:* ${cnNo}\n*Consignor:* ${consignor}\n*Consignee:* ${consignee}\n*Packages:* ${pkgs} Boxes\n*Actual Weight:* ${wt} Kg\n*Invoices:* ${invs}\n\nSpeed Setu Logistics Portal`;
+                    const text = getShareText();
                     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
                   }}
                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
