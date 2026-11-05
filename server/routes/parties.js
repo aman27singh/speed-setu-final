@@ -11,15 +11,8 @@ router.get('/', async (req, res) => {
     const { search, type, city, status } = req.query;
     let query = {};
 
-    if (type && type !== 'All') {
-      if (type === 'Consignor') {
-        query.type = { $in: ['Consignor', 'Both'] };
-      } else if (type === 'Consignee') {
-        query.type = { $in: ['Consignee', 'Both'] };
-      } else {
-        query.type = type;
-      }
-    }
+    // Ensure all parties have type 'Both' (Shipper and Receiver both)
+    await Party.updateMany({ type: { $ne: 'Both' } }, { $set: { type: 'Both' } }).catch(() => null);
 
     if (city && city !== 'All') {
       query.city = new RegExp(`^${city.trim()}$`, 'i');
@@ -90,7 +83,7 @@ router.post('/', async (req, res) => {
 
     const newParty = new Party({
       name: trimmedName,
-      type: type || 'Both',
+      type: 'Both',
       address: (address || '').trim(),
       city: (city || '').trim(),
       state: (state || '').trim(),
@@ -234,7 +227,7 @@ router.post('/seed', async (req, res) => {
 
     const partyMap = new Map();
 
-    const addParty = (item, defaultType = 'Both') => {
+    const addParty = (item) => {
       if (!item || !item.name || !item.name.trim()) return;
       const rawName = item.name.trim();
       const key = rawName.toLowerCase();
@@ -245,7 +238,7 @@ router.post('/seed', async (req, res) => {
       if (!partyMap.has(key)) {
         partyMap.set(key, {
           name: rawName,
-          type: defaultType,
+          type: 'Both',
           address: (item.address || '').trim(),
           city: (item.city || '').trim(),
           state: (item.state || '').trim(),

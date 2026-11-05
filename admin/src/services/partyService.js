@@ -53,7 +53,8 @@ export const partyService = {
       if (Array.isArray(data) && data.length > 0) {
         remoteParties = data.map(p => ({
           ...p,
-          id: p._id || p.id
+          id: p._id || p.id,
+          type: 'Both'
         }));
         saveLocalParties(remoteParties);
       }
@@ -67,6 +68,19 @@ export const partyService = {
 
     // Check Local Storage
     let local = getLocalParties();
+
+    // Ensure all existing cached records have type = 'Both'
+    if (local && local.length > 0) {
+      let modified = false;
+      local = local.map(p => {
+        if (p.type !== 'Both') {
+          modified = true;
+          return { ...p, type: 'Both' };
+        }
+        return p;
+      });
+      if (modified) saveLocalParties(local);
+    }
 
     // If local storage is also empty, seed from existing live shipments and companies
     if (!local || local.length === 0) {
@@ -187,11 +201,11 @@ export const partyService = {
     });
 
     (shipments || []).forEach(s => {
-      if (s.consignor) add(s.consignor, 'Consignor');
-      if (s.consignee) add(s.consignee, 'Consignee');
+      if (s.consignor) add(s.consignor, 'Both');
+      if (s.consignee) add(s.consignee, 'Both');
     });
 
-    return Array.from(partyMap.values());
+    return Array.from(partyMap.values()).map(p => ({ ...p, type: 'Both' }));
   },
 
   /**
@@ -203,7 +217,7 @@ export const partyService = {
       ...partyData,
       id: newId,
       name: partyData.name.trim(),
-      type: partyData.type || 'Both',
+      type: 'Both',
       address: (partyData.address || '').trim(),
       city: (partyData.city || '').trim(),
       state: (partyData.state || '').trim(),

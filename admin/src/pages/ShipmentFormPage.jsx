@@ -297,17 +297,13 @@ export const ShipmentFormPage = () => {
         ]);
         setCompanies(compList);
 
-        // Load master clean Consignors & Consignees from Party Directory
+        // Load master clean Consignors & Consignees from Party Directory (Everyone is Shipper & Receiver both)
         const allParties = await partyService.getParties().catch(() => []);
-        const sortedConsignors = (allParties || [])
-          .filter((p) => p.type === 'Consignor' || p.type === 'Both' || !p.type)
-          .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' }));
-        const sortedConsignees = (allParties || [])
-          .filter((p) => p.type === 'Consignee' || p.type === 'Both' || !p.type)
+        const sortedParties = (allParties || [])
           .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' }));
 
-        setSavedConsignorsList(sortedConsignors);
-        setSavedConsigneesList(sortedConsignees);
+        setSavedConsignorsList(sortedParties);
+        setSavedConsigneesList(sortedParties);
 
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
