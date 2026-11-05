@@ -52,6 +52,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/quotations', require('./routes/quotations'));
 app.use('/api/shipments', require('./routes/shipments'));
+app.use('/api/parties', require('./routes/parties'));
 app.use('/api/trips', require('./routes/trips'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/payments', require('./routes/payments'));

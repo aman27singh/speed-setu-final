@@ -1,0 +1,938 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { partyService } from '../services/partyService';
+import { PageHeader } from '../components/common/PageHeader';
+import { SearchBar } from '../components/common/SearchBar';
+import { LoadingState } from '../components/common/LoadingState';
+import { Modal } from '../components/common/Modal';
+import {
+  Users,
+  Plus,
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Edit,
+  Trash2,
+  AlertTriangle,
+  Check,
+  X,
+  Sparkles,
+  ArrowRight,
+  RefreshCw,
+  FileText,
+  Truck
+} from 'lucide-react';
+
+export const PartiesPage = () => {
+  const navigate = useNavigate();
+  const [parties, setParties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filter States
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'consignor', 'consignee', 'duplicates'
+  const [cityFilter, setCityFilter] = useState('All');
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Modal States
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingParty, setEditingParty] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [mergeCluster, setMergeCluster] = useState(null);
+  const [selectedMasterId, setSelectedMasterId] = useState('');
+  const [updatePastShipmentsOnMerge, setUpdatePastShipmentsOnMerge] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form State for Add / Edit Party
+  const initialFormState = {
+    name: '',
+    type: 'Both',
+    address: '',
+    city: '',
+    state: '',
+    pin: '',
+    gstin: '',
+    contact: '',
+    phone: '',
+    email: '',
+    updatePastShipments: false
+  };
+  const [formData, setFormData] = useState(initialFormState);
+
+  // Fetch Parties
+  const fetchParties = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await partyService.getParties();
+      setParties(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load parties directory.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchParties();
+  }, []);
+
+  // Compute duplicate clusters
+  const duplicateClusters = useMemo(() => {
+    return partyService.findDuplicateClusters(parties);
+  }, [parties]);
+
+  // Unique list of cities for filter
+  const cityOptions = useMemo(() => {
+    const set = new Set();
+    parties.forEach((p) => {
+      if (p.city && p.city.trim()) {
+        set.add(p.city.trim());
+      }
+    });
+    return ['All', ...Array.from(set).sort()];
+  }, [parties]);
+
+  // Filtered Parties List
+  const filteredParties = useMemo(() => {
+    return parties.filter((p) => {
+      // Tab Filter
+      if (activeTab === 'consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
+      if (activeTab === 'consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
+
+      // City Filter
+      if (cityFilter !== 'All' && (p.city || '').toLowerCase() !== cityFilter.toLowerCase()) return false;
+
+      // Search Query
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const match =
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.city || '').toLowerCase().includes(q) ||
+          (p.state || '').toLowerCase().includes(q) ||
+          (p.pin || '').toLowerCase().includes(q) ||
+          (p.gstin || '').toLowerCase().includes(q) ||
+          (p.address || '').toLowerCase().includes(q) ||
+          (p.contact || '').toLowerCase().includes(q) ||
+          (p.phone || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
+
+      return true;
+    });
+  }, [parties, activeTab, cityFilter, search]);
+
+  // Open Create Modal
+  const handleOpenCreate = () => {
+    setEditingParty(null);
+    setFormData(initialFormState);
+    setIsCreateModalOpen(true);
+  };
+
+  // Open Edit Modal
+  const handleOpenEdit = (party) => {
+    setEditingParty(party);
+    setFormData({
+      name: party.name || '',
+      type: party.type || 'Both',
+      address: party.address || '',
+      city: party.city || '',
+      state: party.state || '',
+      pin: party.pin || '',
+      gstin: party.gstin || '',
+      contact: party.contact || '',
+      phone: party.phone || '',
+      email: party.email || '',
+      updatePastShipments: false
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  // Submit Create or Edit
+  const handleSaveParty = async (e) => {
+    e.preventDefault();
+    if (!formData.name.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      if (editingParty) {
+        await partyService.updateParty(
+          editingParty.id || editingParty._id,
+          formData,
+          formData.updatePastShipments
+        );
+        showToast(`Party "${formData.name}" updated successfully.`);
+      } else {
+        await partyService.createParty(formData);
+        showToast(`New party "${formData.name}" added to directory.`);
+      }
+      setIsCreateModalOpen(false);
+      setEditingParty(null);
+      await fetchParties();
+    } catch (err) {
+      alert(err.message || 'Failed to save party.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Delete Party
+  const handleDeleteParty = async () => {
+    if (!deleteTarget) return;
+    setIsSubmitting(true);
+    try {
+      await partyService.deleteParty(deleteTarget.id || deleteTarget._id);
+      showToast(`Party "${deleteTarget.name}" deleted.`);
+      setDeleteTarget(null);
+      await fetchParties();
+    } catch (err) {
+      alert(err.message || 'Failed to delete party.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Merge Modal
+  const handleOpenMerge = (cluster) => {
+    setMergeCluster(cluster);
+    setSelectedMasterId(cluster.records[0]?.id || cluster.records[0]?._id || '');
+    setUpdatePastShipmentsOnMerge(true);
+  };
+
+  // Execute Merge
+  const handleExecuteMerge = async () => {
+    if (!mergeCluster || !selectedMasterId) return;
+
+    const duplicateIds = mergeCluster.records
+      .map((r) => r.id || r._id)
+      .filter((id) => id !== selectedMasterId);
+
+    if (duplicateIds.length === 0) return;
+
+    setIsSubmitting(true);
+    try {
+      await partyService.mergeParties(selectedMasterId, duplicateIds, updatePastShipmentsOnMerge);
+      const masterRecord = mergeCluster.records.find((r) => (r.id || r._id) === selectedMasterId);
+      showToast(`Merged ${duplicateIds.length} duplicate(s) into master "${masterRecord?.name}".`);
+      setMergeCluster(null);
+      await fetchParties();
+    } catch (err) {
+      alert(err.message || 'Failed to merge duplicates.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
+
+  const consignorsCount = parties.filter((p) => p.type === 'Consignor' || p.type === 'Both').length;
+  const consigneesCount = parties.filter((p) => p.type === 'Consignee' || p.type === 'Both').length;
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title="Consignors & Consignees Directory"
+        subtitle="Manage master shippers and receivers. Standardize addresses, pincodes & GSTIN, and clean up duplicate records."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => navigate('/admin/shipments')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-xs transition-colors"
+            >
+              <Truck className="w-4 h-4 text-setu-600" />
+              <span>Back to Shipments</span>
+            </button>
+            <button
+              onClick={fetchParties}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-xs transition-colors disabled:opacity-50"
+              title="Refresh Directory"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-setu-600' : 'text-slate-500'}`} />
+              <span>Refresh</span>
+            </button>
+            {duplicateClusters.length > 0 && (
+              <button
+                onClick={() => setActiveTab('duplicates')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg shadow-xs transition-all active:scale-95"
+              >
+                <Sparkles className="w-4 h-4 text-amber-700 animate-pulse" />
+                <span>Fix Duplicates ({duplicateClusters.length})</span>
+              </button>
+            )}
+            <button
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-xs transition-all active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Party</span>
+            </button>
+          </div>
+        }
+      />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="p-3 bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-between shadow-lg animate-fade-in border border-slate-700">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage('')} className="text-slate-400 hover:text-white font-bold ml-4">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* KPI Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Parties</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+              <Building2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{parties.length}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Master directory companies</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Consignors (Shippers)</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <Truck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{consignorsCount}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Pickup origin sources</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Consignees (Receivers)</span>
+            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{consigneesCount}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Delivery destinations</div>
+        </div>
+
+        <div
+          onClick={() => duplicateClusters.length > 0 && setActiveTab('duplicates')}
+          className={`border rounded-xl p-4 shadow-xs transition-all ${
+            duplicateClusters.length > 0
+              ? 'bg-amber-50/70 border-amber-300 cursor-pointer hover:bg-amber-50'
+              : 'bg-white border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Duplicate Clusters</span>
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-900">{duplicateClusters.length}</div>
+          <div className="text-[11px] text-amber-700 mt-0.5 font-medium">
+            {duplicateClusters.length > 0 ? 'Click to inspect & merge' : 'Directory is clean'}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs Row */}
+      <div className="flex border-b border-slate-200 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'all'
+              ? 'border-setu-600 text-setu-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          All Parties ({parties.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('consignor')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'consignor'
+              ? 'border-setu-600 text-setu-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Consignors (Shippers) ({consignorsCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('consignee')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'consignee'
+              ? 'border-setu-600 text-setu-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Consignees (Receivers) ({consigneesCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('duplicates')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'duplicates'
+              ? 'border-amber-500 text-amber-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Potential Duplicates</span>
+          {duplicateClusters.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">
+              {duplicateClusters.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* DUPLICATE CLUSTERS VIEW */}
+      {activeTab === 'duplicates' ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl text-amber-900 text-xs">
+            <div className="font-bold text-sm mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Smart Deduplication & Merge Assistant</span>
+            </div>
+            <p className="text-amber-800 leading-relaxed">
+              We analyzed company names and identified party clusters that share similar spelling, branch variations, or matching GSTINs.
+              Select <strong>"Review & Merge"</strong> on any cluster to pick the single master record to keep and delete the repeated variations.
+            </p>
+          </div>
+
+          {duplicateClusters.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
+              <Check className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+              <div className="font-bold text-base text-slate-800">No Duplicate Company Clusters Found!</div>
+              <div className="text-xs text-slate-500 mt-1">Your consignors and consignees directory is cleanly organized.</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {duplicateClusters.map((cluster, idx) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-slate-900 text-sm">{cluster.primaryName}</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
+                          {cluster.records.length} variations
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Normalized grouping key: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">{cluster.normalizedKey}</code>
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenMerge(cluster)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition-all active:scale-95 shrink-0"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Review & Merge Duplicates</span>
+                    </button>
+                  </div>
+
+                  {/* List of Duplicate Records */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {cluster.records.map((rec) => (
+                      <div key={rec.id || rec._id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                        <div className="font-bold text-slate-900 truncate" title={rec.name}>{rec.name}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{rec.city || 'No City'}{rec.pin ? ` - ${rec.pin}` : ''}</span>
+                        </div>
+                        {rec.address && (
+                          <div className="text-[10px] text-slate-400 truncate" title={rec.address}>{rec.address}</div>
+                        )}
+                        {rec.gstin && (
+                          <div className="text-[10px] font-mono text-slate-600">GSTIN: {rec.gstin}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* STANDARD DIRECTORY LIST VIEW */
+        <div className="space-y-3">
+          {/* Search & Filter Bar */}
+          <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row items-center gap-3">
+            <div className="w-full sm:flex-1">
+              <SearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search party name, city, address, GSTIN, pincode, phone..."
+              />
+            </div>
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap">City:</span>
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full sm:w-44"
+              >
+                {cityOptions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Directory Table */}
+          {loading ? (
+            <div className="p-12 bg-white border border-slate-200 rounded-xl">
+              <LoadingState message="Loading Consignors & Consignees directory..." />
+            </div>
+          ) : error ? (
+            <div className="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold">
+              {error}
+            </div>
+          ) : filteredParties.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
+              <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <div className="font-bold text-base text-slate-800">No Parties Found</div>
+              <div className="text-xs text-slate-500 mt-1 mb-4">
+                {search ? 'No party matches your search criteria.' : 'No party records in this category.'}
+              </div>
+              <button
+                onClick={handleOpenCreate}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add First Party</span>
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      <th className="py-3 px-4">Party / Company Name</th>
+                      <th className="py-3 px-3">Role Type</th>
+                      <th className="py-3 px-3">City & Pincode</th>
+                      <th className="py-3 px-4">Full Address</th>
+                      <th className="py-3 px-3">GSTIN / Contact</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredParties.map((party) => {
+                      const id = party.id || party._id;
+                      return (
+                        <tr key={id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Name */}
+                          <td className="py-3 px-4 font-bold text-slate-900">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate max-w-[260px]" title={party.name}>
+                                {party.name}
+                              </span>
+                            </div>
+                            {party.state && (
+                              <span className="text-[10px] text-slate-400 font-normal block">
+                                {party.state}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Role Type */}
+                          <td className="py-3 px-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                party.type === 'Consignor'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : party.type === 'Consignee'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {party.type === 'Both' ? 'Shipper & Receiver' : party.type}
+                            </span>
+                          </td>
+
+                          {/* City & Pin */}
+                          <td className="py-3 px-3">
+                            <div className="font-semibold text-slate-800 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{party.city || '-'}</span>
+                            </div>
+                            {party.pin && (
+                              <span className="text-[10px] font-mono text-slate-500 font-bold block ml-4">
+                                {party.pin}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Address */}
+                          <td className="py-3 px-4 text-slate-600 max-w-[320px]">
+                            <span className="line-clamp-2 text-[11px]" title={party.address}>
+                              {party.address || <span className="text-slate-300 italic">No address provided</span>}
+                            </span>
+                          </td>
+
+                          {/* GSTIN / Contact */}
+                          <td className="py-3 px-3">
+                            {party.gstin ? (
+                              <span className="font-mono text-[11px] font-bold text-slate-700 block">
+                                {party.gstin}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px] block">-</span>
+                            )}
+                            {(party.phone || party.contact) && (
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                <Phone className="w-2.5 h-2.5 text-slate-400" />
+                                <span>{party.phone || party.contact}</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() => handleOpenEdit(party)}
+                                className="p-1.5 text-slate-500 hover:text-setu-600 hover:bg-setu-50 rounded-md transition-colors"
+                                title="Edit Party Details"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteTarget(party)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                title="Delete Party Record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer Count */}
+              <div className="py-2.5 px-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 font-medium flex items-center justify-between">
+                <span>Showing {filteredParties.length} of {parties.length} parties</span>
+                <span className="text-[11px] text-slate-400">Master Shipper & Receiver Database</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CREATE / EDIT PARTY MODAL */}
+      {isCreateModalOpen && (
+        <Modal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          title={editingParty ? 'Edit Party Details' : 'Add New Consignor / Consignee'}
+          size="lg"
+        >
+          <form onSubmit={handleSaveParty} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Party Name */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Company / Party Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. ADVIK AUTOCOMP PVT LTD"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-setu-600"
+                />
+              </div>
+
+              {/* Party Role */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Party Role <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-800"
+                >
+                  <option value="Both">Both (Shipper & Receiver)</option>
+                  <option value="Consignor">Consignor Only (Shipper / Origin)</option>
+                  <option value="Consignee">Consignee Only (Receiver / Destination)</option>
+                </select>
+              </div>
+
+              {/* GSTIN */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">GSTIN Number</label>
+                <input
+                  type="text"
+                  value={formData.gstin}
+                  onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                  placeholder="e.g. 29AASCA8132C1ZJ"
+                  className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900"
+                />
+              </div>
+
+              {/* City / Location */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  City / Location <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="e.g. Hobli, Bangalore, Pune..."
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
+                />
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">State</label>
+                <input
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  placeholder="e.g. Karnataka, Maharashtra..."
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
+                />
+              </div>
+
+              {/* Pincode */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Pincode</label>
+                <input
+                  type="text"
+                  value={formData.pin}
+                  onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
+                  placeholder="e.g. 563133"
+                  className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900"
+                />
+              </div>
+
+              {/* Contact Phone */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Phone / Contact</label>
+                <input
+                  type="text"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="e.g. +91 9876543210"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-semibold text-slate-900"
+                />
+              </div>
+
+              {/* Full Address */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Full Street Address</label>
+                <textarea
+                  rows={2}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Street, plot no., industrial area, landmark..."
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                />
+              </div>
+
+              {/* Update Past Shipments Checkbox (Only on Edit) */}
+              {editingParty && (
+                <div className="md:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.updatePastShipments}
+                      onChange={(e) => setFormData({ ...formData, updatePastShipments: e.target.checked })}
+                      className="mt-0.5 rounded text-setu-600 focus:ring-setu-600"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">
+                        Synchronize past shipments with this standardized address
+                      </span>
+                      <span className="text-[11px] text-slate-500 block">
+                        Updates previous Consignment Notes matching "{editingParty.name}" to use this new address and details.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-xs transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Saving...' : editingParty ? 'Save Changes' : 'Create Party'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteTarget && (
+        <Modal
+          isOpen={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          title="Delete Party Record"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="font-bold text-sm text-slate-900">
+                  Delete "{deleteTarget.name}"?
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  This will remove this company from the Consignor & Consignee autocomplete suggestions. This is safe and helps clean up messy, duplicate records. Past shipments will remain intact.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteParty}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* SMART MERGE MODAL */}
+      {mergeCluster && (
+        <Modal
+          isOpen={Boolean(mergeCluster)}
+          onClose={() => setMergeCluster(null)}
+          title="Merge Duplicate Company Variations"
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
+              <span className="font-bold block mb-0.5">Choose the Master Record to Keep:</span>
+              <span>All other duplicate variations in this cluster will be removed. Past shipments referencing any duplicate names will be safely updated to the master name.</span>
+            </div>
+
+            <div className="space-y-2">
+              {mergeCluster.records.map((rec) => {
+                const recId = rec.id || rec._id;
+                const isSelected = selectedMasterId === recId;
+                return (
+                  <div
+                    key={recId}
+                    onClick={() => setSelectedMasterId(recId)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-setu-50/80 border-setu-600 ring-2 ring-setu-600/20'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm">{rec.name}</span>
+                        {isSelected && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-setu-600 text-white">
+                            Master to Keep
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 flex items-center gap-2">
+                        <span className="font-medium">{rec.city || 'No City'}</span>
+                        {rec.pin && <span className="font-mono text-slate-400">({rec.pin})</span>}
+                        {rec.gstin && <span className="font-mono text-slate-600">GST: {rec.gstin}</span>}
+                      </div>
+                      {rec.address && (
+                        <div className="text-[11px] text-slate-400 truncate max-w-lg">{rec.address}</div>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 mt-1">
+                      <input
+                        type="radio"
+                        checked={isSelected}
+                        onChange={() => setSelectedMasterId(recId)}
+                        className="text-setu-600 focus:ring-setu-600"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={updatePastShipmentsOnMerge}
+                  onChange={(e) => setUpdatePastShipmentsOnMerge(e.target.checked)}
+                  className="rounded text-setu-600 focus:ring-setu-600"
+                />
+                <span className="text-xs font-bold text-slate-800">
+                  Update past shipments that used duplicate names with master details
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setMergeCluster(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteMerge}
+                disabled={isSubmitting || !selectedMasterId}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition-all disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{isSubmitting ? 'Merging...' : 'Merge & Clean Duplicates'}</span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};

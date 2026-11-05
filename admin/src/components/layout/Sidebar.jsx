@@ -20,7 +20,8 @@ import {
   UserCheck,
   Plus,
   Camera,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
 
 export const Sidebar = ({ isOpen, onClose }) => {
@@ -57,6 +58,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         groupLabel: 'Operations',
         items: [
           { name: 'Shipments', path: '/admin/shipments', icon: Truck },
+          { name: 'Consignors & Consignees', path: '/admin/parties', icon: Users },
           { name: 'Trips', path: '/admin/trips', icon: MapPin },
           { name: 'POD', path: '/admin/pod', icon: FileCheck }
         ]

@@ -27,7 +27,8 @@ import {
   FileText,
   FileSpreadsheet,
   User,
-  ArrowRight
+  ArrowRight,
+  Users
 } from 'lucide-react';
 
 export const ShipmentsPage = () => {
@@ -570,6 +571,15 @@ export const ShipmentsPage = () => {
               >
                 <Upload className="w-4 h-4 text-setu-600" />
                 <span>Upload Document</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/admin/parties')}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-md shadow-xs transition-colors flex-1 sm:flex-initial"
+                title="Manage master Consignors & Consignees directory and clean duplicates"
+              >
+                <Users className="w-4 h-4 text-setu-600" />
+                <span>Consignors & Consignees</span>
               </button>
 
               <button

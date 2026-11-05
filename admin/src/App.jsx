@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ShipmentsPage } from './pages/ShipmentsPage';
 import { ShipmentFormPage } from './pages/ShipmentFormPage';
 import { ShipmentDetailPage } from './pages/ShipmentDetailPage';
+import { PartiesPage } from './pages/PartiesPage';
 import { DocumentExtractionPage } from './pages/DocumentExtractionPage';
 import { CompaniesPage } from './pages/CompaniesPage';
 import { CompanyFormPage } from './pages/CompanyFormPage';
@@ -138,6 +139,7 @@ export const AppRoutes = () => {
         <Route path="shipments/upload" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><DocumentExtractionPage /></ProtectedRoute>} />
         <Route path="shipments/:id" element={<ShipmentDetailPage />} />
         <Route path="shipments/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><ShipmentFormPage /></ProtectedRoute>} />
+        <Route path="parties" element={<PartiesPage />} />
 
         <Route path="trips" element={<TripsPage />} />
         <Route path="trips/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><TripFormPage /></ProtectedRoute>} />
