@@ -95,34 +95,104 @@ export const PartiesPage = () => {
     return ['All', ...Array.from(set).sort()];
   }, [parties]);
 
-  // Filtered Parties List
+  // Helper to compute search relevance score
+  const getSearchScore = (party, query) => {
+    const q = query.toLowerCase().trim();
+    if (!q) return 1;
+
+    const name = (party.name || '').toLowerCase().trim();
+    const city = (party.city || '').toLowerCase().trim();
+    const state = (party.state || '').toLowerCase().trim();
+    const gstin = (party.gstin || '').toLowerCase().trim();
+    const pin = (party.pin || '').toLowerCase().trim();
+    const phone = (party.phone || '').toLowerCase().trim();
+    const email = (party.email || '').toLowerCase().trim();
+    const address = (party.address || '').toLowerCase().trim();
+
+    // 1. Exact match on company name
+    if (name === q) return 1000;
+
+    // 2. Company name starts with query (e.g. "sa" -> "SAFE AIR CARGO", "SANSERA...")
+    if (name.startsWith(q)) return 800;
+
+    // 3. A word in the company name starts with query (e.g. "CARGO", "ENGINEERING")
+    const words = name.split(/[\s,()\-./]+/).filter(Boolean);
+    if (words.some((w) => w.startsWith(q))) return 650;
+
+    // 4. Company name contains the query
+    if (name.includes(q)) return 450;
+
+    // 5. City starts with query (e.g. "pune", "gurgaon")
+    if (city.startsWith(q)) return 350;
+
+    // 6. GSTIN starts with query (e.g. "06", "29")
+    if (gstin.startsWith(q)) return 300;
+
+    // 7. Pincode starts with query
+    if (pin.startsWith(q)) return 250;
+
+    // 8. Phone or Email starts with query
+    if (phone.startsWith(q) || email.startsWith(q)) return 220;
+
+    // 9. For queries >= 3 characters, allow deeper content searching
+    if (q.length >= 3) {
+      if (city.includes(q)) return 180;
+      if (gstin.includes(q)) return 150;
+      if (state.includes(q)) return 140;
+      if (phone.includes(q) || email.includes(q)) return 120;
+      if (address.includes(q)) return 60;
+    }
+
+    // 10. Multi-word search token matching (e.g. "sansera 5", "advik 40")
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length > 1) {
+      const allTokensMatch = tokens.every(
+        (t) =>
+          name.includes(t) ||
+          city.includes(t) ||
+          gstin.includes(t) ||
+          (t.length >= 3 && address.includes(t))
+      );
+      if (allTokensMatch) return 400;
+    }
+
+    return 0; // Not matched
+  };
+
+  // Filtered & Relevance-Sorted Parties List
   const filteredParties = useMemo(() => {
-    return parties.filter((p) => {
-      // Tab Filter
-      if (activeTab === 'consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
-      if (activeTab === 'consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
+    const q = search.trim().toLowerCase();
 
-      // City Filter
-      if (cityFilter !== 'All' && (p.city || '').toLowerCase() !== cityFilter.toLowerCase()) return false;
+    const scored = parties
+      .map((p) => ({
+        party: p,
+        score: q ? getSearchScore(p, q) : 1
+      }))
+      .filter(({ party: p, score }) => {
+        // Tab Filter
+        if (activeTab === 'consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
+        if (activeTab === 'consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
 
-      // Search Query
-      if (search.trim()) {
-        const q = search.toLowerCase().trim();
-        const match =
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.city || '').toLowerCase().includes(q) ||
-          (p.state || '').toLowerCase().includes(q) ||
-          (p.pin || '').toLowerCase().includes(q) ||
-          (p.gstin || '').toLowerCase().includes(q) ||
-          (p.address || '').toLowerCase().includes(q) ||
-          (p.contact || '').toLowerCase().includes(q) ||
-          (p.phone || '').toLowerCase().includes(q) ||
-          (p.email || '').toLowerCase().includes(q);
-        if (!match) return false;
-      }
+        // City Filter
+        if (cityFilter !== 'All' && (p.city || '').toLowerCase() !== cityFilter.toLowerCase()) return false;
 
-      return true;
-    });
+        // Search Filter
+        if (q && score <= 0) return false;
+
+        return true;
+      });
+
+    // If a search query is active, sort by highest match relevance score first
+    if (q) {
+      scored.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return (a.party.name || '').localeCompare(b.party.name || '');
+      });
+    }
+
+    return scored.map((item) => item.party);
   }, [parties, activeTab, cityFilter, search]);
 
   // Open Create Modal

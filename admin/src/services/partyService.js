@@ -110,28 +110,57 @@ export const partyService = {
     }
 
     // Apply local filters
-    return local.filter(p => {
-      if (type !== 'All') {
-        if (type === 'Consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
-        if (type === 'Consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
-      }
-      if (city !== 'All' && p.city?.toLowerCase() !== city.toLowerCase()) return false;
-      if (search && search.trim()) {
-        const q = search.toLowerCase().trim();
-        const match =
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.city || '').toLowerCase().includes(q) ||
-          (p.state || '').toLowerCase().includes(q) ||
-          (p.pin || '').toLowerCase().includes(q) ||
-          (p.gstin || '').toLowerCase().includes(q) ||
-          (p.address || '').toLowerCase().includes(q) ||
-          (p.contact || '').toLowerCase().includes(q) ||
-          (p.phone || '').toLowerCase().includes(q) ||
-          (p.email || '').toLowerCase().includes(q);
-        if (!match) return false;
-      }
-      return true;
-    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const q = (search || '').toLowerCase().trim();
+
+    const scored = local
+      .filter((p) => {
+        if (type !== 'All') {
+          if (type === 'Consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
+          if (type === 'Consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
+        }
+        if (city !== 'All' && p.city?.toLowerCase() !== city.toLowerCase()) return false;
+        return true;
+      })
+      .map((p) => {
+        if (!q) return { party: p, score: 1 };
+        const name = (p.name || '').toLowerCase().trim();
+        const pCity = (p.city || '').toLowerCase().trim();
+        const gstin = (p.gstin || '').toLowerCase().trim();
+        const pin = (p.pin || '').toLowerCase().trim();
+        const phone = (p.phone || '').toLowerCase().trim();
+        const email = (p.email || '').toLowerCase().trim();
+        const address = (p.address || '').toLowerCase().trim();
+
+        let score = 0;
+        if (name === q) score = 1000;
+        else if (name.startsWith(q)) score = 800;
+        else if (name.split(/[\s,()\-./]+/).some((w) => w.startsWith(q))) score = 650;
+        else if (name.includes(q)) score = 450;
+        else if (pCity.startsWith(q)) score = 350;
+        else if (gstin.startsWith(q)) score = 300;
+        else if (pin.startsWith(q)) score = 250;
+        else if (phone.startsWith(q) || email.startsWith(q)) score = 220;
+        else if (q.length >= 3) {
+          if (pCity.includes(q)) score = 180;
+          else if (gstin.includes(q)) score = 150;
+          else if (phone.includes(q) || email.includes(q)) score = 120;
+          else if (address.includes(q)) score = 60;
+        }
+
+        return { party: p, score };
+      })
+      .filter((item) => !q || item.score > 0);
+
+    if (q) {
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.party.name || '').localeCompare(b.party.name || '');
+      });
+    } else {
+      scored.sort((a, b) => (a.party.name || '').localeCompare(b.party.name || ''));
+    }
+
+    return scored.map((item) => item.party);
   },
 
   /**
