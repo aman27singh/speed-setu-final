@@ -25,17 +25,7 @@ router.get('/', async (req, res) => {
     if (search && search.trim()) {
       const q = search.trim();
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.$or = [
-        { name: { $regex: escaped, $options: 'i' } },
-        { city: { $regex: escaped, $options: 'i' } },
-        { state: { $regex: escaped, $options: 'i' } },
-        { pin: { $regex: escaped, $options: 'i' } },
-        { gstin: { $regex: escaped, $options: 'i' } },
-        { address: { $regex: escaped, $options: 'i' } },
-        { contact: { $regex: escaped, $options: 'i' } },
-        { phone: { $regex: escaped, $options: 'i' } },
-        { email: { $regex: escaped, $options: 'i' } }
-      ];
+      query.name = { $regex: escaped, $options: 'i' };
     }
 
     const parties = await Party.find(query).sort({ name: 1 });

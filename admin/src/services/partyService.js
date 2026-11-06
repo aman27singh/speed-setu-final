@@ -112,55 +112,45 @@ export const partyService = {
     // Apply local filters
     const q = (search || '').toLowerCase().trim();
 
-    const scored = local
+    return local
       .filter((p) => {
         if (type !== 'All') {
           if (type === 'Consignor' && p.type !== 'Consignor' && p.type !== 'Both') return false;
           if (type === 'Consignee' && p.type !== 'Consignee' && p.type !== 'Both') return false;
         }
         if (city !== 'All' && p.city?.toLowerCase() !== city.toLowerCase()) return false;
-        return true;
-      })
-      .map((p) => {
-        if (!q) return { party: p, score: 1 };
-        const name = (p.name || '').toLowerCase().trim();
-        const pCity = (p.city || '').toLowerCase().trim();
-        const gstin = (p.gstin || '').toLowerCase().trim();
-        const pin = (p.pin || '').toLowerCase().trim();
-        const phone = (p.phone || '').toLowerCase().trim();
-        const email = (p.email || '').toLowerCase().trim();
-        const address = (p.address || '').toLowerCase().trim();
 
-        let score = 0;
-        if (name === q) score = 1000;
-        else if (name.startsWith(q)) score = 800;
-        else if (name.split(/[\s,()\-./]+/).some((w) => w.startsWith(q))) score = 650;
-        else if (name.includes(q)) score = 450;
-        else if (pCity.startsWith(q)) score = 350;
-        else if (gstin.startsWith(q)) score = 300;
-        else if (pin.startsWith(q)) score = 250;
-        else if (phone.startsWith(q) || email.startsWith(q)) score = 220;
-        else if (q.length >= 3) {
-          if (pCity.includes(q)) score = 180;
-          else if (gstin.includes(q)) score = 150;
-          else if (phone.includes(q) || email.includes(q)) score = 120;
-          else if (address.includes(q)) score = 60;
+        // SEARCH STRICTLY BY COMPANY NAME
+        if (q) {
+          const name = (p.name || '').toLowerCase().trim();
+          if (!name.includes(q)) return false;
         }
 
-        return { party: p, score };
+        return true;
       })
-      .filter((item) => !q || item.score > 0);
+      .sort((a, b) => {
+        if (!q) {
+          return (a.name || '').localeCompare(b.name || '');
+        }
 
-    if (q) {
-      scored.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return (a.party.name || '').localeCompare(b.party.name || '');
+        const nameA = (a.name || '').toLowerCase().trim();
+        const nameB = (b.name || '').toLowerCase().trim();
+
+        if (nameA === q && nameB !== q) return -1;
+        if (nameA !== q && nameB === q) return 1;
+
+        const startsA = nameA.startsWith(q);
+        const startsB = nameB.startsWith(q);
+        if (startsA && !startsB) return -1;
+        if (!startsA && startsB) return 1;
+
+        const wordsA = nameA.split(/[\s,()\-./]+/).some((w) => w.startsWith(q));
+        const wordsB = nameB.split(/[\s,()\-./]+/).some((w) => w.startsWith(q));
+        if (wordsA && !wordsB) return -1;
+        if (!wordsA && wordsB) return 1;
+
+        return nameA.localeCompare(nameB);
       });
-    } else {
-      scored.sort((a, b) => (a.party.name || '').localeCompare(b.party.name || ''));
-    }
-
-    return scored.map((item) => item.party);
   },
 
   /**
