@@ -338,7 +338,7 @@ export const PartiesPage = () => {
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add Company</span>
+              <span>Add Company</span>
             </button>
           </div>
         }
@@ -539,7 +539,7 @@ export const PartiesPage = () => {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-lg shadow-sm transition-all active:scale-95 whitespace-nowrap cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Add Company</span>
+                <span>Add Company</span>
               </button>
             </div>
           </div>
