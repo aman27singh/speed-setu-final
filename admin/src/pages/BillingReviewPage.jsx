@@ -127,16 +127,6 @@ export const BillingReviewPage = () => {
   const handleGenerateInvoice = async () => {
     if (!calculation) return;
 
-    if (calculation.isRouteNotFound) {
-      if (!window.confirm(`Notice: Rate card not found for route '${calculation.shipment?.origin || ''} → ${calculation.shipment?.destination || ''}' under ${calculation.companyName}. No freight rate was auto-applied. Do you wish to proceed?`)) {
-        return;
-      }
-    } else if (calculation.isCompanyNotFound || !calculation.hasValidRateCard) {
-      if (!window.confirm(`Notice: Rate card not found for company '${calculation.companyName}'. Do you wish to proceed?`)) {
-        return;
-      }
-    }
-
     setGenerating(true);
     try {
       let companyAddress = calculation.shipment?.consignor?.address || '';
@@ -332,34 +322,8 @@ export const BillingReviewPage = () => {
         </select>
       </div>
 
-      {/* ROUTE NOT FOUND ALERT BANNER */}
-      {calculation.isRouteNotFound && (
-        <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl space-y-2 text-xs text-rose-950 font-medium shadow-xs">
-          <div className="flex items-center gap-2 font-bold text-rose-800 text-sm">
-            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>This route rate card not found</span>
-          </div>
-          <p className="text-rose-900 leading-relaxed">
-            No rate card rule exists for route <strong>{calculation.shipment?.origin || 'Origin'} → {calculation.shipment?.destination || 'Destination'}</strong> under <strong>{calculation.companyName}</strong>. Random rate cards were <strong>not</strong> applied. Please configure this route in the rate card or add a manual adjustment.
-          </p>
-        </div>
-      )}
-
-      {/* COMPANY RATE CARD NOT FOUND ALERT BANNER */}
-      {calculation.isCompanyNotFound && (
-        <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl space-y-2 text-xs text-rose-950 font-medium shadow-xs">
-          <div className="flex items-center gap-2 font-bold text-rose-800 text-sm">
-            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>Billing company rate card not found</span>
-          </div>
-          <p className="text-rose-900 leading-relaxed">
-            No active rate card / quotation was found for company <strong>{calculation.companyName}</strong>. Random rate cards were <strong>not</strong> applied. Please configure a rate card in <em>Commercial → Quotations</em>.
-          </p>
-        </div>
-      )}
-
       {/* BILLING WARNINGS BANNER */}
-      {calculation.warnings && calculation.warnings.length > 0 && !calculation.isRouteNotFound && !calculation.isCompanyNotFound && (
+      {calculation.warnings && calculation.warnings.length > 0 && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs text-amber-900 font-medium">
           <div className="flex items-center gap-2 font-bold text-amber-950 text-sm mb-1">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -381,28 +345,12 @@ export const BillingReviewPage = () => {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Calculated Line Items & Freight Charges</h3>
-            <p className="text-xs text-slate-500">
-              {calculation.isRouteNotFound
-                ? `Route ${calculation.shipment?.origin || ''} → ${calculation.shipment?.destination || ''} not found in ${calculation.companyName}'s rate card`
-                : calculation.matchedQuotation
-                  ? `Automatically matched from Quotation ${calculation.matchedQuotation} (V${calculation.quotationVersion})`
-                  : `No rate card matched for ${calculation.companyName}`}
-            </p>
+            <p className="text-xs text-slate-500">Automatically matched from Quotation {calculation.matchedQuotation} (V{calculation.quotationVersion})</p>
           </div>
 
-          {calculation.isRouteNotFound ? (
-            <span className="px-3 py-1 bg-rose-50 text-rose-700 rounded-full text-xs font-bold border border-rose-200 flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> Route Rate Card Not Found
-            </span>
-          ) : !calculation.hasValidRateCard ? (
-            <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold border border-amber-200 flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> Rate Card Missing
-            </span>
-          ) : (
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Rate Matched
-            </span>
-          )}
+          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold border border-emerald-200 flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5" /> Rate Matched
+          </span>
         </div>
 
         <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">

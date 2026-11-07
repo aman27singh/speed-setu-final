@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { shipmentService } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
-import { partyService } from '../services/partyService';
 import { validateShipmentForm } from '../utils/shipmentValidation';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
@@ -23,8 +22,7 @@ import {
   Calendar,
   CreditCard,
   Plus,
-  Trash2,
-  Users
+  Trash2
 } from 'lucide-react';
 
 const MODE_OPTIONS = ['Air', 'Air Express', 'Road', 'Train', 'FTL', 'Express LTL', 'Other'];
@@ -297,13 +295,106 @@ export const ShipmentFormPage = () => {
         ]);
         setCompanies(compList);
 
-        // Load master clean Consignors & Consignees from Party Directory (Everyone is Shipper & Receiver both)
-        const allParties = await partyService.getParties().catch(() => []);
-        const sortedParties = (allParties || [])
-          .sort((a, b) => (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' }));
+        // Dynamically extract all saved consignors & consignees from past shipments & companies
+        const consignorMap = new Map();
+        const consigneeMap = new Map();
 
-        setSavedConsignorsList(sortedParties);
-        setSavedConsigneesList(sortedParties);
+        const addConsignor = (c) => {
+          if (c && c.name && c.name.trim()) {
+            const key = c.name.trim().toLowerCase();
+            const isSSE = key.includes('ss enterprise') || key.includes('s s enterprise') || key.includes('ss enter');
+            const cleanGstin = !isSSE && c.gstin === '27CIOPK3596D2ZU' ? '' : (c.gstin || c.gstNo || '');
+            const cleanContact = !isSSE && c.contact === 'ssenterprises.nk2021@gmail.com' ? '' : (c.contact || c.contactPhone || c.phone || '');
+            const cleanPin = !isSSE && c.pin === '410501' ? '' : (c.pin || c.pinCode || '');
+            const cleanAddress = !isSSE && (c.address || '').includes('Chakan-Talegaon Road') ? '' : (c.address || c.pickupAddress || '');
+
+            if (!consignorMap.has(key)) {
+              consignorMap.set(key, {
+                id: c.id || `consignor-${consignorMap.size + 1}`,
+                name: c.name.trim(),
+                code: c.code || '',
+                gstin: cleanGstin,
+                address: cleanAddress,
+                city: c.city || '',
+                state: c.state || '',
+                pin: cleanPin,
+                contact: cleanContact
+              });
+            }
+          }
+        };
+
+        const addConsignee = (c) => {
+          if (c && c.name && c.name.trim()) {
+            const key = c.name.trim().toLowerCase();
+            const isAdvik = key.includes('advik');
+            const cleanGstin = !isAdvik && c.gstin === '29AASCA8132C1ZJ' ? '' : (c.gstin || c.gstNo || '');
+            const cleanPin = !isAdvik && c.pin === '563133' ? '' : (c.pin || c.pinCode || '');
+            const cleanAddress = !isAdvik && (c.address || '').includes('Plot No. 205, 206') ? '' : (c.address || c.deliveryAddress || '');
+
+            if (!consigneeMap.has(key)) {
+              consigneeMap.set(key, {
+                id: c.id || `consignee-${consigneeMap.size + 1}`,
+                name: c.name.trim(),
+                code: c.code || '',
+                gstin: cleanGstin,
+                address: cleanAddress,
+                city: c.city || '',
+                state: c.state || '',
+                pin: cleanPin,
+                contact: c.contact || c.contactPhone || c.phone || ''
+              });
+            }
+          }
+        };
+
+        (compList || []).forEach((comp) => {
+          if (comp.companyName) {
+            addConsignor({
+              id: comp.id,
+              name: comp.companyName,
+              code: comp.companyCode || '',
+              gstin: comp.gstin || '',
+              address: comp.billing?.address || '',
+              city: comp.billing?.city || '',
+              state: comp.billing?.state || '',
+              pin: comp.billing?.pinCode || '',
+              contact: comp.primaryContact?.phone || ''
+            });
+            addConsignee({
+              id: comp.id,
+              name: comp.companyName,
+              code: comp.companyCode || '',
+              gstin: comp.gstin || '',
+              address: comp.billing?.address || '',
+              city: comp.billing?.city || '',
+              state: comp.billing?.state || '',
+              pin: comp.billing?.pinCode || '',
+              contact: comp.primaryContact?.phone || ''
+            });
+          }
+          if (comp.hubs && Array.isArray(comp.hubs)) {
+            comp.hubs.forEach((hub) => {
+              addConsignor({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
+              addConsignee({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
+            });
+          }
+        });
+
+        (shipmentList || []).forEach((s) => {
+          if (s.consignor) addConsignor(s.consignor);
+          if (s.consignee) addConsignee(s.consignee);
+        });
+
+        const sortedConsignors = Array.from(consignorMap.values()).sort((a, b) =>
+          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
+        );
+        const sortedConsignees = Array.from(consigneeMap.values()).sort((a, b) =>
+          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
+        );
+
+        setSavedConsignorsList(sortedConsignors);
+        setSavedConsigneesList(sortedConsignees);
 
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
@@ -759,18 +850,7 @@ export const ShipmentFormPage = () => {
                   <span className="w-6 h-6 rounded-full bg-setu-600 text-white font-extrabold text-xs flex items-center justify-center">2</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignor Details (Shipper)</h3>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 hidden sm:inline">Select shipper or enter name</span>
-                  <a
-                    href="/admin/parties"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-setu-600 hover:text-setu-700 hover:underline bg-setu-50 px-2 py-0.5 rounded"
-                  >
-                    <Users className="w-3 h-3" />
-                    <span>Manage Parties</span>
-                  </a>
-                </div>
+                <span className="text-xs text-slate-400">Select shipper or enter name</span>
               </div>
 
 
@@ -842,18 +922,7 @@ export const ShipmentFormPage = () => {
                   <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center">3</span>
                   <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Consignee Details (Receiver)</h3>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 hidden sm:inline">Select receiver or enter name</span>
-                  <a
-                    href="/admin/parties"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline bg-emerald-50 px-2 py-0.5 rounded"
-                  >
-                    <Users className="w-3 h-3" />
-                    <span>Manage Parties</span>
-                  </a>
-                </div>
+                <span className="text-xs text-slate-400">Select receiver or enter name</span>
               </div>
 
 

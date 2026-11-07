@@ -4,108 +4,33 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import logoImg from '../../assets/logo2.png';
 
-// Global module-level preloading: logo is converted to high-res inline Base64 immediately on load
-let preloadedLogoBase64 = null;
-let preloadedLogoImage = null;
-let preloadPromise = null;
-
-const ensureDecodedImage = (src) => {
-  return new Promise((resolve) => {
-    if (!src || typeof window === 'undefined') return resolve(null);
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = async () => {
-      if ('decode' in img) {
-        try { await img.decode(); } catch (_) {}
-      }
-      resolve(img);
-    };
-    img.onerror = () => resolve(null);
-    img.src = src;
-    if (img.complete && img.naturalWidth > 0) {
-      if ('decode' in img) {
-        img.decode().then(() => resolve(img)).catch(() => resolve(img));
-      } else {
-        resolve(img);
-      }
-    }
-  });
-};
-
-const ensureLogoBase64 = () => {
-  if (preloadedLogoBase64 && preloadedLogoImage) {
-    return Promise.resolve(preloadedLogoBase64);
-  }
-  if (preloadPromise) return preloadPromise;
-
-  preloadPromise = new Promise((resolve) => {
-    if (!logoImg || typeof window === 'undefined') {
-      return resolve(logoImg);
-    }
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = async () => {
-      try {
-        if ('decode' in img) {
-          try { await img.decode(); } catch (_) {}
-        }
-        preloadedLogoImage = img;
-
-        const canvas = document.createElement('canvas');
-        const maxW = 1200;
-        const scale = img.width > maxW ? maxW / img.width : 1;
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const dataUri = canvas.toDataURL('image/png', 0.95);
-        preloadedLogoBase64 = dataUri;
-
-        // Also decode the dataUri in memory so it's ready for immediate painting
-        const dataUriImg = new Image();
-        dataUriImg.src = dataUri;
-        if ('decode' in dataUriImg) {
-          try { await dataUriImg.decode(); } catch (_) {}
-        }
-        preloadedLogoImage = dataUriImg;
-
-        resolve(dataUri);
-      } catch (e) {
-        resolve(logoImg);
-      }
-    };
-    img.onerror = () => resolve(logoImg);
-    img.src = logoImg;
-    if (img.complete && img.naturalWidth > 0) {
-      img.onload();
-    }
-  });
-
-  return preloadPromise;
-};
-
-// Start preload as soon as module loads in the browser
-if (typeof window !== 'undefined') {
-  ensureLogoBase64();
-}
-
 export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = false }) => {
   const printRef = useRef(null);
   const [copiedToast, setCopiedToast] = useState(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [logoBase64, setLogoBase64] = useState(() => preloadedLogoBase64 || logoImg);
+  const [logoBase64, setLogoBase64] = useState(logoImg);
 
-  // Ensure high-resolution inline Base64 data URI is ready
+  // Convert logo to high-resolution inline Base64 data URI on mount with high-quality smoothing
   useEffect(() => {
-    ensureLogoBase64().then((uri) => {
-      if (uri && uri.startsWith('data:image')) {
-        setLogoBase64(uri);
+    if (!logoImg) return;
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/png', 1.0));
+      } catch (e) {
+        setLogoBase64(logoImg);
       }
-    });
+    };
+    img.onerror = () => setLogoBase64(logoImg);
+    img.src = logoImg;
   }, []);
 
   useEffect(() => {
@@ -131,37 +56,12 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
   if (!isOpen || !shipment) return null;
 
-  const getShareText = () => {
+  const getShareText = (isSplit = false) => {
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
-    const consignor = shipment.consignor?.name || 'Shipper';
-    const consignee = shipment.consignee?.name || 'Receiver';
-
-    // Format packages: e.g. "2 Boxes"
-    let pkgs = shipment.packages;
-    if (pkgs === undefined || pkgs === null || pkgs === '') {
-      pkgs = '0 Boxes';
-    } else {
-      const pkgsStr = String(pkgs).trim();
-      pkgs = /box|pkg|ctn|carton|piece|nos/i.test(pkgsStr) ? pkgsStr : `${pkgsStr} Boxes`;
-    }
-
-    // Format actual weight: e.g. "0 Kg"
-    let wt = shipment.actualWeight;
-    if (wt === undefined || wt === null || wt === '') {
-      wt = '0 Kg';
-    } else {
-      const wtStr = String(wt).trim();
-      wt = /kg/i.test(wtStr) ? wtStr : `${wtStr} Kg`;
-    }
-
-    // Format invoices: e.g. "DC/26-27/2025738"
-    const invs =
-      shipment.invoiceDetails?.invoiceNumber ||
-      (shipment.commercialInvoices || []).map((i) => i.invoiceNumber).filter(Boolean).join(', ') ||
-      shipment.invoiceNo ||
-      'N/A';
-
-    return `SPEED SETU CONSIGNMENT NOTE (CN)\n\nCN Number: ${cnNo}\nConsignor: ${consignor}\nConsignee: ${consignee}\nPackages: ${pkgs}\nActual Weight: ${wt}\nInvoices: ${invs}\n\nSpeed Setu Logistics Portal`;
+    const consignorName = shipment.consignor?.name || 'Shipper';
+    const consigneeName = shipment.consignee?.name || 'Receiver';
+    const layoutType = isSplit ? 'Split 2-in-1 Duplicate CN (2 Copies/A4)' : 'Single Page CN';
+    return `Speed Setu Consignment Note (CN: ${cnNo})\nConsignor: ${consignorName}\nConsignee: ${consigneeName}\nFormat: ${layoutType}`;
   };
 
   // Helper function to build 300+ DPI razor-sharp PDF File object using html2canvas & jsPDF
@@ -171,97 +71,15 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
 
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
 
-    // 1. Force guarantee logo is converted to high-res Base64 before running html2canvas
-    const readyLogoUri = await ensureLogoBase64();
-    if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
-      setLogoBase64(readyLogoUri);
-      const svgImages = printContent.querySelectorAll('image');
-      svgImages.forEach((imgEl) => {
-        imgEl.setAttribute('href', readyLogoUri);
-        imgEl.setAttribute('xlink:href', readyLogoUri);
-      });
-    }
-
-    // 2. Allow iOS WebKit a frame to render the inline data URI in the SVG
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 60)));
-
-    // 3. Capture SVG layout at 4x high resolution scaling (300+ DPI) with base64 embedded assets
+    // Capture SVG layout at 4x high resolution scaling (300+ DPI) with base64 embedded assets
     const canvas = await html2canvas(printContent, {
       scale: 4,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
-      imageTimeout: 10000,
-      onclone: (clonedDoc) => {
-        if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
-          const clonedSvgImages = clonedDoc.querySelectorAll('image');
-          clonedSvgImages.forEach((imgEl) => {
-            imgEl.setAttribute('href', readyLogoUri);
-            imgEl.setAttribute('xlink:href', readyLogoUri);
-          });
-        }
-      }
+      imageTimeout: 0,
     });
-
-    // 4. DIRECT CANVAS OVERLAY (CRITICAL FOR IPHONE FIRST-TAP GUARANTEE):
-    // On iOS Safari / WebKit, html2canvas renders SVG elements via an internal Image snapshot.
-    // WebKit frequently drops SVG <image> sub-elements on the first rasterization pass before its internal cache warms up.
-    // Explicitly stamping the pre-decoded logo image directly onto the canvas context guarantees the logo is ALWAYS present on the first tap!
-    try {
-      const activeLogoImg = preloadedLogoImage || (await ensureDecodedImage(readyLogoUri || logoImg));
-      if (activeLogoImg && activeLogoImg.naturalWidth > 0) {
-        const svgEl = printContent.querySelector('svg');
-        const printRect = printContent.getBoundingClientRect();
-        const svgRect = svgEl ? svgEl.getBoundingClientRect() : printRect;
-
-        const scaleCanvasX = canvas.width / (printRect.width || 1);
-        const scaleCanvasY = canvas.height / (printRect.height || 1);
-
-        const canvasSvgX = (svgRect.left - printRect.left) * scaleCanvasX;
-        const canvasSvgY = (svgRect.top - printRect.top) * scaleCanvasY;
-        const canvasSvgW = svgRect.width * scaleCanvasX;
-        const canvasSvgH = svgRect.height * scaleCanvasY;
-
-        const svgToCanvasX = canvasSvgW / 1400;
-        const svgToCanvasY = canvasSvgH / 980;
-
-        // In SVG viewBox 1400x980, the logo is placed at transform="translate(25, 18)" with width 415 and height 114
-        const destBoxX = canvasSvgX + (25 * svgToCanvasX);
-        const destBoxY = canvasSvgY + (18 * svgToCanvasY);
-        const destBoxW = 415 * svgToCanvasX;
-        const destBoxH = 114 * svgToCanvasY;
-
-        // Match SVG's preserveAspectRatio="xMinYMid meet"
-        const imgRatio = activeLogoImg.naturalWidth / (activeLogoImg.naturalHeight || 1);
-        const boxRatio = destBoxW / destBoxH;
-        let drawW = destBoxW;
-        let drawH = destBoxH;
-        let drawX = destBoxX;
-        let drawY = destBoxY;
-
-        if (imgRatio > boxRatio) {
-          drawH = destBoxW / imgRatio;
-          drawY = destBoxY + (destBoxH - drawH) / 2;
-        } else {
-          drawW = destBoxH * imgRatio;
-          drawX = destBoxX;
-          drawY = destBoxY + (destBoxH - drawH) / 2;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.save();
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(destBoxX, destBoxY, destBoxW, destBoxH);
-          ctx.drawImage(activeLogoImg, drawX, drawY, drawW, drawH);
-          ctx.restore();
-        }
-      }
-    } catch (overlayErr) {
-      console.warn('Direct canvas logo overlay fallback skipped:', overlayErr);
-    }
-
     const imgData = canvas.toDataURL('image/png', 1.0);
 
     let pdf;
@@ -306,59 +124,26 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
     return { pdfBlob, pdfFile, fileName };
   };
 
-  // 1. Native Mobile PDF Share (Shares high-res .pdf file via Web Share API with logo intact and detailed message)
+  // 1. Native Mobile PDF Share (Shares high-res .pdf file via Web Share API with logo intact)
   const handleSharePdf = async (isSplit = false) => {
     const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
-    const shareText = getShareText();
     setIsGeneratingPdf(true);
 
     try {
       const { pdfFile, pdfBlob, fileName } = await generateCnPdfFile(isSplit);
 
-      // Try native Web Share API with file attachment and formatted details
-      if (navigator.share) {
-        const shareDataWithFile = {
+      // Try native Web Share API with file attachment (iOS Safari / Android / Mobile Chrome)
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
           title: `Consignment Note ${cnNo}`,
-          text: shareText,
+          text: `Speed Setu Consignment Note - ${cnNo}`,
           files: [pdfFile],
-        };
-
-        if (navigator.canShare && navigator.canShare(shareDataWithFile)) {
-          try {
-            await navigator.share(shareDataWithFile);
-            setIsGeneratingPdf(false);
-            return;
-          } catch (shareErr) {
-            if (shareErr.name === 'AbortError') {
-              setIsGeneratingPdf(false);
-              return;
-            }
-            console.warn('Share with text and files failed, falling back:', shareErr);
-          }
-        }
-
-        // If sharing with both text & files was rejected by the OS, try files alone
-        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          try {
-            await navigator.share({
-              title: `Consignment Note ${cnNo}`,
-              files: [pdfFile],
-            });
-            try {
-              await navigator.clipboard.writeText(shareText);
-            } catch (_) {}
-            setIsGeneratingPdf(false);
-            return;
-          } catch (fileErr) {
-            if (fileErr.name === 'AbortError') {
-              setIsGeneratingPdf(false);
-              return;
-            }
-          }
-        }
+        });
+        setIsGeneratingPdf(false);
+        return;
       }
 
-      // Fallback for browsers that don't support file sharing: Download PDF file directly & copy text
+      // Fallback for browsers that don't support file sharing: Download PDF file directly
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
@@ -368,20 +153,13 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      try {
-        await navigator.clipboard.writeText(shareText);
-      } catch (_) {}
-
       setCopiedToast(isSplit ? 'split-download' : 'single-download');
       setTimeout(() => setCopiedToast(null), 3000);
     } catch (err) {
-      if (err.name === 'AbortError') {
-        setIsGeneratingPdf(false);
-        return;
-      }
       console.error('Share PDF error:', err);
       // Secondary fallback: Copy text summary
       try {
+        const shareText = getShareText(isSplit);
         await navigator.clipboard.writeText(shareText);
         setCopiedToast(isSplit ? 'split-text' : 'single-text');
         setTimeout(() => setCopiedToast(null), 2500);
@@ -563,20 +341,11 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
   };
 
   // Universal direct print handler (iOS Safari AirPrint + Desktop Compatible)
-  const triggerDirectPrint = async (isSplit = false) => {
+  const triggerDirectPrint = (isSplit = false) => {
     const printContent = printRef.current;
     if (!printContent) {
       window.print();
       return;
-    }
-
-    const readyLogoUri = await ensureLogoBase64();
-    if (readyLogoUri && readyLogoUri.startsWith('data:image')) {
-      const svgImages = printContent.querySelectorAll('image');
-      svgImages.forEach((imgEl) => {
-        imgEl.setAttribute('href', readyLogoUri);
-        imgEl.setAttribute('xlink:href', readyLogoUri);
-      });
     }
 
     const svgElement = printContent.querySelector('svg');
@@ -815,7 +584,13 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
                 </button>
                 <button
                   onClick={() => {
-                    const text = getShareText();
+                    const cnNo = shipment.cnNumber || shipment.cn_number || shipment.cnNo || 'SS2004';
+                    const consignor = shipment.consignor?.name || 'Shipper';
+                    const consignee = shipment.consignee?.name || 'Receiver';
+                    const pkgs = shipment.packages || '0';
+                    const wt = shipment.actualWeight || '0';
+                    const invs = shipment.invoiceDetails?.invoiceNumber || (shipment.commercialInvoices || []).map(i => i.invoiceNumber).join(', ') || 'N/A';
+                    const text = `🚚 *SPEED SETU CONSIGNMENT NOTE (CN)*\n\n*CN Number:* ${cnNo}\n*Consignor:* ${consignor}\n*Consignee:* ${consignee}\n*Packages:* ${pkgs} Boxes\n*Actual Weight:* ${wt} Kg\n*Invoices:* ${invs}\n\nSpeed Setu Logistics Portal`;
                     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
                   }}
                   className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
@@ -917,8 +692,7 @@ export const ConsignmentNoteModal = ({ isOpen, onClose, shipment, autoPrint = fa
               {/* Header Left: Official Speed Setu Brand Image Logo */}
               <g transform="translate(25, 18)">
                 <image
-                  href={logoBase64 || preloadedLogoBase64 || logoImg}
-                  xlinkHref={logoBase64 || preloadedLogoBase64 || logoImg}
+                  href={logoBase64 || logoImg}
                   x="0"
                   y="0"
                   width="415"

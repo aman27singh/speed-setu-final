@@ -15,24 +15,6 @@ if (fs.existsSync(distIndex)) {
   let htmlContent = fs.readFileSync(distIndex, 'utf8');
   const cacheBuster = Date.now();
   htmlContent = htmlContent.replace(/\.(js|css)"/g, `.$1?v=${cacheBuster}"`);
-  
-  const cacheBusterScript = `<script>
-    (function() {
-      try {
-        var v = "${cacheBuster}";
-        var prev = localStorage.getItem("speedsetu_app_build_v");
-        if (prev && prev !== v) {
-          localStorage.setItem("speedsetu_app_build_v", v);
-          if (window.caches) caches.keys().then(function(keys) { keys.forEach(function(k) { caches.delete(k); }); });
-          window.location.reload(true);
-        } else {
-          localStorage.setItem("speedsetu_app_build_v", v);
-        }
-      } catch(e) {}
-    })();
-  </script>`;
-  htmlContent = htmlContent.replace('<head>', `<head>\n  ${cacheBusterScript}`);
-
   fs.writeFileSync(adminIndex, htmlContent, 'utf8');
   console.log(`✓ Synced dist/index.html to admin/index.html with cache buster ?v=${cacheBuster}`);
 }
