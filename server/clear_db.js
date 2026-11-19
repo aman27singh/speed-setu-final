@@ -15,7 +15,12 @@ const clearAllDatabaseData = async () => {
   try {
     await connectDB();
 
-    console.log('🗑️ Clearing ALL dummy records from MongoDB database...');
+    if (mongoose.connection.name === 'speed_setu_db') {
+      console.error('🚨 [ABORT]: clear_db.js is STRICTLY PROHIBITED on production database "speed_setu_db"!');
+      process.exit(1);
+    }
+
+    console.log(`🗑️ Clearing records from development database: ${mongoose.connection.name}...`);
     
     await Promise.all([
       Counter.deleteMany({}),

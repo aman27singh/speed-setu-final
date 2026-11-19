@@ -52,6 +52,8 @@ const ShipmentSchema = new mongoose.Schema({
   gstRate: { type: Number, default: 18 },
   isGstExempt: { type: Boolean, default: false },
 
+  commercialInvoices: [mongoose.Schema.Types.Mixed],
+
   invoiceDetails: {
     invoiceNumber: String,
     invoiceDate: String,

@@ -692,10 +692,19 @@ export const billingService = {
     try {
       const response = await apiRequest(`/invoices/${encodeURIComponent(id)}`);
       if (response && (response.invoiceNumber || response._id)) {
-        return {
+        const formatted = {
           ...response,
-          id: response.id || response.invoiceNumber || response._id
+          id: response.invoiceNumber || response._id
         };
+        const idx = invoicesStore.findIndex(i =>
+          i.invoiceNumber === formatted.invoiceNumber ||
+          i._id === formatted._id ||
+          i.id === formatted.id ||
+          i.id === id
+        );
+        if (idx !== -1) invoicesStore[idx] = formatted;
+        else invoicesStore.unshift(formatted);
+        return formatted;
       }
     } catch (err) {
       console.warn('[MongoDB Client] Single invoice fetch fallback:', err.message);
@@ -704,7 +713,9 @@ export const billingService = {
     await simulateDelay(120);
     const target = id.toLowerCase();
     const found = invoicesStore.find(
-      (inv) => (inv.id && inv.id.toLowerCase() === target) || (inv.invoiceNumber && inv.invoiceNumber.toLowerCase() === target)
+      (inv) => (inv.invoiceNumber && inv.invoiceNumber.toLowerCase() === target) ||
+               (inv.id && inv.id.toLowerCase() === target) ||
+               (inv._id && inv._id.toString().toLowerCase() === target)
     );
     if (!found) throw new Error(`Invoice '${id}' not found.`);
     return { ...found };
@@ -779,33 +790,26 @@ export const billingService = {
       if (response && (response.invoiceNumber || response._id)) {
         const formatted = {
           ...response,
-          id: response.id || response.invoiceNumber || response._id
+          id: response.invoiceNumber || response._id
         };
-        const index = invoicesStore.findIndex((inv) => inv.invoiceNumber === formatted.invoiceNumber);
+        const index = invoicesStore.findIndex((inv) =>
+          inv.invoiceNumber === formatted.invoiceNumber ||
+          inv._id === formatted._id ||
+          inv.id === formatted.id ||
+          inv.invoiceNumber === id ||
+          inv.id === id
+        );
         if (index !== -1) invoicesStore[index] = formatted;
         else invoicesStore.unshift(formatted);
         return formatted;
       }
     } catch (err) {
-      console.warn('[MongoDB Client] Update invoice fallback:', err.message);
+      console.error('[BillingService] Update invoice failed in MongoDB Atlas:', err);
+      // Strictly propagate error to prevent silent in-memory fallback
+      throw err;
     }
 
-    await simulateDelay(200);
-    const target = id.toLowerCase();
-    const index = invoicesStore.findIndex(
-      (inv) => (inv.id && inv.id.toLowerCase() === target) || (inv.invoiceNumber && inv.invoiceNumber.toLowerCase() === target)
-    );
-
-    if (index === -1) throw new Error(`Invoice '${id}' not found for update.`);
-
-    const updatedInvoice = {
-      ...invoicesStore[index],
-      ...updateData,
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-
-    invoicesStore[index] = updatedInvoice;
-    return { ...updatedInvoice };
+    throw new Error('Unable to Update Invoice. The changes could not be saved. Please try again.');
   },
 
   async cancelInvoice(id, cancellationReason = 'Cancelled by Admin') {
@@ -815,6 +819,88 @@ export const billingService = {
       balanceAmount: 0,
       balanceDue: 0
     });
+  },
+
+  async validateDuplicates({ currentInvoiceId, currentInvoiceNumber, invoiceNumber, dockets }) {
+    try {
+      const response = await apiRequest('/invoices/validate-duplicates', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentInvoiceId,
+          currentInvoiceNumber,
+          invoiceNumber,
+          dockets
+        })
+      });
+      return response;
+    } catch (err) {
+      console.warn('[BillingService] validateDuplicates fallback:', err.message);
+      // Fallback in-memory validation against invoicesStore
+      const normInvNum = (invoiceNumber || '').trim().toLowerCase();
+      let invoiceNumberError = null;
+      let conflictingInvoice = null;
+
+      if (normInvNum) {
+        const found = invoicesStore.find(inv => {
+          const invNum = (inv.invoiceNumber || '').trim().toLowerCase();
+          const isSame = (currentInvoiceId && (inv.id === currentInvoiceId || inv._id === currentInvoiceId || inv.invoiceNumber === currentInvoiceId)) ||
+                         (currentInvoiceNumber && invNum === currentInvoiceNumber.trim().toLowerCase());
+          return invNum === normInvNum && !isSame;
+        });
+        if (found) {
+          invoiceNumberError = 'This invoice number already exists. Please enter a unique invoice number.';
+          conflictingInvoice = found.invoiceNumber;
+        }
+      }
+
+      const docketErrors = [];
+      const seen = new Map();
+      (dockets || []).forEach((d, idx) => {
+        const raw = typeof d === 'string' ? d.trim() : (d?.docketNo || d?.cnNumber || '').trim();
+        if (!raw) return;
+        const norm = raw.toLowerCase();
+        if (seen.has(norm)) {
+          docketErrors.push({
+            index: idx,
+            docketNo: raw,
+            error: `Duplicate docket number in this invoice (row ${seen.get(norm) + 1} and row ${idx + 1}).`,
+            type: 'internal_duplicate'
+          });
+          return;
+        }
+        seen.set(norm, idx);
+
+        const conflict = invoicesStore.find(inv => {
+          if ((inv.status || '').toLowerCase() === 'cancelled') return false;
+          const isSame = (currentInvoiceId && (inv.id === currentInvoiceId || inv._id === currentInvoiceId || inv.invoiceNumber === currentInvoiceId)) ||
+                         (currentInvoiceNumber && (inv.invoiceNumber || '').trim().toLowerCase() === currentInvoiceNumber.trim().toLowerCase());
+          if (isSame) return false;
+          const cns = [
+            ...(inv.cns || []),
+            ...(inv.shipmentIds || []),
+            ...(inv.dockets || []).map(x => x.docketNo || x.cnNumber)
+          ].map(x => String(x).trim().toLowerCase());
+          return cns.includes(norm);
+        });
+
+        if (conflict) {
+          docketErrors.push({
+            index: idx,
+            docketNo: raw,
+            error: `This docket number has already been used in invoice ${conflict.invoiceNumber}.`,
+            conflictingInvoice: conflict.invoiceNumber,
+            type: 'external_duplicate'
+          });
+        }
+      });
+
+      return {
+        isValid: !invoiceNumberError && docketErrors.length === 0,
+        invoiceNumberError,
+        conflictingInvoice,
+        docketErrors
+      };
+    }
   },
 
   async deleteInvoice(id) {

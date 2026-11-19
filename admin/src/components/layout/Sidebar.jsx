@@ -72,6 +72,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         groupLabel: 'Finance',
         items: [
           { name: 'Billing', path: '/admin/billing', icon: Receipt },
+          { name: 'Sales Register', path: '/admin/billing/sales-register', icon: FileSpreadsheet },
           { name: 'Payments', path: '/admin/payments', icon: CreditCard },
           { name: 'Expenses', path: '/admin/expenses', icon: TrendingDown },
           { name: 'Payables', path: '/admin/payables', icon: DollarSign }

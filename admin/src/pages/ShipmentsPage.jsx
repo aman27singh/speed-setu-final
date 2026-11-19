@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
-import { shipmentService } from '../services/shipmentService';
+import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
 import { formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
@@ -41,18 +41,21 @@ export const ShipmentsPage = () => {
     user?.email?.toLowerCase().includes('driver');
 
   const [baseShipments, setBaseShipments] = useState([]);
+  const [allShipmentsMaster, setAllShipmentsMaster] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters
+  // Filters (Company → Origin–Destination → Package → Weight)
   const [search, setSearch] = useState(searchQuery || '');
   const [companyFilter, setCompanyFilter] = useState('All');
+  const [routeFilter, setRouteFilter] = useState('All');
+  const [packageFilter, setPackageFilter] = useState('All');
+  const [weightFilter, setWeightFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [modeFilter, setModeFilter] = useState('All');
-  const [podStatusFilter, setPodStatusFilter] = useState('All');
-  const [billingStatusFilter, setBillingStatusFilter] = useState('All');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
+
+  // Backend-aggregated options cache
+  const [backendOptions, setBackendOptions] = useState(null);
 
   // Modal State
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -94,11 +97,10 @@ export const ShipmentsPage = () => {
     try {
       const shipmentsData = await shipmentService.getShipments({
         companyId: companyFilter,
-        status: statusFilter,
-        mode: modeFilter,
-        podStatus: podStatusFilter,
-        billingStatus: billingStatusFilter,
-        paymentStatus: paymentStatusFilter
+        route: routeFilter,
+        packageCount: packageFilter,
+        weight: weightFilter,
+        status: statusFilter
       });
 
       let finalShipments = shipmentsData || [];
@@ -132,7 +134,13 @@ export const ShipmentsPage = () => {
         });
       }
 
-      setBaseShipments(finalShipments);
+      const sorted = sortShipments(finalShipments);
+      setBaseShipments(sorted);
+
+      // Keep master copy of shipments on initial fetch or when no company filter is applied
+      if (allShipmentsMaster.length === 0 || companyFilter === 'All') {
+        setAllShipmentsMaster(sorted);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load shipments records.');
     } finally {
@@ -143,53 +151,254 @@ export const ShipmentsPage = () => {
   // Fetch shipments when dropdown filters change
   useEffect(() => {
     fetchData();
-  }, [companyFilter, statusFilter, modeFilter, podStatusFilter, billingStatusFilter, paymentStatusFilter]);
+  }, [companyFilter, routeFilter, packageFilter, weightFilter, statusFilter]);
 
-  // Instant in-memory search filtering (0ms latency, runs at 60fps)
-  const shipments = React.useMemo(() => {
-    const q = (search || searchQuery || '').toLowerCase().trim();
-    if (!q) return baseShipments;
+  // Fetch backend dynamic filter options aggregation for exact database verification
+  useEffect(() => {
+    shipmentService.getFilterOptions({
+      companyId: companyFilter,
+      route: routeFilter,
+      packageCount: packageFilter,
+      status: statusFilter
+    }).then((res) => {
+      if (res) setBackendOptions(res);
+    }).catch(() => {});
+  }, [companyFilter, routeFilter, packageFilter, statusFilter]);
 
-    return baseShipments.filter((s) => {
-      const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
-      const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
-      const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
-      const consignorMatch = s.consignor?.name && s.consignor.name.toLowerCase().includes(q);
-      const consigneeMatch = s.consignee?.name && s.consignee.name.toLowerCase().includes(q);
-      const originMatch = s.origin && s.origin.toLowerCase().includes(q);
-      const destMatch = s.destination && s.destination.toLowerCase().includes(q);
-      const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
-      const ewayMatch = s.ewayBillNumber && s.ewayBillNumber.toLowerCase().includes(q);
-      const awbMatch = s.awbNumber && s.awbNumber.toLowerCase().includes(q);
-      const commMatch = (s.commercialInvoices || []).some(
-        (inv) =>
-          (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(q)) ||
-          (inv.ewayBillNumber && inv.ewayBillNumber.toLowerCase().includes(q)) ||
-          (inv.awbNumber && inv.awbNumber.toLowerCase().includes(q))
-      );
-
-      return (
-        cnMatch ||
-        compNameMatch ||
-        compCodeMatch ||
-        consignorMatch ||
-        consigneeMatch ||
-        originMatch ||
-        destMatch ||
-        invoiceMatch ||
-        ewayMatch ||
-        awbMatch ||
-        commMatch
-      );
+  // 1. Available Companies (across database, with counts)
+  const availableCompanies = React.useMemo(() => {
+    if (backendOptions?.companies && backendOptions.companies.length > 0) {
+      return backendOptions.companies;
+    }
+    const list = allShipmentsMaster.length > 0 ? allShipmentsMaster : baseShipments;
+    const compMap = new Map();
+    list.forEach((s) => {
+      const id = s.companyId || s.companyCode || s.companyName;
+      if (!id) return;
+      if (!compMap.has(id)) {
+        compMap.set(id, {
+          id,
+          name: s.companyName || id,
+          code: s.companyCode || '',
+          count: 0
+        });
+      }
+      compMap.get(id).count++;
     });
-  }, [baseShipments, search, searchQuery]);
+
+    return Array.from(compMap.values())
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+        label: `${c.name}${c.code ? ` (${c.code})` : ''} (${c.count})`,
+        count: c.count
+      }));
+  }, [backendOptions, allShipmentsMaster, baseShipments]);
+
+  // 2. Dynamic Origin – Destination Routes (Depends on selected Company)
+  const availableRoutes = React.useMemo(() => {
+    if (backendOptions?.routes && backendOptions.routes.length > 0) {
+      return backendOptions.routes;
+    }
+    const list = (allShipmentsMaster.length > 0 ? allShipmentsMaster : baseShipments).filter((s) => {
+      if (companyFilter !== 'All') {
+        const cLower = companyFilter.toLowerCase();
+        return (
+          s.companyId === companyFilter ||
+          s.companyCode === companyFilter ||
+          (s.companyName && s.companyName.toLowerCase() === cLower)
+        );
+      }
+      return true;
+    });
+
+    const routeCounts = new Map();
+    list.forEach((s) => {
+      const orig = (s.origin || '').trim().toUpperCase();
+      const dest = (s.destination || '').trim().toUpperCase();
+      if (orig || dest) {
+        const key = `${orig || 'ANY'} → ${dest || 'ANY'}`;
+        routeCounts.set(key, (routeCounts.get(key) || 0) + 1);
+      }
+    });
+
+    return Array.from(routeCounts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([key, count]) => ({
+        value: key,
+        label: `${key} (${count})`,
+        count
+      }));
+  }, [backendOptions, allShipmentsMaster, baseShipments, companyFilter]);
+
+  // 3. Dynamic Packages (Depends on selected Company + Route)
+  const availablePackages = React.useMemo(() => {
+    if (backendOptions?.packages && backendOptions.packages.length > 0) {
+      return backendOptions.packages;
+    }
+    const list = (allShipmentsMaster.length > 0 ? allShipmentsMaster : baseShipments).filter((s) => {
+      if (companyFilter !== 'All') {
+        const cLower = companyFilter.toLowerCase();
+        if (s.companyId !== companyFilter && s.companyCode !== companyFilter && s.companyName?.toLowerCase() !== cLower) return false;
+      }
+      if (routeFilter !== 'All' && !matchRoute(s.origin, s.destination, routeFilter)) return false;
+      return true;
+    });
+
+    const pkgCounts = new Map();
+    list.forEach((s) => {
+      const num = parseInt(s.packages, 10) || 1;
+      pkgCounts.set(num, (pkgCounts.get(num) || 0) + 1);
+    });
+
+    return Array.from(pkgCounts.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([num, count]) => ({
+        value: String(num),
+        label: `${num} ${num === 1 ? 'Box' : 'Boxes'} (${count})`,
+        count
+      }));
+  }, [backendOptions, allShipmentsMaster, baseShipments, companyFilter, routeFilter]);
+
+  // 4. Dynamic Weights (Depends on selected Company + Route + Package)
+  // Only two conditions: 0 Weight vs Greater Than 0
+  const availableWeights = React.useMemo(() => {
+    if (backendOptions?.weights && backendOptions.weights.length > 0) {
+      return backendOptions.weights;
+    }
+    const list = (allShipmentsMaster.length > 0 ? allShipmentsMaster : baseShipments).filter((s) => {
+      if (companyFilter !== 'All') {
+        const cLower = companyFilter.toLowerCase();
+        if (s.companyId !== companyFilter && s.companyCode !== companyFilter && s.companyName?.toLowerCase() !== cLower) return false;
+      }
+      if (routeFilter !== 'All' && !matchRoute(s.origin, s.destination, routeFilter)) return false;
+      if (packageFilter !== 'All' && !matchPackage(s.packages, packageFilter)) return false;
+      return true;
+    });
+
+    let zeroCount = 0;
+    let gt0Count = 0;
+    list.forEach((s) => {
+      const act = parseFloat(s.actualWeight) || 0;
+      const chg = parseFloat(s.chargeableWeight) || 0;
+      if (act > 0 || chg > 0) gt0Count++;
+      else zeroCount++;
+    });
+
+    const opts = [];
+    if (gt0Count > 0) {
+      opts.push({
+        value: 'greater_than_0',
+        label: `Greater Than 0 (${gt0Count})`,
+        count: gt0Count
+      });
+    }
+    if (zeroCount > 0) {
+      opts.push({
+        value: 'zero',
+        label: `0 Weight (${zeroCount})`,
+        count: zeroCount
+      });
+    }
+    return opts;
+  }, [backendOptions, allShipmentsMaster, baseShipments, companyFilter, routeFilter, packageFilter]);
+
+  // Cascading reset: changing parent resets any dependent selection that is no longer valid
+  useEffect(() => {
+    if (routeFilter !== 'All' && availableRoutes.length > 0 && !availableRoutes.some((r) => r.value === routeFilter)) {
+      setRouteFilter('All');
+    }
+  }, [availableRoutes, routeFilter]);
+
+  useEffect(() => {
+    if (packageFilter !== 'All' && availablePackages.length > 0 && !availablePackages.some((p) => p.value === packageFilter)) {
+      setPackageFilter('All');
+    }
+  }, [availablePackages, packageFilter]);
+
+  useEffect(() => {
+    if (weightFilter !== 'All' && availableWeights.length > 0 && !availableWeights.some((w) => w.value === weightFilter)) {
+      setWeightFilter('All');
+    }
+  }, [availableWeights, weightFilter]);
+
+  // Instant in-memory multi-filter and search filtering (AND logic across all 4 filters + search)
+  const shipments = React.useMemo(() => {
+    let list = baseShipments;
+
+    // 1. Company Filter (AND)
+    if (companyFilter && companyFilter !== 'All') {
+      const cLower = companyFilter.toLowerCase();
+      list = list.filter((s) =>
+        s.companyId === companyFilter ||
+        s.companyCode === companyFilter ||
+        (s.companyName && s.companyName.toLowerCase() === cLower)
+      );
+    }
+
+    // 2. Origin – Destination Filter (AND)
+    if (routeFilter && routeFilter !== 'All') {
+      list = list.filter((s) => matchRoute(s.origin, s.destination, routeFilter));
+    }
+
+    // 3. Package Filter (AND)
+    if (packageFilter && packageFilter !== 'All') {
+      list = list.filter((s) => matchPackage(s.packages, packageFilter));
+    }
+
+    // 4. Weight Filter: 0 Weight vs Greater Than 0 (AND)
+    if (weightFilter && weightFilter !== 'All') {
+      list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
+    }
+
+    // 5. Search Bar Query (AND) - CN, Company, Consignor, Consignee, Origin, Destination, Invoice...
+    const q = (search || searchQuery || '').toLowerCase().trim();
+    if (q) {
+      list = list.filter((s) => {
+        const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
+        const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
+        const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
+        const consignorMatch = s.consignor?.name && s.consignor.name.toLowerCase().includes(q);
+        const consigneeMatch = s.consignee?.name && s.consignee.name.toLowerCase().includes(q);
+        const originMatch = s.origin && s.origin.toLowerCase().includes(q);
+        const destMatch = s.destination && s.destination.toLowerCase().includes(q);
+        const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
+        const ewayMatch = s.ewayBillNumber && s.ewayBillNumber.toLowerCase().includes(q);
+        const awbMatch = s.awbNumber && s.awbNumber.toLowerCase().includes(q);
+        const commMatch = (s.commercialInvoices || []).some(
+          (inv) =>
+            (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(q)) ||
+            (inv.ewayBillNumber && inv.ewayBillNumber.toLowerCase().includes(q)) ||
+            (inv.awbNumber && inv.awbNumber.toLowerCase().includes(q))
+        );
+
+        return (
+          cnMatch ||
+          compNameMatch ||
+          compCodeMatch ||
+          consignorMatch ||
+          consigneeMatch ||
+          originMatch ||
+          destMatch ||
+          invoiceMatch ||
+          ewayMatch ||
+          awbMatch ||
+          commMatch
+        );
+      });
+    }
+
+    return sortShipments(list);
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter]);
 
   // Optional background fetch if query is not found locally, without blocking the UI
   useEffect(() => {
     const q = (search || searchQuery || '').trim();
     if (!q || q.length < 2) return;
 
-    const localMatch = baseShipments.some(s => {
+    const localMatch = baseShipments.some((s) => {
       const qLower = q.toLowerCase();
       return (s.cnNumber && s.cnNumber.toLowerCase().includes(qLower)) ||
              (s.companyName && s.companyName.toLowerCase().includes(qLower));
@@ -202,17 +411,16 @@ export const ShipmentsPage = () => {
         const results = await shipmentService.getShipments({
           search: q,
           companyId: companyFilter,
-          status: statusFilter,
-          mode: modeFilter,
-          podStatus: podStatusFilter,
-          billingStatus: billingStatusFilter,
-          paymentStatus: paymentStatusFilter
+          route: routeFilter,
+          packageCount: packageFilter,
+          weight: weightFilter,
+          status: statusFilter
         });
         if (isCurrent && Array.isArray(results) && results.length > 0) {
-          setBaseShipments(prev => {
-            const existing = new Set(prev.map(p => p.id || p.cnNumber || p._id));
-            const fresh = results.filter(r => !existing.has(r.id || r.cnNumber || r._id));
-            return fresh.length > 0 ? [...fresh, ...prev] : prev;
+          setBaseShipments((prev) => {
+            const existing = new Set(prev.map((p) => p.id || p.cnNumber || p._id));
+            const fresh = results.filter((r) => !existing.has(r.id || r.cnNumber || r._id));
+            return fresh.length > 0 ? sortShipments([...fresh, ...prev]) : prev;
           });
         }
       } catch (e) {
@@ -224,7 +432,7 @@ export const ShipmentsPage = () => {
       isCurrent = false;
       clearTimeout(timer);
     };
-  }, [search, searchQuery, baseShipments, companyFilter, statusFilter, modeFilter, podStatusFilter, billingStatusFilter, paymentStatusFilter]);
+  }, [search, searchQuery, baseShipments, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -277,11 +485,6 @@ export const ShipmentsPage = () => {
     { label: 'Delivered', value: 'Delivered' },
     { label: 'Delayed', value: 'Delayed' },
   ];
-
-  const modeOptions = ['All', 'Air', 'Air Express', 'Road', 'Train', 'FTL', 'Express LTL', 'Other'];
-  const podOptions = ['All', 'Pending', 'Uploaded', 'Verified', 'Missing'];
-  const billingOptions = ['All', 'Not Ready', 'Ready for Billing', 'Draft', 'Generated', 'Sent', 'Billed', 'Paid', 'Overdue'];
-  const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Unpaid', 'Unbilled'];
 
   const columns = [
     {
@@ -606,71 +809,183 @@ export const ShipmentsPage = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
-              {/* Company Filter */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:flex md:items-center gap-2 w-full md:w-auto">
+              {/* 1. Company Filter */}
               <select
                 value={companyFilter}
                 onChange={(e) => setCompanyFilter(e.target.value)}
-                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
+                  companyFilter !== 'All'
+                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
+                    : 'border-slate-200 text-slate-700'
+                }`}
+                title="Filter by Company"
               >
-                <option value="All">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.companyName} ({c.companyCode})</option>
+                <option value="All">
+                  All Companies {availableCompanies.length > 0 ? `(${availableCompanies.reduce((acc, c) => acc + (c.count || 0), 0)})` : ''}
+                </option>
+                {availableCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label || `${c.name} (${c.count})`}
+                  </option>
                 ))}
               </select>
 
-              {/* Mode Filter */}
+              {/* 2. Dynamic Origin – Destination Filter (Depends on Company) */}
               <select
-                value={modeFilter}
-                onChange={(e) => setModeFilter(e.target.value)}
-                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+                value={routeFilter}
+                onChange={(e) => setRouteFilter(e.target.value)}
+                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
+                  routeFilter !== 'All'
+                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
+                    : 'border-slate-200 text-slate-700'
+                }`}
+                title="Filter by Origin – Destination Route"
               >
-                <option value="All">All Modes</option>
-                {modeOptions.slice(1).map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                <option value="All">
+                  {companyFilter === 'All' ? 'Origin – Destination' : 'All Routes for Company'} {availableRoutes.length > 0 ? `(${availableRoutes.reduce((acc, r) => acc + (r.count || 0), 0)})` : ''}
+                </option>
+                {availableRoutes.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
 
-              {/* POD Status Filter */}
+              {/* 3. Dynamic Package Filter (Depends on Company + Route) */}
               <select
-                value={podStatusFilter}
-                onChange={(e) => setPodStatusFilter(e.target.value)}
-                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+                value={packageFilter}
+                onChange={(e) => setPackageFilter(e.target.value)}
+                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
+                  packageFilter !== 'All'
+                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
+                    : 'border-slate-200 text-slate-700'
+                }`}
+                title="Filter by Package Count"
               >
-                <option value="All">POD Status</option>
-                {podOptions.slice(1).map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                <option value="All">
+                  All Packages {availablePackages.length > 0 ? `(${availablePackages.reduce((acc, p) => acc + (p.count || 0), 0)})` : ''}
+                </option>
+                {availablePackages.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
                 ))}
               </select>
 
-              {/* Payment Status Filter */}
+              {/* 4. Dynamic Weight Filter (0 Weight vs Greater Than 0) */}
               <select
-                value={paymentStatusFilter}
-                onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                className="px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate"
+                value={weightFilter}
+                onChange={(e) => setWeightFilter(e.target.value)}
+                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
+                  weightFilter !== 'All'
+                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
+                    : 'border-slate-200 text-slate-700'
+                }`}
+                title="Filter by Weight"
               >
-                <option value="All">Payment Status</option>
-                {paymentOptions.slice(1).map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                <option value="All">
+                  All Weights {availableWeights.length > 0 ? `(${availableWeights.reduce((acc, w) => acc + (w.count || 0), 0)})` : ''}
+                </option>
+                {availableWeights.map((w) => (
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
                 ))}
               </select>
 
+              {/* Reset All Filters Button */}
               <button
                 onClick={() => {
                   setSearch('');
                   setCompanyFilter('All');
+                  setRouteFilter('All');
+                  setPackageFilter('All');
+                  setWeightFilter('All');
                   setStatusFilter('All');
-                  setModeFilter('All');
-                  setPodStatusFilter('All');
-                  setBillingStatusFilter('All');
-                  setPaymentStatusFilter('All');
                 }}
-                className="col-span-2 sm:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 rounded-md transition-colors text-center shrink-0"
+                className="col-span-2 sm:col-span-4 md:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors text-center shrink-0 cursor-pointer"
+                title="Reset all filters to default"
               >
                 Reset
               </button>
             </div>
           </div>
+
+          {/* Active Filter Badges with Individual Dismiss (x) and Clear All */}
+          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All') && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+              <span className="text-[11px] font-semibold text-slate-400 mr-1">Active Filters:</span>
+              {companyFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-setu-50 text-setu-700 border border-setu-200 shadow-2xs">
+                  <span>
+                    Company: {(() => {
+                      const found = availableCompanies.find((c) => c.id === companyFilter);
+                      return found ? found.name : companyFilter;
+                    })()}
+                  </span>
+                  <button
+                    onClick={() => setCompanyFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Company filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {routeFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                  <span>Route: {routeFilter}</span>
+                  <button
+                    onClick={() => setRouteFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Route filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {packageFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                  <span>
+                    Package: {availablePackages.find((p) => p.value === packageFilter)?.label || `${packageFilter} Boxes`}
+                  </span>
+                  <button
+                    onClick={() => setPackageFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Package filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {weightFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                  <span>
+                    Weight: {availableWeights.find((w) => w.value === weightFilter)?.label || (weightFilter === 'zero' ? '0 Weight' : 'Greater Than 0')}
+                  </span>
+                  <button
+                    onClick={() => setWeightFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Weight filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setCompanyFilter('All');
+                  setRouteFilter('All');
+                  setPackageFilter('All');
+                  setWeightFilter('All');
+                }}
+                className="text-[11px] font-bold text-slate-500 hover:text-rose-600 underline ml-1 cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
 
           <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div className="overflow-x-auto max-w-full pb-1">

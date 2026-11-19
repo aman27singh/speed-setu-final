@@ -2,11 +2,32 @@ import React, { useState } from 'react';
 import { formatINR, formatDate } from '../../utils/formatters';
 import logoImg from '../../assets/logo2.png';
 
+const DEFAULT_TERMS = [
+  'Our Company Is Registered Under Msme. Uam No',
+  'If Any Discrepancy In The Invoice Please Inform Us Within Two Days After That It Will Not Be Accepted.',
+  'The Laws Applicable To This Contract Shall Be The Law In Force In India. The Courts Of New Delhi Shall Have Exclusive Jurisdiction In All Matters Arising Under This Contract.',
+  'Payments Should Be Made Through Cheque/Dd. In Favour "Speed Setu Logistics Pvt Ltd "',
+  'Payment After Due Date Will Attract Interest @ 2% Or Part Of The Month'
+];
+
 export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
   if (!invoice) return null;
 
+  // Supplier Details
+  const supplier = invoice.supplierDetails || {};
+  const supplierName = supplier.companyName || 'SPEEDSETU LOGISTICS PRIVATE LIMITED';
+  const supplierLogo = supplier.logoUrl || logoImg;
+  const supplierAddr1 = supplier.addressLine1 || 'Haripur, BHIWANI,';
+  const supplierAddr2 = supplier.addressLine2 || 'Haripur, Bhiwani, Bhiwani, Haryana, 127021';
+  const supplierGstin = supplier.gstin || '06ABSCS1710K1Z4';
+  const supplierPhone = supplier.phone || '';
+  const supplierEmail = supplier.email || '';
+  const supplierPan = supplier.pan || '';
+
   // Extract client company billing profile details with full fallbacks
-  const rawCompanyName = invoice.companyBilling?.companyName ||
+  const billTo = invoice.billToDetails || invoice.billTo || {};
+  const rawCompanyName = billTo.companyName ||
+                         invoice.companyBilling?.companyName ||
                          invoice.companyBilling?.registeredName ||
                          invoice.billing?.companyName ||
                          invoice.company?.billing?.companyName ||
@@ -14,7 +35,8 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                          invoice.company?.companyName ||
                          'N/A';
 
-  const rawAddrLine1 = (invoice.companyAddress && invoice.companyAddress.trim()) ||
+  const rawAddrLine1 = (billTo.address && billTo.address.trim()) ||
+                       (invoice.companyAddress && invoice.companyAddress.trim()) ||
                        (invoice.address && invoice.address.trim()) ||
                        invoice.companyBilling?.address ||
                        invoice.billing?.address ||
@@ -22,12 +44,12 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                        invoice.shipment?.consignor?.address ||
                        '';
 
-  const rawAddrLine2 = invoice.companyBilling?.addressLine2 ||
+  const rawAddrLine2 = billTo.addressLine2 ||
+                       invoice.companyBilling?.addressLine2 ||
                        invoice.billing?.addressLine2 ||
                        invoice.company?.billing?.addressLine2 ||
                        '';
 
-  // Check if rawAddrLine1 is actually a company legal name (e.g. TECHNIQUES SURFACES INDIA PVT LTD.)
   const isAddrLine1LegalName = /\b(pvt|private|ltd|limited|inc|corp|corporation)\b/i.test(rawAddrLine1) ||
                                (rawAddrLine1.length > 5 && rawAddrLine1.toUpperCase() === rawAddrLine1 && !/\d/.test(rawAddrLine1));
 
@@ -39,7 +61,8 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     displayAddress = rawAddrLine2 ? rawAddrLine2.trim() : '';
   }
 
-  const companyGstin = (invoice.companyGstin && invoice.companyGstin.trim()) ||
+  const companyGstin = (billTo.gstin && billTo.gstin.trim()) ||
+                       (invoice.companyGstin && invoice.companyGstin.trim()) ||
                        (invoice.gstin && invoice.gstin.trim()) ||
                        invoice.companyBilling?.gstin ||
                        invoice.billing?.gstin ||
@@ -48,21 +71,24 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                        invoice.shipment?.consignor?.gstin ||
                        '';
 
-  const rawCity = (invoice.city && invoice.city.trim()) ||
+  const rawCity = (billTo.city && billTo.city.trim()) ||
+                  (invoice.city && invoice.city.trim()) ||
                   invoice.companyBilling?.city ||
                   invoice.billing?.city ||
                   invoice.company?.billing?.city ||
                   invoice.shipment?.consignor?.city ||
                   '';
 
-  const rawState = (invoice.state && invoice.state.trim()) ||
-                   invoice.companyBilling?.state ||
-                   invoice.billing?.state ||
-                   invoice.company?.billing?.state ||
-                   invoice.shipment?.consignor?.state ||
-                   '';
+  const rawState = (billTo.state && billTo.state.trim()) ||
+                    (invoice.state && invoice.state.trim()) ||
+                    invoice.companyBilling?.state ||
+                    invoice.billing?.state ||
+                    invoice.company?.billing?.state ||
+                    invoice.shipment?.consignor?.state ||
+                    '';
 
-  const rawPinCode = (invoice.pinCode && invoice.pinCode.trim()) ||
+  const rawPinCode = (billTo.pinCode && billTo.pinCode.trim()) ||
+                     (invoice.pinCode && invoice.pinCode.trim()) ||
                      invoice.companyBilling?.pinCode ||
                      invoice.billing?.pinCode ||
                      invoice.company?.billing?.pinCode ||
@@ -70,56 +96,58 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                      '';
 
   // Determine if GST is charged or exempt
-  const isInitiallyGstExempt = invoice.isGstExempt === true || invoice.gstRate === 0 || (invoice.gstAmount === 0 && !invoice.cgst && !invoice.sgst && !invoice.igst);
-  const initialTaxMode = defaultTaxType || (isInitiallyGstExempt ? 'no_gst' : 'charging_gst');
+  const isInitiallyGstExempt = invoice.taxMode === 'no_gst' ||
+                               invoice.isGstExempt === true ||
+                               invoice.gstRate === 0 ||
+                               (invoice.gstAmount === 0 && !invoice.cgst && !invoice.sgst && !invoice.igst && !invoice.taxAmount);
 
-  const [taxMode, setTaxMode] = useState(initialTaxMode); // 'no_gst' | 'charging_gst'
+  const initialTaxMode = invoice.taxMode || defaultTaxType || (isInitiallyGstExempt ? 'no_gst' : 'charging_gst');
+  const [taxMode, setTaxMode] = useState(initialTaxMode);
 
-  const isChargingGst = taxMode === 'charging_gst';
+  const isChargingGst = (invoice.taxMode ? invoice.taxMode === 'charging_gst' : taxMode === 'charging_gst');
   const useDeliveryDate = invoice.is3PL === true || invoice.useDeliveryDate === true || invoice.companyBilling?.is3PL === true;
+
+  // Transport details
+  const transport = invoice.transportDetails || {};
+  const transportMode = transport.mode || invoice.billingSnapshot?.mode || invoice.mode || 'TRAIN';
+  const hsnCode = transport.hsnCode || invoice.hsnCode || invoice.billingSnapshot?.hsnCode || (isChargingGst ? '996531' : 'NA');
+  const vehicleNo = transport.vehicleNo || invoice.vehicleNo || '';
+  const grNo = transport.grNo || invoice.grNo || '';
 
   // Build dockets breakdown list
   let dockets = [];
 
   if (invoice.dockets && Array.isArray(invoice.dockets) && invoice.dockets.length > 0) {
     dockets = invoice.dockets.map(d => {
-      const taxable = d.taxableAmount || d.freight || 0;
+      const taxable = typeof d.taxableAmount === 'number' ? d.taxableAmount : (d.freight || 0);
       const isInterState = d.origin && d.destination && d.origin.toLowerCase().trim() !== d.destination.toLowerCase().trim();
       const gstRate = invoice.gstRate || 18;
 
       let pickupCharges = typeof d.pickupCharges === 'number' ? d.pickupCharges : parseFloat(d.pickupCharges || 0);
       let deliveryCharges = typeof d.deliveryCharges === 'number' ? d.deliveryCharges : parseFloat(d.deliveryCharges || 0);
 
-      // Smart fallback: If pickup and delivery charges on docket object are 0, but taxable subtotal exceeds accounted freight/docket/other charges, allocate difference evenly
-      if (pickupCharges === 0 && deliveryCharges === 0 && taxable > 0) {
-        const accounted = (d.freight || 0) + (d.docketCharges || 0) + (d.packingCharges || d.packing || 0) + (d.laborCharges || d.labor || 0) + (d.godownCharges || d.godown || 0);
-        const diff = taxable - accounted;
-        if (diff > 0) {
-          pickupCharges = Math.round(diff / 2);
-          deliveryCharges = diff - pickupCharges;
-        }
-      }
-
-      let cgst = 0;
-      let sgst = 0;
-      let igst = 0;
+      let cgst = typeof d.cgst === 'number' ? d.cgst : 0;
+      let sgst = typeof d.sgst === 'number' ? d.sgst : 0;
+      let igst = typeof d.igst === 'number' ? d.igst : 0;
 
       if (isChargingGst) {
-        if (d.cgst > 0 || d.sgst > 0) {
-          cgst = d.cgst;
-          sgst = d.sgst;
-          igst = d.igst || 0;
-        } else if (d.igst > 0) {
-          igst = d.igst;
+        if (cgst > 0 || sgst > 0 || igst > 0) {
+          // keep explicit values
         } else if (isInterState) {
           igst = Math.round(taxable * (gstRate / 100));
         } else {
           cgst = Math.round(taxable * (gstRate / 200));
           sgst = Math.round(taxable * (gstRate / 200));
         }
+      } else {
+        cgst = 0;
+        sgst = 0;
+        igst = 0;
       }
 
-      const totalVal = isChargingGst ? (taxable + cgst + sgst + igst) : taxable;
+      const totalVal = typeof d.totalInvoiceValue === 'number' && d.totalInvoiceValue > 0
+        ? d.totalInvoiceValue
+        : (isChargingGst ? (taxable + cgst + sgst + igst) : taxable);
 
       return {
         ...d,
@@ -208,7 +236,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     ];
   }
 
-  // Sort dockets chronologically by date (earliest date first)
+  // Sort dockets chronologically by date if slNo not already explicit
   const parseDateVal = (dStr) => {
     if (!dStr) return 0;
     const t = Date.parse(dStr);
@@ -229,45 +257,120 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     return 0;
   };
 
-  dockets = [...dockets].sort((a, b) => {
-    const timeA = parseDateVal(a.docketDate || a.cnDate || a.bookingDate);
-    const timeB = parseDateVal(b.docketDate || b.cnDate || b.bookingDate);
-    return timeA - timeB;
-  }).map((d, idx) => ({ ...d, slNo: idx + 1 }));
+  const hasExplicitOrder = dockets.every(d => typeof d.slNo === 'number' && d.slNo > 0);
+  if (!hasExplicitOrder) {
+    dockets = [...dockets].sort((a, b) => {
+      const timeA = parseDateVal(a.docketDate || a.cnDate || a.bookingDate);
+      const timeB = parseDateVal(b.docketDate || b.cnDate || b.bookingDate);
+      return timeA - timeB;
+    }).map((d, idx) => ({ ...d, slNo: idx + 1 }));
+  }
 
+  // Calculate or retrieve totals
   const totalPacksNum = dockets.reduce((sum, d) => sum + (parseInt(String(d.noPack).replace(/\D+/g, ''), 10) || 0), 0);
   const displayTotalPacks = totalPacksNum > 0 ? totalPacksNum : (dockets[0]?.noPack || '-');
-  const totalPacks = displayTotalPacks;
-  const totalWeight = dockets.reduce((sum, d) => sum + (d.weight || 0), 0);
-  const totalFreight = dockets.reduce((sum, d) => sum + (d.freight || 0), 0);
-  const totalDocketCharges = dockets.reduce((sum, d) => sum + (d.docketCharges || 0), 0);
-  const totalPickupCharges = dockets.reduce((sum, d) => sum + (d.pickupCharges || 0), 0);
-  const totalDeliveryCharges = dockets.reduce((sum, d) => sum + (d.deliveryCharges || 0), 0);
-  const totalPackingCharges = dockets.reduce((sum, d) => sum + (d.packingCharges || d.packing || 0), 0);
-  const totalLaborCharges = dockets.reduce((sum, d) => sum + (d.laborCharges || d.labor || 0), 0);
-  const totalGodownCharges = dockets.reduce((sum, d) => sum + (d.godownCharges || d.godown || 0), 0);
+  const calcTotalPacks = displayTotalPacks;
+  const calcTotalWeight = dockets.reduce((sum, d) => sum + (Number(d.weight) || 0), 0);
+  const calcTotalFreight = dockets.reduce((sum, d) => sum + (Number(d.freight) || 0), 0);
+  const calcTotalDocketCharges = dockets.reduce((sum, d) => sum + (Number(d.docketCharges) || 0), 0);
+  const calcTotalPickupCharges = dockets.reduce((sum, d) => sum + (Number(d.pickupCharges) || 0), 0);
+  const calcTotalDeliveryCharges = dockets.reduce((sum, d) => sum + (Number(d.deliveryCharges) || 0), 0);
+  const calcTotalPackingCharges = dockets.reduce((sum, d) => sum + (Number(d.packingCharges || d.packing) || 0), 0);
+  const calcTotalLaborCharges = dockets.reduce((sum, d) => sum + (Number(d.laborCharges || d.labor) || 0), 0);
+  const calcTotalGodownCharges = dockets.reduce((sum, d) => sum + (Number(d.godownCharges || d.godown) || 0), 0);
 
-  const totalOtherCharges = dockets.reduce((sum, d) => {
-    const other = d.otherCharges || 0;
-    const aggregated = (d.packingCharges || 0) + (d.laborCharges || 0) + (d.godownCharges || 0);
+  const calcTotalOtherCharges = dockets.reduce((sum, d) => {
+    const other = Number(d.otherCharges) || 0;
+    const aggregated = (Number(d.packingCharges) || 0) + (Number(d.laborCharges) || 0) + (Number(d.godownCharges) || 0);
     return sum + (other > 0 ? other : aggregated);
   }, 0);
 
-  const totalTaxable = dockets.reduce((sum, d) => sum + (d.taxableAmount || 0), 0);
-  const totalCGST = isChargingGst ? dockets.reduce((sum, d) => sum + (d.cgst || 0), 0) : 0;
-  const totalSGST = isChargingGst ? dockets.reduce((sum, d) => sum + (d.sgst || 0), 0) : 0;
-  const totalIGST = isChargingGst ? dockets.reduce((sum, d) => sum + (d.igst || 0), 0) : 0;
-  const grandTotalValue = isChargingGst ? (totalTaxable + totalCGST + totalSGST + totalIGST) : totalTaxable;
+  const calcTotalTaxable = dockets.reduce((sum, d) => sum + (Number(d.taxableAmount) || 0), 0);
+  const calcTotalCGST = isChargingGst ? dockets.reduce((sum, d) => sum + (Number(d.cgst) || 0), 0) : 0;
+  const calcTotalSGST = isChargingGst ? dockets.reduce((sum, d) => sum + (Number(d.sgst) || 0), 0) : 0;
+  const calcTotalIGST = isChargingGst ? dockets.reduce((sum, d) => sum + (Number(d.igst) || 0), 0) : 0;
+  const calcGrandTotal = isChargingGst ? (calcTotalTaxable + calcTotalCGST + calcTotalSGST + calcTotalIGST) : calcTotalTaxable;
 
-  // Pad table with empty rows to fill A4 page height (minimum 16 rows)
-  const MIN_TABLE_ROWS = 16;
+  // Use manual override values if explicitly flagged
+  const isOverride = invoice.totals?.manualOverride === true;
+  const totals = invoice.totals || {};
+
+  const totalPacks = isOverride && totals.totalPackages !== undefined ? totals.totalPackages : calcTotalPacks;
+  const totalWeight = isOverride && typeof totals.totalWeight === 'number' ? totals.totalWeight : calcTotalWeight;
+  const totalFreight = isOverride && typeof totals.totalFreight === 'number' ? totals.totalFreight : calcTotalFreight;
+  const totalDocketCharges = isOverride && typeof totals.totalDocketCharges === 'number' ? totals.totalDocketCharges : calcTotalDocketCharges;
+  const totalPickupCharges = isOverride && typeof totals.totalPickupCharges === 'number' ? totals.totalPickupCharges : calcTotalPickupCharges;
+  const totalDeliveryCharges = isOverride && typeof totals.totalDeliveryCharges === 'number' ? totals.totalDeliveryCharges : calcTotalDeliveryCharges;
+  const totalPackingCharges = isOverride && typeof totals.totalPackingCharges === 'number' ? totals.totalPackingCharges : calcTotalPackingCharges;
+  const totalLaborCharges = isOverride && typeof totals.totalLaborCharges === 'number' ? totals.totalLaborCharges : calcTotalLaborCharges;
+  const totalGodownCharges = isOverride && typeof totals.totalGodownCharges === 'number' ? totals.totalGodownCharges : calcTotalGodownCharges;
+  const totalOtherCharges = isOverride && typeof totals.totalOtherCharges === 'number' ? totals.totalOtherCharges : calcTotalOtherCharges;
+  const totalTaxable = isOverride && typeof totals.totalTaxableAmount === 'number' ? totals.totalTaxableAmount : calcTotalTaxable;
+  const totalCGST = isChargingGst ? (isOverride && typeof totals.totalCgst === 'number' ? totals.totalCgst : calcTotalCGST) : 0;
+  const totalSGST = isChargingGst ? (isOverride && typeof totals.totalSgst === 'number' ? totals.totalSgst : calcTotalSGST) : 0;
+  const totalIGST = isChargingGst ? (isOverride && typeof totals.totalIgst === 'number' ? totals.totalIgst : calcTotalIGST) : 0;
+  const grandTotalValue = isOverride && typeof totals.grandTotal === 'number' ? totals.grandTotal : calcGrandTotal;
+
+  // Minimum table rows for nice A4 presentation
+  const MIN_TABLE_ROWS = 14;
   const emptyRowsCount = Math.max(0, MIN_TABLE_ROWS - dockets.length);
   const emptyRows = Array.from({ length: emptyRowsCount }, () => ({ isEmptyRow: true }));
   const displayDockets = [...dockets, ...emptyRows];
 
+  // Terms & Conditions
+  const termsList = (Array.isArray(invoice.termsAndConditions) && invoice.termsAndConditions.length > 0)
+    ? invoice.termsAndConditions
+    : DEFAULT_TERMS;
+
+  // Bank Information
+  const bank = invoice.bankDetails || {};
+  const bankName = bank.bankName || 'HDFC BANK LTD';
+  const accountHolder = bank.accountHolder || 'SPEEDSETU LOGISTICS PRIVATE LIMITED';
+  const accountNumber = bank.accountNumber || '50200118714271';
+  const ifscCode = bank.ifscCode || 'HDFC0000479';
+  const branchName = bank.branchName || 'MEHAM GATE, BHIWANI';
+  const bankIcon = bank.icon || '🏛️';
+  const upiId = bank.upiId || '';
+
+  // Signatory & Footer
+  const signatory = invoice.signatory || {};
+  const signatoryName = signatory.name || 'Authorised Signatory';
+  const signatoryDesignation = signatory.designation || '';
+  const signatureUrl = signatory.signatureUrl || '';
+  const footerNotes = signatory.footerNotes || '';
+
   return (
     <div id="printable-invoice" className="bg-white text-slate-900 font-sans p-3 sm:p-5 w-full max-w-7xl mx-auto space-y-2.5 print:space-y-2 print:p-0 print:m-0 print:max-w-none text-xs">
       
+      {/* PRINT-SPECIFIC CSS RULES INJECTED FOR MULTI-PAGE PRECISION */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 8mm 8mm 8mm 8mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tfoot {
+            display: table-footer-group;
+          }
+        }
+      `}</style>
 
       {/* TAX INVOICE HEADER TITLE */}
       <div className="text-center font-extrabold text-sm uppercase tracking-wider py-0.5 print:py-0.5 print:text-xs">
@@ -280,18 +383,27 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         {/* BOX 1: SUPPLIER */}
         <div className="col-span-5 p-2 print:p-2 border-r border-black space-y-0.5">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <img
-              src={logoImg}
-              alt="Speed Setu Logo"
-              className="h-8 print:h-8 w-auto object-contain shrink-0"
-              style={{ imageRendering: 'high-quality' }}
-            />
+            {supplierLogo ? (
+              <img
+                src={supplierLogo}
+                alt="Logo"
+                className="h-8 print:h-8 w-auto object-contain shrink-0"
+                style={{ imageRendering: 'high-quality' }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : null}
             <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">SUPPLIER</div>
           </div>
-          <div className="font-extrabold text-[11px] print:text-[10px]">SPEEDSETU LOGISTICS PRIVATE LIMITED</div>
-          <div>Haripur, BHIWANI,</div>
-          <div>Haripur, Bhiwani, Bhiwani, Haryana, 127021</div>
-          <div className="pt-1 font-bold font-mono">GST - 06ABSCS1710K1Z4</div>
+          <div className="font-extrabold text-[11px] print:text-[10px]">{supplierName}</div>
+          <div>{supplierAddr1}</div>
+          <div>{supplierAddr2}</div>
+          <div className="pt-1 font-bold font-mono">GST - {supplierGstin}</div>
+          {(supplierPhone || supplierEmail) && (
+            <div className="text-[9px] text-slate-700">
+              {supplierPhone ? `Ph: ${supplierPhone}` : ''} {supplierEmail ? `| Email: ${supplierEmail}` : ''}
+            </div>
+          )}
+          {supplierPan && <div className="text-[9px] font-mono font-medium">PAN: {supplierPan}</div>}
         </div>
 
         {/* BOX 2: BILL TO */}
@@ -309,6 +421,11 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               ? (companyGstin && companyGstin.trim() !== '' ? `GST - ${companyGstin}` : 'GST - Unregistered')
               : 'GST - N/A (Exempt / Unregistered)'}
           </div>
+          {(billTo.phone || billTo.email) && (
+            <div className="text-[9px] text-slate-700 pt-0.5">
+              {billTo.phone ? `Ph: ${billTo.phone}` : ''} {billTo.email ? `| ${billTo.email}` : ''}
+            </div>
+          )}
         </div>
 
         {/* BOX 3: INVOICE NUMBER & DATE */}
@@ -321,24 +438,35 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           <div className="border-t border-black pt-1">
             <div className="font-extrabold text-[9px] print:text-[8.5px] uppercase text-black">INVOICE DATE</div>
             <div className="font-bold text-[11px] print:text-[10px] font-mono">{formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
+            {invoice.dueDate && (
+              <div className="text-[9px] text-slate-600 font-mono mt-0.5">
+                Due: {formatDate(invoice.dueDate)}
+              </div>
+            )}
           </div>
         </div>
 
       </div>
 
-      {/* SUB-HEADER BAR: MODE & HSN CODE */}
-      <div className="grid grid-cols-2 border border-black text-center font-bold text-xs print:text-[9.5px]">
-        <div className="p-1 print:p-1 border-r border-black">
-          MODE: <span className="font-extrabold uppercase">{invoice.billingSnapshot?.mode || invoice.mode || 'TRAIN'}</span>
+      {/* SUB-HEADER BAR: MODE, HSN CODE, VEHICLE NO, GR/LR */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 border border-black text-center font-bold text-xs print:text-[9.5px] divide-x divide-black">
+        <div className="p-1 print:p-1">
+          MODE: <span className="font-extrabold uppercase">{transportMode}</span>
         </div>
         <div className="p-1 print:p-1">
-          HSN CODE: <span className="font-mono font-extrabold">{isChargingGst ? (invoice.hsnCode || invoice.billingSnapshot?.hsnCode || '996531') : 'NA'}</span>
+          HSN CODE: <span className="font-mono font-extrabold">{isChargingGst ? hsnCode : 'NA'}</span>
+        </div>
+        <div className="p-1 print:p-1">
+          VEHICLE NO: <span className="font-mono font-extrabold uppercase">{vehicleNo || 'NA'}</span>
+        </div>
+        <div className="p-1 print:p-1">
+          GR/LR NO: <span className="font-mono font-extrabold">{grNo || (invoice.cns && invoice.cns[0]) || 'NA'}</span>
         </div>
       </div>
 
       {/* DOCKET BREAKDOWN TABLE - DYNAMICALLY RENDERED BASED ON GST CHARGE TYPE */}
       {!isChargingGst ? (
-        /* ==================== LAYOUT 1: NO GST CHARGED (IMAGE 1 LAYOUT) ==================== */
+        /* ==================== LAYOUT 1: NO GST CHARGED ==================== */
         <div className="border border-black w-full overflow-x-auto print:overflow-visible">
           <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.15] table-auto">
             <thead className="bg-slate-100 font-extrabold uppercase border-b border-black">
@@ -368,7 +496,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               {displayDockets.map((d, idx) => {
                 if (d.isEmptyRow) {
                   return (
-                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5.5">
+                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5 print:h-5">
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
@@ -449,7 +577,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           </table>
         </div>
       ) : (
-        /* ==================== LAYOUT 2: CHARGING GST (IMAGE 2 LAYOUT) ==================== */
+        /* ==================== LAYOUT 2: CHARGING GST ==================== */
         <div className="border border-black w-full overflow-x-auto print:overflow-visible">
           <table className="w-full text-center border-collapse text-[8px] sm:text-[8.5px] print:text-[7.5px] leading-tight print:leading-[1.15] table-auto">
             <thead className="bg-slate-100 font-extrabold uppercase border-b border-black">
@@ -478,7 +606,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               {displayDockets.map((d, idx) => {
                 if (d.isEmptyRow) {
                   return (
-                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5.5 print:h-5.5">
+                    <tr key={`empty-${idx}`} className="divide-x divide-black h-5 print:h-5">
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
                       <td className="px-1 py-0.5 print:py-0.5">&nbsp;</td>
@@ -501,7 +629,10 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                   );
                 }
 
-                const other = (d.otherCharges || 0) > 0 ? d.otherCharges : ((d.packingCharges || 0) + (d.laborCharges || 0) + (d.godownCharges || 0));
+                const other = (Number(d.otherCharges) || 0) > 0
+                  ? Number(d.otherCharges)
+                  : ((Number(d.packingCharges) || 0) + (Number(d.laborCharges) || 0) + (Number(d.godownCharges) || 0));
+
                 return (
                   <tr key={idx} className="divide-x divide-black hover:bg-slate-50">
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">{d.slNo || idx + 1}</td>
@@ -554,11 +685,9 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       <div className="border border-black p-2 print:p-2 space-y-0.5 text-[9.5px] print:text-[8px] leading-tight">
         <div className="font-extrabold underline text-black">Terms :-</div>
         <ol className="list-decimal list-inside space-y-0.5 text-slate-800">
-          <li>Our Company Is Registered Under Msme. Uam No</li>
-          <li>If Any Discrepancy In The Invoice Please Inform Us Within Two Days After That It Will Not Be Accepted.</li>
-          <li>The Laws Applicable To This Contract Shall Be The Law In Force In India. The Courts Of New Delhi Shall Have Exclusive Jurisdiction In All Matters Arising Under This Contract.</li>
-          <li>Payments Should Be Made Through Cheque/Dd. In Favour "Speed Setu Logistics Pvt Ltd "</li>
-          <li>Payment After Due Date Will Attract Interest @ 2% Or Part Of The Month</li>
+          {termsList.map((term, i) => (
+            <li key={i}>{term}</li>
+          ))}
         </ol>
       </div>
 
@@ -567,23 +696,47 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         {/* BANK ACCOUNT BOX */}
         <div className="col-span-7 border border-black p-2 print:p-2 flex items-center gap-3">
           <div className="p-1.5 border border-slate-300 rounded bg-slate-50 shrink-0">
-            <span className="font-extrabold text-sm">🏛️</span>
+            <span className="font-extrabold text-sm">{bankIcon}</span>
           </div>
           <div className="space-y-0.5 font-medium">
-            <div><strong className="text-black">Bank Name :</strong> HDFC BANK LTD</div>
-            <div><strong className="text-black">Account Number :</strong> 50200118714271</div>
-            <div><strong className="text-black">IFSC Code :</strong> HDFC0000479</div>
-            <div><strong className="text-black">Branch :</strong> MEHAM GATE, BHIWANI</div>
+            <div><strong className="text-black">Bank Name :</strong> {bankName}</div>
+            <div><strong className="text-black">Account Name :</strong> {accountHolder}</div>
+            <div><strong className="text-black">Account Number :</strong> {accountNumber}</div>
+            <div><strong className="text-black">IFSC Code :</strong> {ifscCode}</div>
+            <div><strong className="text-black">Branch :</strong> {branchName}</div>
+            {upiId && <div><strong className="text-black">UPI ID :</strong> {upiId}</div>}
           </div>
         </div>
 
         {/* SIGNATORY BOX */}
-        <div className="col-span-5 border border-black p-2 print:p-2 flex flex-col justify-end text-center min-h-[65px] print:min-h-[60px]">
-          <div className="font-extrabold uppercase text-[9px] print:text-[8px] tracking-wider text-black">
-            AUTHORISED SIGNATORY
+        <div className="col-span-5 border border-black p-2 print:p-2 flex flex-col justify-between text-center min-h-[75px] print:min-h-[70px]">
+          <div className="flex-1 flex items-center justify-center">
+            {signatureUrl ? (
+              <img
+                src={signatureUrl}
+                alt="Signature"
+                className="max-h-10 max-w-[140px] object-contain"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="text-[9px] text-slate-400 italic">For {supplierName}</div>
+            )}
+          </div>
+          <div>
+            <div className="font-bold text-[9.5px] print:text-[8.5px] text-slate-900">{signatoryName}</div>
+            {signatoryDesignation && <div className="text-[8.5px] text-slate-600">{signatoryDesignation}</div>}
+            <div className="font-extrabold uppercase text-[9px] print:text-[8px] tracking-wider text-black pt-0.5 border-t border-slate-200 mt-0.5">
+              AUTHORISED SIGNATORY
+            </div>
           </div>
         </div>
       </div>
+
+      {footerNotes && (
+        <div className="text-center text-[8.5px] text-slate-500 italic pt-1 print:pt-0.5">
+          {footerNotes}
+        </div>
+      )}
 
     </div>
   );

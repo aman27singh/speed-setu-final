@@ -2,6 +2,59 @@
  * Speed Setu Shipment & Consignment Note (CN) Validation Helpers
  */
 
-export const validateShipmentForm = () => {
-  return {};
+export const validateShipmentForm = (formData) => {
+  const errors = {};
+
+  // Section A: Corporate Client Reference
+  if (!formData.cnNumber || !formData.cnNumber.trim()) {
+    errors.cnNumber = 'Consignment Note (CN) Number is required.';
+  }
+
+  if (!formData.companyId && !formData.companyName) {
+    errors.companyId = 'Corporate Client Company Account is required.';
+  }
+
+  // Section B: Origin Consignor
+  if (!formData.consignor?.name || !formData.consignor.name.trim()) {
+    errors.consignorName = 'Consignor (Shipper) Name is required.';
+  }
+
+  if (!formData.origin || !formData.origin.trim()) {
+    if (!formData.consignor?.city || !formData.consignor.city.trim()) {
+      errors.origin = 'Origin City / Hub is required.';
+    }
+  }
+
+  // Section C: Destination Consignee
+  if (!formData.consignee?.name || !formData.consignee.name.trim()) {
+    errors.consigneeName = 'Consignee (Receiver) Name is required.';
+  }
+
+  if (!formData.destination || !formData.destination.trim()) {
+    if (!formData.consignee?.city || !formData.consignee.city.trim()) {
+      errors.destination = 'Destination City / Hub is required.';
+    }
+  }
+
+  // Section D: Cargo & Dispatch Specifications
+  if (!formData.packages || String(formData.packages).trim() === '') {
+    errors.packages = 'Number of Packages is required.';
+  }
+
+  // Section E: Commercial Invoices (Check internal duplicates within form)
+  if (Array.isArray(formData.commercialInvoices) && formData.commercialInvoices.length > 1) {
+    const seen = new Set();
+    for (let i = 0; i < formData.commercialInvoices.length; i++) {
+      const invNum = (formData.commercialInvoices[i].invoiceNumber || '').trim().toLowerCase();
+      if (invNum) {
+        if (seen.has(invNum)) {
+          errors.commercialInvoices = `Duplicate Commercial Invoice Number "${formData.commercialInvoices[i].invoiceNumber}" detected in Section E.`;
+          break;
+        }
+        seen.add(invNum);
+      }
+    }
+  }
+
+  return errors;
 };

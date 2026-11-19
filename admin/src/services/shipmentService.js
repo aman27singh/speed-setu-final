@@ -28,6 +28,124 @@ async function getCachedInvoices() {
 }
 
 /**
+ * Numeric extraction of CN number (e.g. "SS2097" -> 2097)
+ */
+export function extractCnNumber(cn) {
+  if (!cn) return 0;
+  const match = String(cn).match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+}
+
+/**
+ * Standardized date extraction for shipment sorting (YYYY-MM-DD)
+ */
+export function getShipmentDate(s) {
+  if (!s) return '';
+  const d = s.cnDate || s.bookingDate || s.date || '';
+  if (d) return String(d).substring(0, 10);
+  if (s.createdAt) {
+    try {
+      return new Date(s.createdAt).toISOString().substring(0, 10);
+    } catch (e) {
+      return '';
+    }
+  }
+  return '';
+}
+
+/**
+ * Multi-tier sorting:
+ * 1. Primary sort: Date (Descending)
+ * 2. Secondary sort: Numeric CN Number (Descending)
+ * 3. Fallback: Full CN string (Descending)
+ */
+export function sortShipments(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const dateA = getShipmentDate(a);
+    const dateB = getShipmentDate(b);
+    if (dateA !== dateB) return dateB.localeCompare(dateA);
+
+    const cnA = extractCnNumber(a.cnNumber || a.id);
+    const cnB = extractCnNumber(b.cnNumber || b.id);
+    if (cnA !== cnB) return cnB - cnA;
+
+    return String(b.cnNumber || '').localeCompare(String(a.cnNumber || ''));
+  });
+}
+
+/**
+ * Matcher for package filter
+ */
+export function matchPackage(packagesVal, packageFilter) {
+  if (!packageFilter || packageFilter === 'All') return true;
+  const pkgNum = parseInt(packagesVal, 10) || 0;
+  const targetNum = parseInt(packageFilter, 10);
+  if (!isNaN(targetNum)) {
+    return pkgNum === targetNum;
+  }
+  if (packageFilter === '6-10') {
+    return pkgNum >= 6 && pkgNum <= 10;
+  }
+  if (packageFilter === '11-25') {
+    return pkgNum >= 11 && pkgNum <= 25;
+  }
+  if (packageFilter === '26+' || packageFilter === '>25') {
+    return pkgNum >= 26;
+  }
+  return true;
+}
+
+/**
+ * Matcher for weight filter:
+ * - "zero": Actual weight and chargeable weight are both zero or empty
+ * - "greater_than_0": Actual weight or chargeable weight is greater than zero
+ */
+export function matchWeight(actualWeight, chargeableWeight, weightFilter) {
+  if (!weightFilter || weightFilter === 'All') return true;
+  const act = parseFloat(actualWeight) || 0;
+  const chg = parseFloat(chargeableWeight) || 0;
+  const hasWeight = act > 0 || chg > 0;
+
+  const w = String(weightFilter).toLowerCase().trim();
+  if (w === 'zero' || w === '0') {
+    return !hasWeight; // Both zero or empty
+  }
+  if (w === 'greater_than_0' || w === '>0') {
+    return hasWeight; // Either actual or chargeable > 0
+  }
+  return true;
+}
+
+/**
+ * Matcher for route (Origin – Destination)
+ */
+export function matchRoute(origin, destination, routeFilter) {
+  if (!routeFilter || routeFilter === 'All') return true;
+  const origNorm = (origin || '').trim().toUpperCase();
+  const destNorm = (destination || '').trim().toUpperCase();
+
+  if (routeFilter.startsWith('origin:')) {
+    const target = routeFilter.replace('origin:', '').trim().toUpperCase();
+    return origNorm === target;
+  }
+  if (routeFilter.startsWith('dest:')) {
+    const target = routeFilter.replace('dest:', '').trim().toUpperCase();
+    return destNorm === target;
+  }
+
+  const parts = routeFilter.includes('→') ? routeFilter.split('→') : routeFilter.split('|');
+  if (parts.length === 2) {
+    const targetOrig = parts[0].trim().toUpperCase();
+    const targetDest = parts[1].trim().toUpperCase();
+    const origMatch = targetOrig === 'ANY' || origNorm === targetOrig;
+    const destMatch = targetDest === 'ANY' || destNorm === targetDest;
+    return origMatch && destMatch;
+  }
+  return true;
+}
+
+/**
  * Ensures all shipment fields are primitive strings/numbers and unwraps any nested { value } objects.
  */
 export function sanitizeShipment(s) {
@@ -130,12 +248,38 @@ export const shipmentService = {
   },
 
   /**
+   * Fetch dynamic dependent filter options (companies, routes, packages, weights)
+   */
+  async getFilterOptions({ companyId = 'All', route = 'All', packageCount = 'All', status = 'All' } = {}) {
+    try {
+      const q = new URLSearchParams();
+      if (companyId && companyId !== 'All') q.append('companyId', companyId);
+      if (route && route !== 'All') q.append('route', route);
+      if (packageCount && packageCount !== 'All') q.append('package', packageCount);
+      if (status && status !== 'All') q.append('status', status);
+
+      const res = await apiRequest(`/shipments/filter-options?${q.toString()}`);
+      if (res && res.companies && res.routes) {
+        return res;
+      }
+    } catch (e) {
+      console.warn('[ShipmentService] Filter options fetch fallback:', e.message);
+    }
+    return null;
+  },
+
+  /**
    * Fetch shipments list with optional multi-criteria filtering
    */
   async getShipments({
     search = '',
     companyId = 'All',
     status = 'All',
+    route = 'All',
+    origin = 'All',
+    destination = 'All',
+    packageCount = 'All',
+    weight = 'All',
     mode = 'All',
     podStatus = 'All',
     billingStatus = 'All',
@@ -145,6 +289,16 @@ export const shipmentService = {
       const queryParams = new URLSearchParams();
       if (search) queryParams.append('search', search);
       if (status && status !== 'All') queryParams.append('status', status);
+      if (companyId && companyId !== 'All') queryParams.append('companyId', companyId);
+      if (route && route !== 'All') queryParams.append('route', route);
+      if (origin && origin !== 'All') queryParams.append('origin', origin);
+      if (destination && destination !== 'All') queryParams.append('destination', destination);
+      if (packageCount && packageCount !== 'All') queryParams.append('package', packageCount);
+      if (weight && weight !== 'All') queryParams.append('weight', weight);
+      if (mode && mode !== 'All') queryParams.append('mode', mode);
+      if (podStatus && podStatus !== 'All') queryParams.append('podStatus', podStatus);
+      if (billingStatus && billingStatus !== 'All') queryParams.append('billingStatus', billingStatus);
+      if (paymentStatus && paymentStatus !== 'All') queryParams.append('paymentStatus', paymentStatus);
 
       const [remoteShipments, remoteInvoices] = await Promise.all([
         apiRequest(`/shipments?${queryParams.toString()}`).catch(() => null),
@@ -189,9 +343,12 @@ export const shipmentService = {
           });
         });
 
-        return shipmentsStore.filter((s) => {
-          if (companyId !== 'All' && s.companyId !== companyId && s.companyCode !== companyId) return false;
+        const filtered = shipmentsStore.filter((s) => {
+          if (companyId !== 'All' && s.companyId !== companyId && s.companyCode !== companyId && s.companyName?.toLowerCase() !== companyId.toLowerCase()) return false;
           if (status !== 'All' && s.status?.toLowerCase() !== status.toLowerCase()) return false;
+          if (route !== 'All' && !matchRoute(s.origin, s.destination, route)) return false;
+          if (packageCount !== 'All' && !matchPackage(s.packages, packageCount)) return false;
+          if (weight !== 'All' && !matchWeight(s.actualWeight, s.chargeableWeight, weight)) return false;
           if (mode !== 'All' && s.mode?.toLowerCase() !== mode.toLowerCase()) return false;
           if (podStatus !== 'All' && s.podStatus?.toLowerCase() !== podStatus.toLowerCase()) return false;
           if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
@@ -233,6 +390,8 @@ export const shipmentService = {
 
           return true;
         });
+
+        return sortShipments(filtered);
       }
     } catch (err) {
       console.warn('[MongoDB Client] Shipments list fetch fallback:', err.message);
@@ -240,9 +399,12 @@ export const shipmentService = {
 
     await simulateDelay(150);
 
-    return shipmentsStore.filter((s) => {
-      if (companyId !== 'All' && s.companyId !== companyId && s.companyCode !== companyId) return false;
+    const fallbackFiltered = shipmentsStore.filter((s) => {
+      if (companyId !== 'All' && s.companyId !== companyId && s.companyCode !== companyId && s.companyName?.toLowerCase() !== companyId.toLowerCase()) return false;
       if (status !== 'All' && s.status?.toLowerCase() !== status.toLowerCase()) return false;
+      if (route !== 'All' && !matchRoute(s.origin, s.destination, route)) return false;
+      if (packageCount !== 'All' && !matchPackage(s.packages, packageCount)) return false;
+      if (weight !== 'All' && !matchWeight(s.actualWeight, s.chargeableWeight, weight)) return false;
       if (mode !== 'All' && s.mode?.toLowerCase() !== mode.toLowerCase()) return false;
       if (podStatus !== 'All' && s.podStatus?.toLowerCase() !== podStatus.toLowerCase()) return false;
       if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
@@ -284,6 +446,8 @@ export const shipmentService = {
 
       return true;
     });
+
+    return sortShipments(fallbackFiltered);
   },
 
   /**
@@ -410,7 +574,45 @@ export const shipmentService = {
   },
 
   /**
-   * Update existing shipment details
+   * Validate CN and AWB Number uniqueness
+   */
+  async validateDuplicates({ currentShipmentId, currentCnNumber, cnNumber, awbNumber, commercialInvoices }) {
+    try {
+      const response = await apiRequest('/shipments/validate-duplicates', {
+        method: 'POST',
+        body: JSON.stringify({ currentShipmentId, currentCnNumber, cnNumber, awbNumber, commercialInvoices })
+      });
+      return response;
+    } catch (err) {
+      console.warn('[ShipmentService] validateDuplicates API fallback:', err.message);
+      const normCN = (cnNumber || '').trim().toLowerCase();
+      let cnNumberError = null;
+      let conflictingCN = null;
+      if (normCN) {
+        const found = shipmentsStore.find(s => {
+          const sCN = (s.cnNumber || '').trim().toLowerCase();
+          const sId = (s.id || s._id || '').toString();
+          const isSame = (currentShipmentId && sId === currentShipmentId.toString()) ||
+                         (currentCnNumber && sCN === currentCnNumber.trim().toLowerCase());
+          return sCN === normCN && !isSame;
+        });
+        if (found) {
+          cnNumberError = `This CN Number "${cnNumber}" already exists in the database. Please enter a unique CN Number.`;
+          conflictingCN = found.cnNumber;
+        }
+      }
+      return {
+        isValid: !cnNumberError,
+        cnNumberError,
+        conflictingCN,
+        awbNumberError: null,
+        commercialInvoiceErrors: []
+      };
+    }
+  },
+
+  /**
+   * Update existing shipment details with strict MongoDB persistence
    */
   async updateShipment(idOrCN, updateData) {
     if (!idOrCN || idOrCN === 'undefined') {
@@ -419,50 +621,36 @@ export const shipmentService = {
 
     try {
       const targetShipment = await this.getShipment(idOrCN);
-      const dbId = targetShipment._id || targetShipment.id;
+      const dbId = targetShipment._id || targetShipment.id || idOrCN;
 
-      if (dbId) {
-        const response = await apiRequest(`/shipments/${dbId}`, {
-          method: 'PUT',
-          body: JSON.stringify(updateData)
-        });
-        if (response) {
-          const formatted = {
-            ...response,
-            id: response.id || response.cnNumber || response._id
-          };
-          const index = shipmentsStore.findIndex((s) => s.cnNumber === formatted.cnNumber);
-          if (index !== -1) shipmentsStore[index] = formatted;
-          else shipmentsStore.unshift(formatted);
-          return formatted;
-        }
+      const response = await apiRequest(`/shipments/${encodeURIComponent(dbId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      });
+
+      if (response && (response.cnNumber || response._id)) {
+        const formatted = {
+          ...response,
+          id: response.id || response.cnNumber || response._id
+        };
+        const index = shipmentsStore.findIndex((s) =>
+          s.cnNumber === formatted.cnNumber ||
+          s._id === formatted._id ||
+          s.id === formatted.id ||
+          s.cnNumber === idOrCN ||
+          s.id === idOrCN
+        );
+        if (index !== -1) shipmentsStore[index] = formatted;
+        else shipmentsStore.unshift(formatted);
+        return formatted;
       }
     } catch (err) {
-      console.warn('[MongoDB Client] Update shipment fallback:', err.message);
+      console.error('[ShipmentService] Update shipment failed in MongoDB Atlas:', err);
+      // Strictly propagate error to prevent silent in-memory fallback
+      throw err;
     }
 
-    await simulateDelay(200);
-
-    const target = idOrCN.toLowerCase();
-    const index = shipmentsStore.findIndex(
-      (s) => (s.id && s.id.toLowerCase() === target) || (s.cnNumber && s.cnNumber.toLowerCase() === target)
-    );
-
-    if (index === -1) {
-      throw new Error(`Shipment '${idOrCN}' not found for update.`);
-    }
-
-    const current = shipmentsStore[index];
-    const updatedShipment = {
-      ...current,
-      ...updateData,
-      id: current.id || current.cnNumber,
-      cnNumber: current.cnNumber,
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-
-    shipmentsStore[index] = updatedShipment;
-    return { ...updatedShipment };
+    throw new Error('Unable to Update Shipment. The changes could not be saved. Please try again.');
   },
 
   /**

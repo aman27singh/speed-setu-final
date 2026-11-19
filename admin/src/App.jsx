@@ -29,6 +29,7 @@ import { PublicTrackingPage } from './pages/PublicTrackingPage';
 import { BillingPage } from './pages/BillingPage';
 import { BillingReviewPage } from './pages/BillingReviewPage';
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage';
+import { SalesRegisterPage } from './pages/SalesRegisterPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { ReceivablesPage } from './pages/ReceivablesPage';
 import { PaymentsReceivedPage } from './pages/PaymentsReceivedPage';
@@ -154,6 +155,7 @@ export const AppRoutes = () => {
 
         {/* FINANCE MODULE ROUTES (Super Admin & Admin Only) */}
         <Route path="billing" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><BillingPage /></ProtectedRoute>} />
+        <Route path="billing/sales-register" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><SalesRegisterPage /></ProtectedRoute>} />
         <Route path="billing/create" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><BillingReviewPage /></ProtectedRoute>} />
         <Route path="billing/invoices/:id" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><InvoiceDetailPage /></ProtectedRoute>} />
 

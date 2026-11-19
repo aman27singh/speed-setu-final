@@ -198,6 +198,8 @@ export const ShipmentFormPage = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cnDuplicateError, setCnDuplicateError] = useState(null);
+  const [awbDuplicateError, setAwbDuplicateError] = useState(null);
 
   // Consignor & Consignee Dropdown Select State
   const [consignorSelectMode, setConsignorSelectMode] = useState('');
@@ -645,6 +647,9 @@ export const ShipmentFormPage = () => {
 
   const handleSubmit = async (e, createAnother = false) => {
     if (e) e.preventDefault();
+    setCnDuplicateError(null);
+    setAwbDuplicateError(null);
+
     const validationErrors = validateShipmentForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -654,6 +659,29 @@ export const ShipmentFormPage = () => {
 
     setSaving(true);
     try {
+      // 1. Strict duplicate validation before save
+      const dupCheck = await shipmentService.validateDuplicates({
+        currentShipmentId: id,
+        currentCnNumber: isEditMode ? (formData.cnNumber || id) : undefined,
+        cnNumber: formData.cnNumber,
+        awbNumber: formData.awbNumber,
+        commercialInvoices: formData.commercialInvoices
+      });
+
+      if (!dupCheck.isValid) {
+        if (dupCheck.cnNumberError) {
+          setCnDuplicateError(dupCheck.cnNumberError);
+        }
+        if (dupCheck.awbNumberError) {
+          setAwbDuplicateError(dupCheck.awbNumberError);
+        }
+        const errorMsg = dupCheck.cnNumberError || dupCheck.awbNumberError || dupCheck.commercialInvoiceErrors?.[0]?.error || 'Duplicate detected.';
+        alert(`Cannot save shipment: ${errorMsg}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setSaving(false);
+        return;
+      }
+
       // Find selected company, or match from consignor/consignee, NEVER blindly fallback to companies[0]!
       let targetComp = companies.find((c) => c.id === formData.companyId);
       if (!targetComp && formData.companyName) {
@@ -679,6 +707,9 @@ export const ShipmentFormPage = () => {
 
       const payload = {
         ...formData,
+        cnNumber: (formData.cnNumber || '').trim(),
+        cnDate: formData.cnDate || formData.bookingDate || new Date().toISOString().split('T')[0],
+        bookingDate: formData.bookingDate || formData.cnDate || new Date().toISOString().split('T')[0],
         createdBy: formData.createdBy || creatorId,
         createdByName: formData.createdByName || creatorName,
         createdByRole: formData.createdByRole || creatorRole,
@@ -689,29 +720,65 @@ export const ShipmentFormPage = () => {
         consignor: {
           ...formData.consignor,
           name: formData.consignor?.name || '',
+          code: formData.consignor?.code || '',
+          gstin: formData.consignor?.gstin || '',
+          contact: formData.consignor?.contact || '',
+          address: formData.consignor?.address || '',
           city: formData.consignor?.city || '',
-          state: formData.consignor?.state || ''
+          state: formData.consignor?.state || '',
+          pin: formData.consignor?.pin || ''
+        },
+        shipper: {
+          ...formData.consignor,
+          name: formData.consignor?.name || '',
+          code: formData.consignor?.code || '',
+          gstin: formData.consignor?.gstin || '',
+          contact: formData.consignor?.contact || '',
+          address: formData.consignor?.address || '',
+          city: formData.consignor?.city || '',
+          state: formData.consignor?.state || '',
+          pin: formData.consignor?.pin || ''
         },
         consignee: {
           ...formData.consignee,
           name: formData.consignee?.name || '',
+          code: formData.consignee?.code || '',
+          gstin: formData.consignee?.gstin || '',
+          contact: formData.consignee?.contact || '',
+          address: formData.consignee?.address || '',
           city: formData.consignee?.city || '',
-          state: formData.consignee?.state || ''
+          state: formData.consignee?.state || '',
+          pin: formData.consignee?.pin || ''
         },
         operational: {
-          ...formData.operational,
+          ...(formData.operational || {}),
           driver: formData.operational?.driver || (user?.role === 'Driver' ? creatorName : '')
         },
         origin: formData.origin || formData.consignor?.city || '',
         destination: formData.destination || formData.consignee?.city || '',
+        mode: formData.mode || formData.freightMode || 'Express LTL',
+        freightMode: formData.freightMode || formData.mode || 'Road',
         packages: formData.packages || 1,
-        actualWeight: formData.actualWeight || 0,
-        chargeableWeight: formData.chargeableWeight || formData.actualWeight || 0
+        actualWeight: parseFloat(formData.actualWeight) || 0,
+        chargeableWeight: parseFloat(formData.chargeableWeight) || parseFloat(formData.actualWeight) || 0,
+        packingCharges: formData.packingCharges === '' ? 0 : (parseFloat(formData.packingCharges) || 0),
+        laborCharges: formData.laborCharges === '' ? 0 : (parseFloat(formData.laborCharges) || 0),
+        pickupCharges: formData.pickupCharges === '' ? 0 : (parseFloat(formData.pickupCharges) || 0),
+        deliveryCharges: formData.deliveryCharges === '' ? 0 : (parseFloat(formData.deliveryCharges) || 0),
+        godownCharges: formData.godownCharges === '' ? 0 : (parseFloat(formData.godownCharges) || 0),
+        godownMonths: formData.godownMonths === '' ? 0 : (parseFloat(formData.godownMonths) || 0),
+        godownRatePerMonth: formData.godownRatePerMonth === '' ? 0 : (parseFloat(formData.godownRatePerMonth) || 0),
+        isGodownOnlyBilling: Boolean(formData.isGodownOnlyBilling),
+        isGstExempt: Boolean(formData.isGstExempt),
+        gstRate: formData.isGstExempt ? 0 : (Number(formData.gstRate) || 18),
+        commercialInvoices: formData.commercialInvoices || []
       };
 
       if (isEditMode) {
-        await shipmentService.updateShipment(id, payload);
-        navigate(`/admin/shipments/${id}`);
+        const updated = await shipmentService.updateShipment(id, payload);
+        const destinationCN = updated?.cnNumber || payload.cnNumber || id;
+        alert(`Shipment ${destinationCN} updated successfully! All modifications have been saved.`);
+        navigate(`/admin/shipments/${encodeURIComponent(destinationCN)}`);
       } else {
         const created = await shipmentService.createShipment(payload);
         if (createAnother) {
@@ -733,6 +800,14 @@ export const ShipmentFormPage = () => {
         }
       }
     } catch (err) {
+      console.error('[ShipmentFormPage] Save Error:', err);
+      if (err.data?.field === 'cnNumber' || err.message?.toLowerCase().includes('duplicate cn') || err.message?.toLowerCase().includes('already exists in the database')) {
+        setCnDuplicateError(err.data?.message || err.message || 'Duplicate CN Number detected. Please enter a unique CN Number.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (err.data?.field === 'awbNumber' || err.message?.toLowerCase().includes('awb number')) {
+        setAwbDuplicateError(err.data?.message || err.message);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       alert(err.message || 'Failed to save shipment.');
     } finally {
       setSaving(false);
@@ -1240,17 +1315,32 @@ export const ShipmentFormPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Consignment Note (CN) Number
+                Consignment Note (CN) Number <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.cnNumber}
-                disabled={isEditMode}
-                onChange={(e) => setFormData((prev) => ({ ...prev, cnNumber: e.target.value }))}
+                value={formData.cnNumber || ''}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setFormData((prev) => ({ ...prev, cnNumber: val }));
+                  if (cnDuplicateError) setCnDuplicateError(null);
+                  if (errors.cnNumber) setErrors((prev) => { const copy = { ...prev }; delete copy.cnNumber; return copy; });
+                }}
                 placeholder="Enter CN Number (e.g. SS101)"
                 required
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-md font-mono font-bold text-setu-700 focus:outline-none focus:ring-2 focus:ring-setu-600/20 disabled:bg-slate-100 disabled:text-slate-500"
+                className={`w-full p-2.5 bg-white border ${cnDuplicateError || errors.cnNumber ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-300'} rounded-md font-mono font-bold text-setu-700 focus:outline-none focus:ring-2 focus:ring-setu-600/20`}
               />
+              {cnDuplicateError && (
+                <p className="text-xs text-rose-600 font-bold mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{cnDuplicateError}</span>
+                </p>
+              )}
+              {errors.cnNumber && !cnDuplicateError && (
+                <p className="text-xs text-rose-600 font-bold mt-1">
+                  {errors.cnNumber}
+                </p>
+              )}
             </div>
 
             <div>
@@ -1260,19 +1350,28 @@ export const ShipmentFormPage = () => {
               <input
                 type="text"
                 value={formData.awbNumber || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, awbNumber: e.target.value }))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({ ...prev, awbNumber: val }));
+                  if (awbDuplicateError) setAwbDuplicateError(null);
+                }}
                 placeholder="e.g. AWB-80363496"
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-md font-mono font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-setu-600/20"
+                className={`w-full p-2.5 bg-white border ${awbDuplicateError ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-300'} rounded-md font-mono font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-setu-600/20`}
               />
+              {awbDuplicateError && (
+                <p className="text-xs text-rose-600 font-bold mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{awbDuplicateError}</span>
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Corporate Company Account
+                Corporate Company Account <span className="text-rose-500">*</span>
               </label>
               <select
-                value={formData.companyId}
-                disabled={isEditMode}
+                value={formData.companyId || ''}
                 onChange={(e) => {
                   const comp = companies.find((c) => c.id === e.target.value);
                   if (comp) {
@@ -1280,16 +1379,22 @@ export const ShipmentFormPage = () => {
                   } else {
                     setFormData((prev) => ({ ...prev, companyId: '', companyName: '', companyCode: '' }));
                   }
+                  if (errors.companyId) setErrors((prev) => { const copy = { ...prev }; delete copy.companyId; return copy; });
                 }}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-setu-600/20 font-bold text-slate-900"
+                className={`w-full p-2.5 bg-white border ${errors.companyId ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-setu-600/20 font-bold text-slate-900 cursor-pointer`}
               >
                 <option value="">-- Select Corporate Client Account --</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.companyName} ({c.companyCode}) — GST: {c.gstin || 'N/A'}
+                    {c.companyName} ({c.companyCode || 'CLIENT'}) — GST: {c.gstin || 'N/A'}
                   </option>
                 ))}
               </select>
+              {errors.companyId && (
+                <p className="text-xs text-rose-600 font-bold mt-1">
+                  {errors.companyId}
+                </p>
+              )}
             </div>
 
             <div>
@@ -1298,9 +1403,9 @@ export const ShipmentFormPage = () => {
               </label>
               <input
                 type="date"
-                value={formData.cnDate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, cnDate: e.target.value }))}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono font-bold text-slate-900"
+                value={formData.cnDate || formData.bookingDate || ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, cnDate: e.target.value, bookingDate: e.target.value }))}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-md font-mono font-bold text-slate-900"
               />
             </div>
           </div>
@@ -1719,14 +1824,30 @@ export const ShipmentFormPage = () => {
             </div>
 
             {/* GODOWN MONTHS & MONTHLY RATE CALCULATOR */}
-            <div className="md:col-span-3 p-4 bg-amber-50/80 border border-amber-300 rounded-xl space-y-3">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-200 pb-2">
+            <div className={`md:col-span-3 p-4 rounded-xl space-y-3 transition-all ${
+              formData.isGodownOnlyBilling
+                ? 'bg-amber-50/90 border-2 border-amber-400 shadow-xs'
+                : 'bg-amber-50/40 border border-amber-200'
+            }`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
                 <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-amber-950">
                   <input
                     type="checkbox"
                     checked={!!formData.isGodownOnlyBilling}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, isGodownOnlyBilling: e.target.checked }))}
-                    className="rounded text-amber-600 focus:ring-0 w-4 h-4"
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData((prev) => {
+                        const months = parseFloat(prev.godownMonths) || 0;
+                        const rate = parseFloat(prev.godownRatePerMonth) || 0;
+                        const calcGodown = (checked && months > 0 && rate > 0) ? (months * rate) : prev.godownCharges;
+                        return {
+                          ...prev,
+                          isGodownOnlyBilling: checked,
+                          godownCharges: calcGodown
+                        };
+                      });
+                    }}
+                    className="rounded text-amber-600 focus:ring-0 w-4 h-4 cursor-pointer"
                   />
                   <div>
                     <span className="block font-extrabold text-amber-950 text-sm">Shipment Held in Godown — Storage Billing</span>

@@ -6,8 +6,10 @@ const connectDB = require('./config/db');
 const app = express();
 const PORT = process.env.PORT || 5050;
 
-// Connect to MongoDB Database
-connectDB();
+// Connect to MongoDB Database if run directly
+if (require.main === module) {
+  connectDB();
+}
 
 // Middleware
 app.use(cors());
@@ -29,12 +31,35 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     connected: true,
-    database: 'MongoDB Atlas Cloud (speed_setu_db)',
+    environment: process.env.NODE_ENV || 'development',
+    database: `MongoDB Atlas Cloud (${mongoose.connection.name || 'connected'})`,
     timestamp: new Date().toISOString()
   });
 });
 
-// Enforce MongoDB Atlas Connection Check Middleware for all API endpoints
+const { validateWriteOperation } = require('./config/safetyGuard');
+
+// Request Correlation & Audit Middleware
+app.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  req.correlationId = correlationId;
+  res.setHeader('X-Correlation-Id', correlationId);
+
+  const activeDb = mongoose.connection.name || 'unconnected';
+  const start = Date.now();
+  console.log(`\n===============================================================`);
+  console.log(`📡 [REQ ${correlationId}] ${req.method} ${req.originalUrl}`);
+  console.log(`🗄️ Active Target DB: "${activeDb}" | Environment: "${process.env.NODE_ENV || 'development'}"`);
+  console.log(`===============================================================`);
+
+  res.on('finish', () => {
+    console.log(`🏁 [RES ${correlationId}] ${req.method} ${req.originalUrl} -> Status: ${res.statusCode} (${Date.now() - start}ms)`);
+  });
+
+  next();
+});
+
+// Enforce MongoDB Atlas Connection Check & Safety Guard Middleware for all API endpoints
 app.use('/api', (req, res, next) => {
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
@@ -44,6 +69,22 @@ app.use('/api', (req, res, next) => {
       message: 'Failed to connect to MongoDB Atlas Cloud database. Live updates and database operations are currently unavailable.'
     });
   }
+
+  // Intercept write operations (POST, PUT, PATCH, DELETE) with Database Safety Guard
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    try {
+      validateWriteOperation(mongoose.connection, `${req.method} ${req.originalUrl}`, 'HTTP API Endpoint');
+    } catch (guardErr) {
+      console.error(`🚨 [SAFETY GUARD INTERCEPTED REQUEST]: ${guardErr.message}`);
+      return res.status(403).json({
+        success: false,
+        safetyGuardBlocked: true,
+        error: 'Database Safety Violation',
+        message: guardErr.message
+      });
+    }
+  }
+
   next();
 });
 
@@ -63,9 +104,21 @@ app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
 
-app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
-  console.log(`📡 MongoDB Atlas Database Monitor Active: speed_setu_db`);
-  console.log(`====================================================`);
-});
+// Sales Register Report
+const { salesRegisterRouter } = require('./routes/salesRegister.route');
+const { protect, adminOnly } = require('./middleware/auth');
+const Invoice = require('./models/Invoice');
+app.use('/api/reports/sales-register', salesRegisterRouter({ InvoiceModel: Invoice, authMiddleware: [protect, adminOnly] }));
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    const activeDb = mongoose.connection.name || (process.env.NODE_ENV === 'production' ? 'speed_setu_db' : 'test_db');
+    console.log(`====================================================`);
+    console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📡 MongoDB Atlas Database Monitor Active: ${activeDb}`);
+    console.log(`====================================================`);
+  });
+}
+
+module.exports = app;

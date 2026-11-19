@@ -14,6 +14,7 @@ import { ErrorState } from '../components/common/ErrorState';
 import { DateRangeBillingModal } from '../components/billing/DateRangeBillingModal';
 import {
   FileText,
+  FileSpreadsheet,
   Clock,
   DollarSign,
   Send,
@@ -25,7 +26,8 @@ import {
   AlertTriangle,
   ArrowRight,
   Printer,
-  Sparkles
+  Sparkles,
+  Edit3
 } from 'lucide-react';
 
 export const BillingPage = () => {
@@ -162,6 +164,14 @@ export const BillingPage = () => {
             title="View Invoice Profile"
           >
             <Eye className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => navigate(`/admin/billing/invoices/${row.id}?edit=true`)}
+            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+            title="Edit Full Invoice"
+          >
+            <Edit3 className="w-4 h-4" />
           </button>
 
           <button
@@ -303,6 +313,13 @@ export const BillingPage = () => {
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-800 font-extrabold">
                 {readyShipments.length}
               </span>
+            </button>
+            <button
+              onClick={() => navigate('/admin/billing/sales-register')}
+              className="px-4 py-2 text-xs font-bold rounded-lg transition-colors text-slate-600 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
+              <span>Sales Register</span>
             </button>
           </div>
 
