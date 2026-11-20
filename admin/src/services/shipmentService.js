@@ -516,16 +516,12 @@ export const shipmentService = {
    */
   async createShipment(shipmentData) {
     const rawCN = shipmentData.cnNumber && typeof shipmentData.cnNumber === 'string' ? shipmentData.cnNumber.trim() : '';
-    const isAuto = !rawCN || rawCN.startsWith('Auto-generat') || rawCN.startsWith('Auto-generate');
+    const isAuto = !rawCN || rawCN.startsWith('Auto-generat') || rawCN.startsWith('Auto-generate') || rawCN.toLowerCase() === 'auto';
     
-    let requestedCN = rawCN;
-    if (isAuto) {
-      requestedCN = await this.generateNextCN();
-    }
-
+    // When creating with auto CN, send empty string to let the backend atomically assign the authoritative next sequential CN
     const payloadWithCN = {
       ...shipmentData,
-      cnNumber: requestedCN
+      cnNumber: isAuto ? '' : rawCN
     };
 
     try {
@@ -537,40 +533,16 @@ export const shipmentService = {
         const formatted = sanitizeShipment({
           ...response,
           id: response.id || response.cnNumber || response._id,
-          cnNumber: response.cnNumber || requestedCN
+          cnNumber: response.cnNumber
         });
         shipmentsStore = [formatted, ...shipmentsStore];
         return formatted;
       }
+      throw new Error('Invalid response from backend server.');
     } catch (err) {
-      console.warn('[MongoDB Client] Falling back to local store simulation:', err.message);
+      console.error('[MongoDB Client] Shipment creation failed:', err);
+      throw err;
     }
-
-    await simulateDelay(250);
-
-    const finalCN = requestedCN || (await this.generateNextCN());
-    const id = finalCN;
-
-    const initialHistory = [
-      {
-        status: payloadWithCN.status || 'Booked',
-        timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
-        location: payloadWithCN.origin || 'Booking Branch Hub',
-        remarks: `Shipment created. Consignment Note ${finalCN} issued.`
-      }
-    ];
-
-    const newShipment = sanitizeShipment({
-      ...payloadWithCN,
-      id,
-      cnNumber: finalCN,
-      cnDate: payloadWithCN.cnDate || new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-      statusHistory: initialHistory
-    });
-
-    shipmentsStore = [newShipment, ...shipmentsStore];
-    return newShipment;
   },
 
   /**

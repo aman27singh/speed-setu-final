@@ -441,7 +441,9 @@ router.get('/:idOrCN', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     let finalCN = req.body.cnNumber && typeof req.body.cnNumber === 'string' ? req.body.cnNumber.trim() : '';
-    if (!finalCN || finalCN.startsWith('Auto-generat') || finalCN.startsWith('Auto-generate')) {
+    const isAuto = !finalCN || finalCN.startsWith('Auto') || finalCN.toLowerCase() === 'auto' || finalCN.toLowerCase() === 'not specified' || finalCN.toLowerCase() === 'undefined';
+
+    if (isAuto) {
       const existingSSShipments = await Shipment.find({ cnNumber: /^SS-?\d+$/i }).select('cnNumber').lean().catch(() => []);
       let maxNum = 1999;
       (existingSSShipments || []).forEach((s) => {
@@ -454,6 +456,15 @@ router.post('/', async (req, res) => {
       const nextSeq = Math.max(2000, maxNum + 1);
       finalCN = `SS${nextSeq}`;
       await Counter.findByIdAndUpdate('cn_seq', { seq: nextSeq }, { upsert: true }).catch(() => null);
+    } else {
+      // Manual CN provided: Check for duplicate before creating
+      const conflict = await Shipment.findOne({ cnNumber: new RegExp(`^${escapeRegExp(finalCN)}$`, 'i') });
+      if (conflict) {
+        return res.status(409).json({
+          field: 'cnNumber',
+          message: `Consignment Note (CN) Number "${finalCN}" already exists in the database. Please enter a unique CN Number.`
+        });
+      }
     }
 
     const cnDate = req.body.cnDate || req.body.bookingDate || new Date().toISOString().split('T')[0];

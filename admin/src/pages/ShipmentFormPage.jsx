@@ -650,7 +650,7 @@ export const ShipmentFormPage = () => {
     setCnDuplicateError(null);
     setAwbDuplicateError(null);
 
-    const validationErrors = validateShipmentForm(formData);
+    const validationErrors = validateShipmentForm(formData, isEditMode);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -659,11 +659,15 @@ export const ShipmentFormPage = () => {
 
     setSaving(true);
     try {
+      const rawCN = (formData.cnNumber || '').trim();
+      const isAutoCN = !rawCN || rawCN.startsWith('Auto') || rawCN.toLowerCase() === 'auto';
+      const checkCN = isEditMode ? (rawCN || id) : (isAutoCN ? undefined : rawCN);
+
       // 1. Strict duplicate validation before save
       const dupCheck = await shipmentService.validateDuplicates({
         currentShipmentId: id,
         currentCnNumber: isEditMode ? (formData.cnNumber || id) : undefined,
-        cnNumber: formData.cnNumber,
+        cnNumber: checkCN,
         awbNumber: formData.awbNumber,
         commercialInvoices: formData.commercialInvoices
       });
@@ -707,7 +711,7 @@ export const ShipmentFormPage = () => {
 
       const payload = {
         ...formData,
-        cnNumber: (formData.cnNumber || '').trim(),
+        cnNumber: isEditMode ? rawCN : (isAutoCN ? '' : rawCN),
         cnDate: formData.cnDate || formData.bookingDate || new Date().toISOString().split('T')[0],
         bookingDate: formData.bookingDate || formData.cnDate || new Date().toISOString().split('T')[0],
         createdBy: formData.createdBy || creatorId,
@@ -808,7 +812,11 @@ export const ShipmentFormPage = () => {
         setAwbDuplicateError(err.data?.message || err.message);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-      alert(err.message || 'Failed to save shipment.');
+      const isConnectionErr = err.name === 'TypeError' || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError');
+      const displayMsg = isConnectionErr
+        ? 'Cannot connect to backend server at http://localhost:5050. Please ensure the backend server is running via "npm run dev" in C:\\SpeedSetu\\server.'
+        : (err.data?.message || err.message || 'Failed to save shipment to the database.');
+      alert(displayMsg);
     } finally {
       setSaving(false);
     }
@@ -1308,14 +1316,15 @@ export const ShipmentFormPage = () => {
             </div>
 
             <div className="self-start sm:self-auto px-3 py-1 bg-setu-50 text-setu-700 rounded font-mono font-bold text-xs border border-setu-100 whitespace-nowrap">
-              CN Number: {formData.cnNumber || 'Not specified'}
+              CN Number: {isEditMode ? (formData.cnNumber || 'Not specified') : (formData.cnNumber ? formData.cnNumber : 'Auto-generated on Submit')}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
             <div>
               <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Consignment Note (CN) Number <span className="text-rose-500">*</span>
+                Consignment Note (CN) Number {isEditMode && <span className="text-rose-500">*</span>}
+                {!isEditMode && <span className="text-[10px] text-slate-400 font-normal lowercase ml-1">(auto-assigned on submit)</span>}
               </label>
               <input
                 type="text"
@@ -1326,8 +1335,8 @@ export const ShipmentFormPage = () => {
                   if (cnDuplicateError) setCnDuplicateError(null);
                   if (errors.cnNumber) setErrors((prev) => { const copy = { ...prev }; delete copy.cnNumber; return copy; });
                 }}
-                placeholder="Enter CN Number (e.g. SS101)"
-                required
+                placeholder={isEditMode ? "Enter CN Number (e.g. SS101)" : "Auto-generated on submit (e.g. SS2098)"}
+                required={isEditMode}
                 className={`w-full p-2.5 bg-white border ${cnDuplicateError || errors.cnNumber ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-300'} rounded-md font-mono font-bold text-setu-700 focus:outline-none focus:ring-2 focus:ring-setu-600/20`}
               />
               {cnDuplicateError && (
