@@ -34,11 +34,11 @@ const clearAllDatabaseData = async () => {
       Payable.deleteMany({})
     ]);
 
-    // Reset Atomic Sequence Counter to 100 so new CNs start cleanly from SS101
-    await Counter.create({ _id: 'cn_seq', seq: 100 });
+    // Reset Atomic Sequence Counter to 2000 so new CNs start cleanly from SS2001
+    await Counter.create({ _id: 'cn_seq', seq: 2000 });
 
     console.log('✅ ALL dummy data successfully deleted from MongoDB!');
-    console.log('CN sequence counter reset to 100 (First new CN will be SS101).');
+    console.log('CN sequence counter reset to 2000 (First new CN will be SS2001).');
     process.exit(0);
   } catch (err) {
     console.error('❌ Error clearing database:', err);

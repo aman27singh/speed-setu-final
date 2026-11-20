@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Shipment = require('../models/Shipment');
 const Counter = require('../models/Counter');
+const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -419,6 +420,17 @@ router.get('/filter-options', async (req, res) => {
   }
 });
 
+// GET /api/shipments/next-cn — Preview next sequential Consignment Note number
+router.get('/next-cn', async (req, res) => {
+  try {
+    const nextCN = await previewNextCnNumber();
+    res.json({ success: true, nextCN });
+  } catch (err) {
+    console.error('[Shipments Next CN Preview Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/shipments/:idOrCN — Get single shipment details
 router.get('/:idOrCN', async (req, res) => {
   try {
@@ -444,18 +456,7 @@ router.post('/', async (req, res) => {
     const isAuto = !finalCN || finalCN.startsWith('Auto') || finalCN.toLowerCase() === 'auto' || finalCN.toLowerCase() === 'not specified' || finalCN.toLowerCase() === 'undefined';
 
     if (isAuto) {
-      const existingSSShipments = await Shipment.find({ cnNumber: /^SS-?\d+$/i }).select('cnNumber').lean().catch(() => []);
-      let maxNum = 1999;
-      (existingSSShipments || []).forEach((s) => {
-        const match = String(s.cnNumber || '').match(/^SS-?(\d+)$/i);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      });
-      const nextSeq = Math.max(2000, maxNum + 1);
-      finalCN = `SS${nextSeq}`;
-      await Counter.findByIdAndUpdate('cn_seq', { seq: nextSeq }, { upsert: true }).catch(() => null);
+      finalCN = await getNextCnNumber();
     } else {
       // Manual CN provided: Check for duplicate before creating
       const conflict = await Shipment.findOne({ cnNumber: new RegExp(`^${escapeRegExp(finalCN)}$`, 'i') });
@@ -476,40 +477,59 @@ router.post('/', async (req, res) => {
     const shipper = req.body.shipper || consignor;
     const consignee = req.body.consignee || {};
 
-    const initialHistory = (req.body.statusHistory && req.body.statusHistory.length > 0)
-      ? req.body.statusHistory
-      : [{
-          status: req.body.status || 'Booked',
-          timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
-          location: req.body.origin || 'Booking Branch Hub',
-          remarks: `Shipment created. Consignment Note ${finalCN} issued.`
-        }];
+    const maxSaveRetries = 3;
+    let saved = null;
+    let saveAttempt = 0;
 
-    const newShipment = new Shipment({
-      ...req.body,
-      cnNumber: finalCN,
-      cnDate,
-      bookingDate,
-      mode,
-      freightMode,
-      consignor,
-      shipper,
-      consignee,
-      chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
-      volumetricWeight: req.body.volumetricWeight || req.body.chargeableWeight || 0,
-      billingStatus: req.body.billingStatus || 'Not Ready',
-      podStatus: req.body.podStatus || 'Pending',
-      statusHistory: initialHistory,
-      documents: req.body.documents || [],
-      correlationId: req.correlationId || null,
-      createdInDb: mongoose.connection.name
-    });
+    while (saveAttempt < maxSaveRetries) {
+      saveAttempt++;
+      try {
+        const initialHistory = (req.body.statusHistory && req.body.statusHistory.length > 0)
+          ? req.body.statusHistory
+          : [{
+              status: req.body.status || 'Booked',
+              timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+              location: req.body.origin || 'Booking Branch Hub',
+              remarks: `Shipment created. Consignment Note ${finalCN} issued.`
+            }];
 
-    console.log(`[REQ ${req.correlationId || 'N/A'}] Saving Shipment CN: ${finalCN} directly to DB: "${mongoose.connection.name}"`);
-    const saved = await newShipment.save();
-    console.log(`[REQ ${req.correlationId || 'N/A'}] ✅ New Shipment saved with CN: ${saved.cnNumber} (_id: ${saved._id}) in DB: "${mongoose.connection.name}"`);
+        const newShipment = new Shipment({
+          ...req.body,
+          cnNumber: finalCN,
+          cnDate,
+          bookingDate,
+          mode,
+          freightMode,
+          consignor,
+          shipper,
+          consignee,
+          chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
+          volumetricWeight: req.body.volumetricWeight || req.body.chargeableWeight || 0,
+          billingStatus: req.body.billingStatus || 'Not Ready',
+          podStatus: req.body.podStatus || 'Pending',
+          statusHistory: initialHistory,
+          documents: req.body.documents || [],
+          correlationId: req.correlationId || null,
+          createdInDb: mongoose.connection.name
+        });
+
+        console.log(`[REQ ${req.correlationId || 'N/A'}] Saving Shipment CN: ${finalCN} directly to DB: "${mongoose.connection.name}"`);
+        saved = await newShipment.save();
+        console.log(`[REQ ${req.correlationId || 'N/A'}] ✅ New Shipment saved with CN: ${saved.cnNumber} (_id: ${saved._id}) in DB: "${mongoose.connection.name}"`);
+        break; // Successfully saved
+      } catch (saveErr) {
+        if (saveErr.code === 11000 && isAuto && saveAttempt < maxSaveRetries) {
+          console.warn(`⚠️ [Shipment Creation Collision] Duplicate CN "${finalCN}" detected during save (attempt ${saveAttempt}/${maxSaveRetries}). Generating next sequence...`);
+          finalCN = await getNextCnNumber();
+          continue;
+        }
+        throw saveErr;
+      }
+    }
+
     res.status(201).json(saved);
   } catch (err) {
+    console.error('[Shipment Create Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

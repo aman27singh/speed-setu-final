@@ -232,6 +232,15 @@ export const shipmentService = {
    * Auto-generate next sequential non-repeating CN number in 2000 series (SS2000, SS2001, SS2002...)
    */
   async generateNextCN() {
+    try {
+      const res = await apiRequest('/shipments/next-cn');
+      if (res && res.nextCN) {
+        return res.nextCN;
+      }
+    } catch (e) {
+      console.warn('[ShipmentService] Could not fetch server next-cn, falling back to local calculation:', e.message);
+    }
+
     await simulateDelay(50);
     let highestNum = 1999;
     (shipmentsStore || []).forEach((s) => {

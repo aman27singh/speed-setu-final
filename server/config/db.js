@@ -101,6 +101,14 @@ const connectDB = async () => {
       console.log(`Database: ${actualDbName}`);
       console.log(`MongoDB: Connected`);
 
+      // Automatically reconcile CN sequence counter with database
+      try {
+        const { syncCounterWithDatabase } = require('../services/sequenceService');
+        await syncCounterWithDatabase(conn.connection);
+      } catch (syncErr) {
+        console.warn(`⚠️ [CN Sequence Sync Warning]: ${syncErr.message}`);
+      }
+
       return conn;
     } catch (err) {
       console.warn(`[MongoDB] Connection attempt ${attempt} failed: ${err.message}`);
