@@ -1,3 +1,8 @@
+const path = require('path');
+// Load environment variables from .env without overriding process.env.NODE_ENV
+// npm scripts (cross-env) are the single source of truth for NODE_ENV
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -6,9 +11,21 @@ const connectDB = require('./config/db');
 const app = express();
 const PORT = process.env.PORT || 5050;
 
-// Connect to MongoDB Database if run directly
+// Start server with DB initialization happening before listening
 if (require.main === module) {
-  connectDB();
+  const startServer = async () => {
+    try {
+      await connectDB();
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
+      });
+    } catch (err) {
+      console.error('❌ Server failed to start:', err.message);
+      process.exit(1);
+    }
+  };
+
+  startServer();
 }
 
 // Middleware
@@ -31,7 +48,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     connected: true,
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV,
     database: `MongoDB Atlas Cloud (${mongoose.connection.name || 'connected'})`,
     timestamp: new Date().toISOString()
   });
@@ -49,7 +66,7 @@ app.use((req, res, next) => {
   const start = Date.now();
   console.log(`\n===============================================================`);
   console.log(`📡 [REQ ${correlationId}] ${req.method} ${req.originalUrl}`);
-  console.log(`🗄️ Active Target DB: "${activeDb}" | Environment: "${process.env.NODE_ENV || 'development'}"`);
+  console.log(`🗄️ Active Target DB: "${activeDb}" | Environment: "${process.env.NODE_ENV}"`);
   console.log(`===============================================================`);
 
   res.on('finish', () => {
@@ -109,16 +126,5 @@ const { salesRegisterRouter } = require('./routes/salesRegister.route');
 const { protect, adminOnly } = require('./middleware/auth');
 const Invoice = require('./models/Invoice');
 app.use('/api/reports/sales-register', salesRegisterRouter({ InvoiceModel: Invoice, authMiddleware: [protect, adminOnly] }));
-
-if (require.main === module) {
-  app.listen(PORT, () => {
-    const activeDb = mongoose.connection.name || (process.env.NODE_ENV === 'production' ? 'speed_setu_db' : 'test_db');
-    console.log(`====================================================`);
-    console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📡 MongoDB Atlas Database Monitor Active: ${activeDb}`);
-    console.log(`====================================================`);
-  });
-}
 
 module.exports = app;

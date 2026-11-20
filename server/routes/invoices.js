@@ -9,8 +9,14 @@ const {
   releaseDocketsForInvoice
 } = require('../services/duplicateValidationService');
 
-// Initialize normalized active dockets index
-syncBilledDockets();
+// Initialize normalized active dockets index once database connection is open
+if (mongoose.connection.readyState === 1) {
+  syncBilledDockets().catch(e => console.warn('[BilledDocket Notice]:', e.message));
+} else {
+  mongoose.connection.once('open', () => {
+    syncBilledDockets().catch(e => console.warn('[BilledDocket Notice]:', e.message));
+  });
+}
 
 // POST /api/invoices/validate-duplicates — Real-time duplicate check for invoice and docket numbers
 router.post('/validate-duplicates', async (req, res) => {

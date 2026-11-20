@@ -2,8 +2,9 @@
  * Speed Setu - Centralized MongoDB Database Safety Guard
  * 
  * Enforces strict, multi-tiered write protection across the entire application:
- * - Development: Writes allowed ONLY to "test_db". Writes to "speed_setu_db" or unverified DBs are REJECTED.
- * - Production: Writes allowed ONLY to "speed_setu_db".
+ * - Development (NODE_ENV=development): Writes allowed ONLY to "test_db".
+ *   Writes to "speed_setu_db" or any other database are STRICTLY BLOCKED.
+ * - Production (NODE_ENV=production): Writes allowed ONLY to "speed_setu_db".
  * 
  * Intercepts:
  * 1. Mongoose Document Lifecycle (save)
@@ -20,8 +21,15 @@
 const mongoose = require('mongoose');
 
 function validateWriteOperation(connection, operationType, collectionName) {
-  const isProd = process.env.NODE_ENV === 'production';
-  const targetExpectedDb = isProd ? 'speed_setu_db' : 'test_db';
+  const envRaw = (process.env.NODE_ENV || '').trim();
+  const isProd = envRaw === 'production';
+  const isDev = envRaw === 'development';
+
+  if (!isProd && !isDev) {
+    const errorMsg = `[DATABASE SAFETY GUARD] BLOCKED: Invalid NODE_ENV "${process.env.NODE_ENV}". Set development or production.`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
 
   // 1. Verify readyState
   const readyState = connection?.readyState ?? (connection?.topology?.isConnected?.() ? 1 : undefined);
@@ -41,7 +49,7 @@ function validateWriteOperation(connection, operationType, collectionName) {
 
   // 3. Environment-specific enforcement
   if (!isProd) {
-    // DEVELOPMENT MODE
+    // DEVELOPMENT MODE: writes allowed ONLY to "test_db"
     if (activeDbName === 'speed_setu_db') {
       const errorMsg = `🚨 [DATABASE SAFETY GUARD CRITICAL EXCEPTION] 🚨\nBLOCKED: Attempted write operation "${operationType}" on collection "${collectionName}" targeting PRODUCTION database "speed_setu_db" while running in DEVELOPMENT mode!\nWrites to production are STRICTLY PROHIBITED in development.`;
       console.error(errorMsg);
@@ -54,7 +62,7 @@ function validateWriteOperation(connection, operationType, collectionName) {
       throw new Error(errorMsg);
     }
   } else {
-    // PRODUCTION MODE
+    // PRODUCTION MODE: writes allowed ONLY to "speed_setu_db"
     if (activeDbName !== 'speed_setu_db') {
       const errorMsg = `[DATABASE SAFETY GUARD] BLOCKED: Attempted write operation "${operationType}" on unexpected database "${activeDbName}" while in production mode. Expected "speed_setu_db".`;
       console.error(errorMsg);
