@@ -12,21 +12,24 @@ const app = express();
 const PORT = process.env.PORT || 5050;
 
 // Start server with DB initialization happening before listening
-if (require.main === module) {
-  const startServer = async () => {
-    try {
-      await connectDB();
-      app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
-      });
-    } catch (err) {
-      console.error('❌ Server failed to start:', err.message);
-      process.exit(1);
-    }
-  };
+const isDirectRun = require.main === module || (require.main && require.main.filename === path.resolve(__dirname, '..', 'index.js'));
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Speed Setu Backend Server Running on Port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('❌ Server failed to start:', err.message);
+    process.exit(1);
+  }
+};
 
+if (isDirectRun) {
   startServer();
 }
+
+app.startServer = startServer;
 
 // Middleware
 app.use(cors());

@@ -1,0 +1,17 @@
+{
+  "name": "speed-setu",
+  "version": "1.0.0",
+  "description": "Speed Setu Logistics Platform",
+  "private": true,
+  "main": "server/index.js",
+  "scripts": {
+    "install-server": "npm --prefix server install",
+    "postinstall": "npm --prefix server install",
+    "build": "npm --prefix server install",
+    "start": "npm --prefix server start",
+    "dev": "npm --prefix server run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
