@@ -121,10 +121,15 @@ app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
 
-// Sales Register Report
+// Sales Register Report (Mounted with and without /api prefix for reverse proxy compatibility)
 const { salesRegisterRouter } = require('./routes/salesRegister.route');
 const { protect, adminOnly } = require('./middleware/auth');
 const Invoice = require('./models/Invoice');
-app.use('/api/reports/sales-register', salesRegisterRouter({ InvoiceModel: Invoice, authMiddleware: [protect, adminOnly] }));
+const srRouter = salesRegisterRouter({ InvoiceModel: Invoice, authMiddleware: [protect, adminOnly] });
+app.use('/api/reports/sales-register', srRouter);
+app.use('/reports/sales-register', srRouter);
+
+// Reverse Proxy Fallback for reports (/reports -> routes/reports)
+app.use('/reports', require('./routes/reports'));
 
 module.exports = app;

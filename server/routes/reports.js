@@ -8,6 +8,11 @@ const Invoice = require('../models/Invoice');
 const Payment = require('../models/Payment');
 const Expense = require('../models/Expense');
 const Payable = require('../models/Payable');
+const { salesRegisterRouter } = require('./salesRegister.route');
+const { protect, adminOnly } = require('../middleware/auth');
+
+// Mount Sales Register report sub-router (/api/reports/sales-register)
+router.use('/sales-register', salesRegisterRouter({ InvoiceModel: Invoice, authMiddleware: [protect, adminOnly] }));
 
 // GET /api/reports/overview — MongoDB Live Aggregation
 router.get('/overview', async (req, res) => {

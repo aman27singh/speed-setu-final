@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: speed-setu-backend-api
+    name: speed-setu-final
     runtime: node
     rootDir: server
     buildCommand: npm install
@@ -8,8 +8,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5050
       - key: MONGO_URI
         sync: false
       - key: MONGO_URI_PROD
