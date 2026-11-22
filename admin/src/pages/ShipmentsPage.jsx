@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
-import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight } from '../services/shipmentService';
+import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
 import { formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
@@ -30,7 +31,10 @@ import {
   User,
   ArrowRight,
   ChevronDown,
-  Check
+  Check,
+  Calendar,
+  Search,
+  RotateCcw
 } from 'lucide-react';
 
 /**
@@ -140,6 +144,359 @@ const EditableStatusDropdown = ({ shipment, onStatusChange, isUpdating }) => {
   );
 };
 
+/**
+ * Date Filter Popover Component
+ * Supports Particular Date (Option A) and Custom Date Range (Option B)
+ * Rendered via createPortal to document.body with viewport collision detection
+ * Responsive: anchored popover on desktop/tablet, centered modal on mobile
+ */
+const DateFilterPopover = ({ dateFilter, onApply, onClear }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [mode, setMode] = useState(dateFilter.mode || 'particular');
+  const [tempDate, setTempDate] = useState(dateFilter.date || '');
+  const [tempStartDate, setTempStartDate] = useState(dateFilter.startDate || '');
+  const [tempEndDate, setTempEndDate] = useState(dateFilter.endDate || '');
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 360, isMobile: false });
+
+  const triggerRef = useRef(null);
+  const popoverRef = useRef(null);
+
+  // Sync internal form state whenever opened or when active filter changes
+  useEffect(() => {
+    if (isOpen) {
+      setMode(dateFilter.mode || 'particular');
+      setTempDate(dateFilter.date || '');
+      setTempStartDate(dateFilter.startDate || '');
+      setTempEndDate(dateFilter.endDate || '');
+    }
+  }, [isOpen, dateFilter]);
+
+  // Viewport collision detection and coordinate calculation
+  const updatePosition = () => {
+    if (!triggerRef.current) return;
+    const isMobile = window.innerWidth < 640;
+    if (isMobile) {
+      setCoords({ isMobile: true, top: 0, left: 0, width: 0 });
+      return;
+    }
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = Math.min(360, window.innerWidth - 24);
+    const estimatedHeight = 360;
+
+    // Default: align right edge of popover with right edge of trigger button
+    let left = rect.right - popoverWidth;
+
+    // If aligning to the right goes off left screen edge, anchor to trigger's left
+    if (left < 12) {
+      left = rect.left;
+    }
+
+    // Viewport boundaries clamping
+    if (left + popoverWidth > window.innerWidth - 12) {
+      left = window.innerWidth - popoverWidth - 12;
+    }
+    if (left < 12) {
+      left = 12;
+    }
+
+    // Vertical positioning (default below button)
+    let top = rect.bottom + 6;
+    if (top + estimatedHeight > window.innerHeight - 12 && rect.top > estimatedHeight + 12) {
+      // Flip above trigger button if there is more space above
+      top = Math.max(12, rect.top - estimatedHeight - 6);
+    }
+
+    setCoords({
+      isMobile: false,
+      top,
+      left,
+      width: popoverWidth
+    });
+  };
+
+  // Re-calculate position on open, scroll, or resize
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+
+    const handleScroll = () => {
+      updatePosition();
+    };
+    const handleResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOpen]);
+
+  // Click outside and escape key listeners
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e) => {
+      if (
+        triggerRef.current &&
+        triggerRef.current.contains(e.target)
+      ) {
+        return;
+      }
+      if (
+        popoverRef.current &&
+        popoverRef.current.contains(e.target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const handleApply = () => {
+    if (mode === 'particular') {
+      if (!tempDate) return;
+      onApply({
+        mode: 'particular',
+        date: tempDate,
+        startDate: '',
+        endDate: '',
+        applied: true
+      });
+    } else {
+      if (!tempStartDate || !tempEndDate || tempStartDate > tempEndDate) return;
+      onApply({
+        mode: 'range',
+        date: '',
+        startDate: tempStartDate,
+        endDate: tempEndDate,
+        applied: true
+      });
+    }
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    onClear();
+    setIsOpen(false);
+  };
+
+  const isRangeInvalid = mode === 'range' && tempStartDate && tempEndDate && tempStartDate > tempEndDate;
+
+  const isApplyDisabled =
+    mode === 'particular'
+      ? !tempDate
+      : !tempStartDate || !tempEndDate || tempStartDate > tempEndDate;
+
+  const getButtonLabel = () => {
+    if (!dateFilter.applied) return 'Date';
+    if (dateFilter.mode === 'particular' && dateFilter.date) {
+      return formatKolkataDateDisplay(dateFilter.date);
+    }
+    if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
+      return `${formatKolkataDateDisplay(dateFilter.startDate)} – ${formatKolkataDateDisplay(dateFilter.endDate)}`;
+    }
+    return 'Date';
+  };
+
+  const popoverContent = (
+    <div
+      ref={popoverRef}
+      style={
+        coords.isMobile
+          ? undefined
+          : {
+              position: 'fixed',
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              maxWidth: 'calc(100vw - 24px)',
+              zIndex: 9999
+            }
+      }
+      className={clsx(
+        'bg-white rounded-xl shadow-2xl border border-slate-200 p-4 sm:p-5 text-xs',
+        coords.isMobile
+          ? 'w-full max-w-sm max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150'
+          : 'max-h-[calc(100vh-24px)] overflow-y-auto animate-in fade-in zoom-in-95 duration-100'
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <span className="font-bold text-slate-800 text-sm flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-blue-600" />
+          <span>Filter by Date</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 cursor-pointer transition-colors"
+          title="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Date Selection Tabs */}
+      <div className="grid grid-cols-2 gap-1 bg-slate-100/90 p-1 rounded-lg my-3.5 border border-slate-200/50">
+        <button
+          type="button"
+          onClick={() => setMode('particular')}
+          className={`py-1.5 px-2 rounded-md font-semibold text-center transition-all cursor-pointer ${
+            mode === 'particular'
+              ? 'bg-white text-blue-700 shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Particular Date
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('range')}
+          className={`py-1.5 px-2 rounded-md font-semibold text-center transition-all cursor-pointer ${
+            mode === 'range'
+              ? 'bg-white text-blue-700 shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Custom Date Range
+        </button>
+      </div>
+
+      {/* Mode Form Content */}
+      {mode === 'particular' ? (
+        <div className="space-y-1.5 mb-4">
+          <label className="block text-[11px] font-semibold text-slate-700">
+            Select Date
+          </label>
+          <input
+            type="date"
+            value={tempDate}
+            onChange={(e) => setTempDate(e.target.value)}
+            className="w-full h-9.5 px-3 border border-slate-200 rounded-lg text-xs bg-slate-50/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-800"
+          />
+          <p className="text-[10px] text-slate-500 pt-0.5">
+            Displays shipments created on this date (Asia/Kolkata timezone).
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              Start Date (From)
+            </label>
+            <input
+              type="date"
+              value={tempStartDate}
+              max={tempEndDate || undefined}
+              onChange={(e) => setTempStartDate(e.target.value)}
+              className="w-full h-9.5 px-3 border border-slate-200 rounded-lg text-xs bg-slate-50/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-800"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              End Date (To)
+            </label>
+            <input
+              type="date"
+              value={tempEndDate}
+              min={tempStartDate || undefined}
+              onChange={(e) => setTempEndDate(e.target.value)}
+              className="w-full h-9.5 px-3 border border-slate-200 rounded-lg text-xs bg-slate-50/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-800"
+            />
+          </div>
+          {isRangeInvalid && (
+            <p className="text-[10px] text-rose-600 font-semibold">
+              End date cannot be earlier than start date.
+            </p>
+          )}
+          <p className="text-[10px] text-slate-500">
+            Displays shipments created between start and end date (inclusive).
+          </p>
+        </div>
+      )}
+
+      {/* Footer – Clear button on left, Apply Filter on right */}
+      <div className="flex items-center justify-between pt-3.5 border-t border-slate-100 gap-3">
+        <button
+          type="button"
+          onClick={handleClear}
+          className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={handleApply}
+          disabled={isApplyDisabled}
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all shadow-xs shrink-0 ${
+            isApplyDisabled
+              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+          }`}
+        >
+          Apply Filter
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Anchor Trigger Button */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full h-9 inline-flex items-center justify-between gap-1.5 px-2.5 text-xs rounded-lg font-medium border transition-all cursor-pointer ${
+          dateFilter.applied
+            ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+            : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+        }`}
+        title="Filter by Date or Date Range"
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <Calendar className={`w-3.5 h-3.5 shrink-0 ${dateFilter.applied ? 'text-blue-600' : 'text-slate-400'}`} />
+          <span className="truncate">{getButtonLabel()}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Portal Overlay / Popover */}
+      {isOpen &&
+        createPortal(
+          coords.isMobile ? (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-150">
+              {popoverContent}
+            </div>
+          ) : (
+            popoverContent
+          ),
+          document.body
+        )}
+    </>
+  );
+};
+
 export const ShipmentsPage = () => {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery } = useSearch();
@@ -163,6 +520,13 @@ export const ShipmentsPage = () => {
   const [packageFilter, setPackageFilter] = useState('All');
   const [weightFilter, setWeightFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState({
+    mode: 'particular',
+    date: '',
+    startDate: '',
+    endDate: '',
+    applied: false
+  });
 
   // Backend-aggregated options cache
   const [backendOptions, setBackendOptions] = useState(null);
@@ -213,6 +577,24 @@ export const ShipmentsPage = () => {
     setSearch(val);
   };
 
+  // Reset all active filters to default
+  const handleResetFilters = () => {
+    setSearch('');
+    setSearchQuery('');
+    setCompanyFilter('All');
+    setRouteFilter('All');
+    setPackageFilter('All');
+    setWeightFilter('All');
+    setStatusFilter('All');
+    setDateFilter({
+      mode: 'particular',
+      date: '',
+      startDate: '',
+      endDate: '',
+      applied: false
+    });
+  };
+
   // Debounce syncing local search to global header searchQuery
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -237,12 +619,19 @@ export const ShipmentsPage = () => {
     setLoading(true);
     setError(null);
     try {
+      const dateParams = dateFilter.applied ? {
+        date: dateFilter.mode === 'particular' ? dateFilter.date : '',
+        startDate: dateFilter.mode === 'range' ? dateFilter.startDate : '',
+        endDate: dateFilter.mode === 'range' ? dateFilter.endDate : ''
+      } : {};
+
       const shipmentsData = await shipmentService.getShipments({
         companyId: companyFilter,
         route: routeFilter,
         packageCount: packageFilter,
         weight: weightFilter,
-        status: statusFilter
+        status: statusFilter,
+        ...dateParams
       });
 
       let finalShipments = shipmentsData || [];
@@ -290,22 +679,29 @@ export const ShipmentsPage = () => {
     }
   };
 
-  // Fetch shipments when dropdown filters change
+  // Fetch shipments when dropdown or date filters change
   useEffect(() => {
     fetchData();
-  }, [companyFilter, routeFilter, packageFilter, weightFilter, statusFilter]);
+  }, [companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
 
   // Fetch backend dynamic filter options aggregation for exact database verification
   useEffect(() => {
+    const dateParams = dateFilter.applied ? {
+      date: dateFilter.mode === 'particular' ? dateFilter.date : '',
+      startDate: dateFilter.mode === 'range' ? dateFilter.startDate : '',
+      endDate: dateFilter.mode === 'range' ? dateFilter.endDate : ''
+    } : {};
+
     shipmentService.getFilterOptions({
       companyId: companyFilter,
       route: routeFilter,
       packageCount: packageFilter,
-      status: statusFilter
+      status: statusFilter,
+      ...dateParams
     }).then((res) => {
       if (res) setBackendOptions(res);
     }).catch(() => {});
-  }, [companyFilter, routeFilter, packageFilter, statusFilter]);
+  }, [companyFilter, routeFilter, packageFilter, statusFilter, dateFilter]);
 
   // 1. Available Companies (across database, with counts)
   const availableCompanies = React.useMemo(() => {
@@ -495,15 +891,46 @@ export const ShipmentsPage = () => {
       list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
     }
 
-    // 5. Search Bar Query (AND) - CN, Company, Consignor, Consignee, Origin, Destination, Invoice...
+    // 5. Status Filter (AND)
+    if (statusFilter && statusFilter !== 'All') {
+      list = list.filter((s) => {
+        const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
+        return st === statusFilter;
+      });
+    }
+
+    // 6. Date Filter (AND)
+    if (dateFilter.applied) {
+      if (dateFilter.mode === 'particular' && dateFilter.date) {
+        list = list.filter((s) => {
+          const dStr = getKolkataDateString(s.createdAt);
+          return dStr === dateFilter.date;
+        });
+      } else if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
+        list = list.filter((s) => {
+          const dStr = getKolkataDateString(s.createdAt);
+          return dStr && dStr >= dateFilter.startDate && dStr <= dateFilter.endDate;
+        });
+      }
+    }
+
+    // 7. Search Bar Query (AND) - CN, Company, Consignor, Consignee, Origin, Destination, Invoice...
     const q = (search || searchQuery || '').toLowerCase().trim();
     if (q) {
       list = list.filter((s) => {
         const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
         const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
         const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
-        const consignorMatch = s.consignor?.name && s.consignor.name.toLowerCase().includes(q);
-        const consigneeMatch = s.consignee?.name && s.consignee.name.toLowerCase().includes(q);
+        const consignorMatch =
+          (s.consignor?.name && s.consignor.name.toLowerCase().includes(q)) ||
+          (s.consignor?.companyName && s.consignor.companyName.toLowerCase().includes(q)) ||
+          (s.consignor?.companyCode && s.consignor.companyCode.toLowerCase().includes(q)) ||
+          (s.consignorName && s.consignorName.toLowerCase().includes(q));
+        const consigneeMatch =
+          (s.consignee?.name && s.consignee.name.toLowerCase().includes(q)) ||
+          (s.consignee?.companyName && s.consignee.companyName.toLowerCase().includes(q)) ||
+          (s.consignee?.companyCode && s.consignee.companyCode.toLowerCase().includes(q)) ||
+          (s.consigneeName && s.consigneeName.toLowerCase().includes(q));
         const originMatch = s.origin && s.origin.toLowerCase().includes(q);
         const destMatch = s.destination && s.destination.toLowerCase().includes(q);
         const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
@@ -533,7 +960,7 @@ export const ShipmentsPage = () => {
     }
 
     return sortShipments(list);
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter]);
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
 
   // Optional background fetch if query is not found locally, without blocking the UI
   useEffect(() => {
@@ -550,13 +977,20 @@ export const ShipmentsPage = () => {
     let isCurrent = true;
     const timer = setTimeout(async () => {
       try {
+        const dateParams = dateFilter.applied ? {
+          date: dateFilter.mode === 'particular' ? dateFilter.date : '',
+          startDate: dateFilter.mode === 'range' ? dateFilter.startDate : '',
+          endDate: dateFilter.mode === 'range' ? dateFilter.endDate : ''
+        } : {};
+
         const results = await shipmentService.getShipments({
           search: q,
           companyId: companyFilter,
           route: routeFilter,
           packageCount: packageFilter,
           weight: weightFilter,
-          status: statusFilter
+          status: statusFilter,
+          ...dateParams
         });
         if (isCurrent && Array.isArray(results) && results.length > 0) {
           setBaseShipments((prev) => {
@@ -574,7 +1008,7 @@ export const ShipmentsPage = () => {
       isCurrent = false;
       clearTimeout(timer);
     };
-  }, [search, searchQuery, baseShipments, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter]);
+  }, [search, searchQuery, baseShipments, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -622,6 +1056,87 @@ export const ShipmentsPage = () => {
     { label: 'Booked', value: 'Booked' },
     { label: 'Delivered', value: 'Delivered' },
   ];
+
+  // Exact real-time status counts reflecting active filters (company, route, package, weight, date, search)
+  const statusCounts = React.useMemo(() => {
+    let list = baseShipments;
+    if (companyFilter && companyFilter !== 'All') {
+      const cLower = companyFilter.toLowerCase();
+      list = list.filter((s) =>
+        s.companyId === companyFilter ||
+        s.companyCode === companyFilter ||
+        (s.companyName && s.companyName.toLowerCase() === cLower)
+      );
+    }
+    if (routeFilter && routeFilter !== 'All') {
+      list = list.filter((s) => matchRoute(s.origin, s.destination, routeFilter));
+    }
+    if (packageFilter && packageFilter !== 'All') {
+      list = list.filter((s) => matchPackage(s.packages, packageFilter));
+    }
+    if (weightFilter && weightFilter !== 'All') {
+      list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
+    }
+    if (dateFilter.applied) {
+      if (dateFilter.mode === 'particular' && dateFilter.date) {
+        list = list.filter((s) => getKolkataDateString(s.createdAt) === dateFilter.date);
+      } else if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
+        list = list.filter((s) => {
+          const dStr = getKolkataDateString(s.createdAt);
+          return dStr && dStr >= dateFilter.startDate && dStr <= dateFilter.endDate;
+        });
+      }
+    }
+    const q = (search || searchQuery || '').toLowerCase().trim();
+    if (q) {
+      list = list.filter((s) => {
+        const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
+        const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
+        const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
+        const consignorMatch =
+          (s.consignor?.name && s.consignor.name.toLowerCase().includes(q)) ||
+          (s.consignor?.companyName && s.consignor.companyName.toLowerCase().includes(q)) ||
+          (s.consignor?.companyCode && s.consignor.companyCode.toLowerCase().includes(q)) ||
+          (s.consignorName && s.consignorName.toLowerCase().includes(q));
+        const consigneeMatch =
+          (s.consignee?.name && s.consignee.name.toLowerCase().includes(q)) ||
+          (s.consignee?.companyName && s.consignee.companyName.toLowerCase().includes(q)) ||
+          (s.consignee?.companyCode && s.consignee.companyCode.toLowerCase().includes(q)) ||
+          (s.consigneeName && s.consigneeName.toLowerCase().includes(q));
+        const originMatch = s.origin && s.origin.toLowerCase().includes(q);
+        const destMatch = s.destination && s.destination.toLowerCase().includes(q);
+        const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
+        const ewayMatch = s.ewayBillNumber && s.ewayBillNumber.toLowerCase().includes(q);
+        const awbMatch = s.awbNumber && s.awbNumber.toLowerCase().includes(q);
+        const commMatch = (s.commercialInvoices || []).some(
+          (inv) =>
+            (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(q)) ||
+            (inv.ewayBillNumber && inv.ewayBillNumber.toLowerCase().includes(q)) ||
+            (inv.awbNumber && inv.awbNumber.toLowerCase().includes(q))
+        );
+
+        return (
+          cnMatch || compNameMatch || compCodeMatch || consignorMatch ||
+          consigneeMatch || originMatch || destMatch || invoiceMatch ||
+          ewayMatch || awbMatch || commMatch
+        );
+      });
+    }
+
+    let booked = 0;
+    let delivered = 0;
+    list.forEach((s) => {
+      const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
+      if (st === 'Delivered') delivered++;
+      else booked++;
+    });
+
+    return {
+      all: list.length,
+      booked,
+      delivered
+    };
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
 
   const columns = [
     {
@@ -942,125 +1457,246 @@ export const ShipmentsPage = () => {
 
       {/* Search & Multi-Filter Controls Bar (Admin Only) */}
       {!isDriverAccount && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-xs space-y-3">
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-full md:flex-1">
-              <SearchBar
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-4 shadow-xs space-y-3">
+          {/* First Row – Search (approx 30%) and 5 Filters + Reset aligned in one horizontal row */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 w-full">
+            {/* 1. Search Bar – Approx 30% width */}
+            <div className="w-full lg:w-[28%] xl:w-[30%] min-w-[200px] shrink-0 relative flex items-center">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+              <input
+                type="text"
                 value={search}
-                onChange={handleSearchChange}
-                placeholder="Search CN number, company, consignor, consignee, origin, destination, invoice..."
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search CN, company, consignor, consignee, code..."
+                className="w-full h-9 pl-9 pr-7 text-xs bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 text-slate-800 font-medium"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setSearchQuery('');
+                  }}
+                  className="absolute right-2.5 p-0.5 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:flex md:items-center gap-2 w-full md:w-auto">
-              {/* 1. Company Filter */}
-              <select
-                value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
-                  companyFilter !== 'All'
-                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
-                    : 'border-slate-200 text-slate-700'
-                }`}
-                title="Filter by Company"
-              >
-                <option value="All">
-                  All Companies {availableCompanies.length > 0 ? `(${availableCompanies.reduce((acc, c) => acc + (c.count || 0), 0)})` : ''}
-                </option>
-                {availableCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label || `${c.name} (${c.count})`}
+            {/* Flexible Filter Controls Container (utilizes full remaining width) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-1 lg:items-center gap-2 w-full">
+              {/* 2. Company Filter */}
+              <div className="lg:flex-1 lg:min-w-[120px] relative">
+                <select
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
+                    companyFilter !== 'All'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Filter by Company"
+                >
+                  <option value="All">
+                    All Companies {availableCompanies.length > 0 ? `(${availableCompanies.reduce((acc, c) => acc + (c.count || 0), 0)})` : ''}
                   </option>
-                ))}
-              </select>
+                  {availableCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label || `${c.name} (${c.count})`}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-              {/* 2. Dynamic Origin – Destination Filter (Depends on Company) */}
-              <select
-                value={routeFilter}
-                onChange={(e) => setRouteFilter(e.target.value)}
-                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
-                  routeFilter !== 'All'
-                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
-                    : 'border-slate-200 text-slate-700'
-                }`}
-                title="Filter by Origin – Destination Route"
-              >
-                <option value="All">
-                  {companyFilter === 'All' ? 'Origin – Destination' : 'All Routes for Company'} {availableRoutes.length > 0 ? `(${availableRoutes.reduce((acc, r) => acc + (r.count || 0), 0)})` : ''}
-                </option>
-                {availableRoutes.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
+              {/* 3. Origin – Destination (Route) Filter */}
+              <div className="lg:flex-1 lg:min-w-[130px] relative">
+                <select
+                  value={routeFilter}
+                  onChange={(e) => setRouteFilter(e.target.value)}
+                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
+                    routeFilter !== 'All'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Filter by Route (Origin – Destination)"
+                >
+                  <option value="All">
+                    {companyFilter === 'All' ? 'Origin – Destination' : 'All Routes for Company'} {availableRoutes.length > 0 ? `(${availableRoutes.reduce((acc, r) => acc + (r.count || 0), 0)})` : ''}
                   </option>
-                ))}
-              </select>
+                  {availableRoutes.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-              {/* 3. Dynamic Package Filter (Depends on Company + Route) */}
-              <select
-                value={packageFilter}
-                onChange={(e) => setPackageFilter(e.target.value)}
-                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
-                  packageFilter !== 'All'
-                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
-                    : 'border-slate-200 text-slate-700'
-                }`}
-                title="Filter by Package Count"
-              >
-                <option value="All">
-                  All Packages {availablePackages.length > 0 ? `(${availablePackages.reduce((acc, p) => acc + (p.count || 0), 0)})` : ''}
-                </option>
-                {availablePackages.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
+              {/* 4. Packages Filter */}
+              <div className="lg:flex-[0.8] lg:min-w-[95px] relative">
+                <select
+                  value={packageFilter}
+                  onChange={(e) => setPackageFilter(e.target.value)}
+                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
+                    packageFilter !== 'All'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Filter by Package Count"
+                >
+                  <option value="All">
+                    Packages {availablePackages.length > 0 ? `(${availablePackages.reduce((acc, p) => acc + (p.count || 0), 0)})` : ''}
                   </option>
-                ))}
-              </select>
+                  {availablePackages.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-              {/* 4. Dynamic Weight Filter (0 Weight vs Greater Than 0) */}
-              <select
-                value={weightFilter}
-                onChange={(e) => setWeightFilter(e.target.value)}
-                className={`px-2.5 sm:px-3 py-2 text-xs bg-slate-50 border rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-setu-600/20 w-full md:w-auto truncate transition-colors cursor-pointer ${
-                  weightFilter !== 'All'
-                    ? 'border-setu-500 text-setu-700 bg-setu-50/50 font-bold'
-                    : 'border-slate-200 text-slate-700'
-                }`}
-                title="Filter by Weight"
-              >
-                <option value="All">
-                  All Weights {availableWeights.length > 0 ? `(${availableWeights.reduce((acc, w) => acc + (w.count || 0), 0)})` : ''}
-                </option>
-                {availableWeights.map((w) => (
-                  <option key={w.value} value={w.value}>
-                    {w.label}
+              {/* 5. Weight Filter */}
+              <div className="lg:flex-[0.8] lg:min-w-[95px] relative">
+                <select
+                  value={weightFilter}
+                  onChange={(e) => setWeightFilter(e.target.value)}
+                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
+                    weightFilter !== 'All'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Filter by Weight"
+                >
+                  <option value="All">
+                    Weights {availableWeights.length > 0 ? `(${availableWeights.reduce((acc, w) => acc + (w.count || 0), 0)})` : ''}
                   </option>
-                ))}
-              </select>
+                  {availableWeights.map((w) => (
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-              {/* Reset All Filters Button */}
+              {/* 6. Date Filter */}
+              <div className="lg:flex-[1.1] lg:min-w-[115px]">
+                <DateFilterPopover
+                  dateFilter={dateFilter}
+                  onApply={(newFilter) => setDateFilter(newFilter)}
+                  onClear={() =>
+                    setDateFilter({
+                      mode: 'particular',
+                      date: '',
+                      startDate: '',
+                      endDate: '',
+                      applied: false
+                    })
+                  }
+                />
+              </div>
+
+              {/* 7. Reset Button */}
               <button
-                onClick={() => {
-                  setSearch('');
-                  setCompanyFilter('All');
-                  setRouteFilter('All');
-                  setPackageFilter('All');
-                  setWeightFilter('All');
-                  setStatusFilter('All');
-                }}
-                className="col-span-2 sm:col-span-4 md:col-span-1 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors text-center shrink-0 cursor-pointer"
+                type="button"
+                onClick={handleResetFilters}
+                className="col-span-2 sm:col-span-1 h-9 px-3 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200/80 rounded-lg transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                 title="Reset all filters to default"
               >
-                Reset
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Reset</span>
               </button>
             </div>
           </div>
 
-          {/* Active Filter Badges with Individual Dismiss (x) and Clear All */}
-          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All') && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+          {/* Second Row – Compact Segmented Status Buttons (Left) & Total Matching Count (Right) */}
+          <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            {/* Left: Segmented Filter Buttons */}
+            <div className="flex items-center bg-slate-100/90 p-0.5 rounded-lg border border-slate-200/60 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('All')}
+                className={clsx(
+                  'px-3 py-1.5 text-xs rounded-md transition-all cursor-pointer flex items-center gap-1.5',
+                  statusFilter === 'All'
+                    ? 'bg-white text-blue-700 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                )}
+              >
+                <span>All Statuses</span>
+                <span
+                  className={clsx(
+                    'px-1.5 py-0.2 rounded-full text-[10px] font-semibold',
+                    statusFilter === 'All' ? 'bg-blue-100/70 text-blue-700' : 'bg-slate-200/60 text-slate-500'
+                  )}
+                >
+                  {statusCounts.all}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('Booked')}
+                className={clsx(
+                  'px-3 py-1.5 text-xs rounded-md transition-all cursor-pointer flex items-center gap-1.5',
+                  statusFilter === 'Booked'
+                    ? 'bg-white text-blue-700 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span>Booked</span>
+                <span
+                  className={clsx(
+                    'px-1.5 py-0.2 rounded-full text-[10px] font-semibold',
+                    statusFilter === 'Booked' ? 'bg-blue-100/70 text-blue-700' : 'bg-slate-200/60 text-slate-500'
+                  )}
+                >
+                  {statusCounts.booked}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('Delivered')}
+                className={clsx(
+                  'px-3 py-1.5 text-xs rounded-md transition-all cursor-pointer flex items-center gap-1.5',
+                  statusFilter === 'Delivered'
+                    ? 'bg-white text-blue-700 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 font-medium'
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span>Delivered</span>
+                <span
+                  className={clsx(
+                    'px-1.5 py-0.2 rounded-full text-[10px] font-semibold',
+                    statusFilter === 'Delivered' ? 'bg-blue-100/70 text-blue-700' : 'bg-slate-200/60 text-slate-500'
+                  )}
+                >
+                  {statusCounts.delivered}
+                </span>
+              </button>
+            </div>
+
+            {/* Right: Total Matching Record Count */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium shrink-0">
+              <span>
+                Showing <strong className="font-bold text-slate-800">{shipments.length}</strong> matching {shipments.length === 1 ? 'Consignment Note' : 'Consignment Notes'}
+              </span>
+            </div>
+          </div>
+
+          {/* Active Filter Chips with Individual Dismiss (x) and Clear All */}
+          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || dateFilter.applied || search) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100/80 text-xs">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">Active Filters:</span>
               {companyFilter !== 'All' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-setu-50 text-setu-700 border border-setu-200 shadow-2xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                   <span>
                     Company: {(() => {
                       const found = availableCompanies.find((c) => c.id === companyFilter);
@@ -1077,7 +1713,7 @@ export const ShipmentsPage = () => {
                 </span>
               )}
               {routeFilter !== 'All' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                   <span>Route: {routeFilter}</span>
                   <button
                     onClick={() => setRouteFilter('All')}
@@ -1089,7 +1725,7 @@ export const ShipmentsPage = () => {
                 </span>
               )}
               {packageFilter !== 'All' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                   <span>
                     Package: {availablePackages.find((p) => p.value === packageFilter)?.label || `${packageFilter} Boxes`}
                   </span>
@@ -1103,7 +1739,7 @@ export const ShipmentsPage = () => {
                 </span>
               )}
               {weightFilter !== 'All' && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
                   <span>
                     Weight: {availableWeights.find((w) => w.value === weightFilter)?.label || (weightFilter === 'zero' ? '0 Weight' : 'Greater Than 0')}
                   </span>
@@ -1116,32 +1752,56 @@ export const ShipmentsPage = () => {
                   </button>
                 </span>
               )}
+              {dateFilter.applied && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                  <Calendar className="w-3 h-3 text-blue-600" />
+                  <span>
+                    Date:{' '}
+                    {dateFilter.mode === 'particular'
+                      ? formatKolkataDateDisplay(dateFilter.date)
+                      : `${formatKolkataDateDisplay(dateFilter.startDate)} – ${formatKolkataDateDisplay(dateFilter.endDate)}`}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setDateFilter({
+                        mode: 'particular',
+                        date: '',
+                        startDate: '',
+                        endDate: '',
+                        applied: false
+                      })
+                    }
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Date filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {search && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                  <span>Search: "{search}"</span>
+                  <button
+                    onClick={() => {
+                      setSearch('');
+                      setSearchQuery('');
+                    }}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear search query"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
               <button
-                onClick={() => {
-                  setCompanyFilter('All');
-                  setRouteFilter('All');
-                  setPackageFilter('All');
-                  setWeightFilter('All');
-                }}
-                className="text-[11px] font-bold text-slate-500 hover:text-rose-600 underline ml-1 cursor-pointer"
+                type="button"
+                onClick={handleResetFilters}
+                className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 underline ml-1 cursor-pointer"
               >
                 Clear All
               </button>
             </div>
           )}
-
-          <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-            <div className="overflow-x-auto max-w-full pb-1">
-              <FilterBar
-                options={statusFilterOptions}
-                activeFilter={statusFilter}
-                onSelectFilter={setStatusFilter}
-              />
-            </div>
-            <span className="text-slate-500 font-medium shrink-0 text-[11px] sm:text-xs">
-              Showing <strong>{shipments.length}</strong> Consignment Notes
-            </span>
-          </div>
         </div>
       )}
 

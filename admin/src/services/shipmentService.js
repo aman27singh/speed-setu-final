@@ -2,6 +2,35 @@ import { simulateDelay, apiRequest } from './apiClient';
 import { payableService } from './payableService';
 import { expenseService } from './expenseService';
 
+/**
+ * Returns YYYY-MM-DD in Asia/Kolkata timezone (UTC+05:30)
+ */
+export const getKolkataDateString = (dateVal) => {
+  if (!dateVal) return null;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+};
+
+/**
+ * Formats YYYY-MM-DD into "22 Nov 2026"
+ */
+export const formatKolkataDateDisplay = (isoDateStr) => {
+  if (!isoDateStr) return '';
+  const parts = String(isoDateStr).split('-');
+  if (parts.length !== 3) return isoDateStr;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return dateObj.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata'
+  });
+};
+
 let shipmentsStore = [];
 let baseCNCounter = 2000; // Next auto-generated CN will be in the 2000 series (SS2000, SS2001, ...)
 
@@ -259,13 +288,24 @@ export const shipmentService = {
   /**
    * Fetch dynamic dependent filter options (companies, routes, packages, weights)
    */
-  async getFilterOptions({ companyId = 'All', route = 'All', packageCount = 'All', status = 'All' } = {}) {
+  async getFilterOptions({
+    companyId = 'All',
+    route = 'All',
+    packageCount = 'All',
+    status = 'All',
+    date = '',
+    startDate = '',
+    endDate = ''
+  } = {}) {
     try {
       const q = new URLSearchParams();
       if (companyId && companyId !== 'All') q.append('companyId', companyId);
       if (route && route !== 'All') q.append('route', route);
       if (packageCount && packageCount !== 'All') q.append('package', packageCount);
       if (status && status !== 'All') q.append('status', status);
+      if (date) q.append('date', date);
+      if (startDate) q.append('startDate', startDate);
+      if (endDate) q.append('endDate', endDate);
 
       const res = await apiRequest(`/shipments/filter-options?${q.toString()}`);
       if (res && res.companies && res.routes) {
@@ -292,7 +332,10 @@ export const shipmentService = {
     mode = 'All',
     podStatus = 'All',
     billingStatus = 'All',
-    paymentStatus = 'All'
+    paymentStatus = 'All',
+    date = '',
+    startDate = '',
+    endDate = ''
   } = {}) {
     try {
       const queryParams = new URLSearchParams();
@@ -308,6 +351,9 @@ export const shipmentService = {
       if (podStatus && podStatus !== 'All') queryParams.append('podStatus', podStatus);
       if (billingStatus && billingStatus !== 'All') queryParams.append('billingStatus', billingStatus);
       if (paymentStatus && paymentStatus !== 'All') queryParams.append('paymentStatus', paymentStatus);
+      if (date) queryParams.append('date', date);
+      if (startDate) queryParams.append('startDate', startDate);
+      if (endDate) queryParams.append('endDate', endDate);
 
       const [remoteShipments, remoteInvoices] = await Promise.all([
         apiRequest(`/shipments?${queryParams.toString()}`).catch(() => null),
@@ -363,13 +409,30 @@ export const shipmentService = {
           if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
           if (paymentStatus !== 'All' && s.paymentStatus?.toLowerCase() !== paymentStatus.toLowerCase()) return false;
 
+          // Date Filter (createdAt in Asia/Kolkata)
+          if (date) {
+            const dStr = getKolkataDateString(s.createdAt);
+            if (dStr !== date) return false;
+          } else if (startDate && endDate) {
+            const dStr = getKolkataDateString(s.createdAt);
+            if (!dStr || dStr < startDate || dStr > endDate) return false;
+          }
+
           if (search && search.trim()) {
             const q = search.toLowerCase().trim();
             const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
             const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
             const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
-            const consignorMatch = s.consignor?.name?.toLowerCase().includes(q);
-            const consigneeMatch = s.consignee?.name?.toLowerCase().includes(q);
+            const consignorMatch =
+              (s.consignor?.name && s.consignor.name.toLowerCase().includes(q)) ||
+              (s.consignor?.companyName && s.consignor.companyName.toLowerCase().includes(q)) ||
+              (s.consignor?.companyCode && s.consignor.companyCode.toLowerCase().includes(q)) ||
+              (s.consignorName && s.consignorName.toLowerCase().includes(q));
+            const consigneeMatch =
+              (s.consignee?.name && s.consignee.name.toLowerCase().includes(q)) ||
+              (s.consignee?.companyName && s.consignee.companyName.toLowerCase().includes(q)) ||
+              (s.consignee?.companyCode && s.consignee.companyCode.toLowerCase().includes(q)) ||
+              (s.consigneeName && s.consigneeName.toLowerCase().includes(q));
             const originMatch = s.origin && s.origin.toLowerCase().includes(q);
             const destMatch = s.destination && s.destination.toLowerCase().includes(q);
             const invoiceMatch = s.invoiceDetails?.invoiceNumber?.toLowerCase().includes(q);
@@ -419,13 +482,30 @@ export const shipmentService = {
       if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
       if (paymentStatus !== 'All' && s.paymentStatus?.toLowerCase() !== paymentStatus.toLowerCase()) return false;
 
+      // Date Filter (createdAt in Asia/Kolkata)
+      if (date) {
+        const dStr = getKolkataDateString(s.createdAt);
+        if (dStr !== date) return false;
+      } else if (startDate && endDate) {
+        const dStr = getKolkataDateString(s.createdAt);
+        if (!dStr || dStr < startDate || dStr > endDate) return false;
+      }
+
       if (search && search.trim()) {
         const q = search.toLowerCase().trim();
         const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
         const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
         const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
-        const consignorMatch = s.consignor?.name?.toLowerCase().includes(q);
-        const consigneeMatch = s.consignee?.name?.toLowerCase().includes(q);
+        const consignorMatch =
+          (s.consignor?.name && s.consignor.name.toLowerCase().includes(q)) ||
+          (s.consignor?.companyName && s.consignor.companyName.toLowerCase().includes(q)) ||
+          (s.consignor?.companyCode && s.consignor.companyCode.toLowerCase().includes(q)) ||
+          (s.consignorName && s.consignorName.toLowerCase().includes(q));
+        const consigneeMatch =
+          (s.consignee?.name && s.consignee.name.toLowerCase().includes(q)) ||
+          (s.consignee?.companyName && s.consignee.companyName.toLowerCase().includes(q)) ||
+          (s.consignee?.companyCode && s.consignee.companyCode.toLowerCase().includes(q)) ||
+          (s.consigneeName && s.consigneeName.toLowerCase().includes(q));
         const originMatch = s.origin && s.origin.toLowerCase().includes(q);
         const destMatch = s.destination && s.destination.toLowerCase().includes(q);
         const invoiceMatch = s.invoiceDetails?.invoiceNumber?.toLowerCase().includes(q);

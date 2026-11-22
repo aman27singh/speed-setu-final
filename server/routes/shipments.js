@@ -19,7 +19,10 @@ router.get('/', async (req, res) => {
       origin,
       destination,
       package: pkgParam,
-      weight
+      weight,
+      date,
+      startDate,
+      endDate
     } = req.query;
 
     const andConditions = [];
@@ -43,7 +46,13 @@ router.get('/', async (req, res) => {
           { ewayBillNumber: { $regex: escaped, $options: 'i' } },
           { awbNumber: { $regex: escaped, $options: 'i' } },
           { 'consignor.name': { $regex: escaped, $options: 'i' } },
+          { 'consignor.companyName': { $regex: escaped, $options: 'i' } },
+          { 'consignor.companyCode': { $regex: escaped, $options: 'i' } },
+          { consignorName: { $regex: escaped, $options: 'i' } },
           { 'consignee.name': { $regex: escaped, $options: 'i' } },
+          { 'consignee.companyName': { $regex: escaped, $options: 'i' } },
+          { 'consignee.companyCode': { $regex: escaped, $options: 'i' } },
+          { consigneeName: { $regex: escaped, $options: 'i' } },
           { 'invoiceDetails.invoiceNumber': { $regex: escaped, $options: 'i' } },
           { 'commercialInvoices.invoiceNumber': { $regex: escaped, $options: 'i' } },
           { 'commercialInvoices.ewayBillNumber': { $regex: escaped, $options: 'i' } },
@@ -144,6 +153,35 @@ router.get('/', async (req, res) => {
       }
     }
 
+    // 7. Date Filter (createdAt in Asia/Kolkata timezone UTC+05:30)
+    const dateParam = (date || '').trim();
+    const startDateParam = (startDate || '').trim();
+    const endDateParam = (endDate || '').trim();
+
+    if (dateParam) {
+      const startUtc = new Date(`${dateParam}T00:00:00.000+05:30`);
+      const endUtc = new Date(`${dateParam}T23:59:59.999+05:30`);
+      if (!isNaN(startUtc.getTime()) && !isNaN(endUtc.getTime())) {
+        andConditions.push({
+          $or: [
+            { createdAt: { $gte: startUtc, $lte: endUtc } },
+            { createdAt: { $gte: startUtc.toISOString(), $lte: endUtc.toISOString() } }
+          ]
+        });
+      }
+    } else if (startDateParam && endDateParam) {
+      const startUtc = new Date(`${startDateParam}T00:00:00.000+05:30`);
+      const endUtc = new Date(`${endDateParam}T23:59:59.999+05:30`);
+      if (!isNaN(startUtc.getTime()) && !isNaN(endUtc.getTime())) {
+        andConditions.push({
+          $or: [
+            { createdAt: { $gte: startUtc, $lte: endUtc } },
+            { createdAt: { $gte: startUtc.toISOString(), $lte: endUtc.toISOString() } }
+          ]
+        });
+      }
+    }
+
     const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     // Dynamic sorting pipeline:
@@ -219,11 +257,47 @@ router.get('/', async (req, res) => {
 // GET /api/shipments/filter-options — Dynamic dependent filter options aggregation
 router.get('/filter-options', async (req, res) => {
   try {
-    const { companyId, route, package: pkgParam, status } = req.query;
+    const {
+      companyId,
+      route,
+      package: pkgParam,
+      status,
+      date,
+      startDate,
+      endDate
+    } = req.query;
 
     const statusMatch = [];
     if (status && status !== 'All') {
       statusMatch.push({ status });
+    }
+
+    const dateParam = (date || '').trim();
+    const startDateParam = (startDate || '').trim();
+    const endDateParam = (endDate || '').trim();
+
+    if (dateParam) {
+      const startUtc = new Date(`${dateParam}T00:00:00.000+05:30`);
+      const endUtc = new Date(`${dateParam}T23:59:59.999+05:30`);
+      if (!isNaN(startUtc.getTime()) && !isNaN(endUtc.getTime())) {
+        statusMatch.push({
+          $or: [
+            { createdAt: { $gte: startUtc, $lte: endUtc } },
+            { createdAt: { $gte: startUtc.toISOString(), $lte: endUtc.toISOString() } }
+          ]
+        });
+      }
+    } else if (startDateParam && endDateParam) {
+      const startUtc = new Date(`${startDateParam}T00:00:00.000+05:30`);
+      const endUtc = new Date(`${endDateParam}T23:59:59.999+05:30`);
+      if (!isNaN(startUtc.getTime()) && !isNaN(endUtc.getTime())) {
+        statusMatch.push({
+          $or: [
+            { createdAt: { $gte: startUtc, $lte: endUtc } },
+            { createdAt: { $gte: startUtc.toISOString(), $lte: endUtc.toISOString() } }
+          ]
+        });
+      }
     }
 
     // Match 1: For Routes (filtered by status and companyId)
