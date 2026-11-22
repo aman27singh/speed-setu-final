@@ -123,6 +123,8 @@ app.use('/api/vehicles', require('./routes/vehicles'));
 app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/consignor-consignee', require('./routes/consignorConsignee'));
+app.use('/api/parties', require('./routes/consignorConsignee'));
 
 // Sales Register Report (Mounted with and without /api prefix for reverse proxy compatibility)
 const { salesRegisterRouter } = require('./routes/salesRegister.route');

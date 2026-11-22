@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { shipmentService } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
+import { consignorConsigneeService } from '../services/consignorConsigneeService';
 import { validateShipmentForm } from '../utils/shipmentValidation';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
@@ -43,6 +44,9 @@ const INITIAL_FORM_STATE = {
   companyName: '',
   companyCode: '',
 
+  consignorId: '',
+  consigneeId: '',
+
   consignor: {
     name: '',
     code: '',
@@ -51,7 +55,8 @@ const INITIAL_FORM_STATE = {
     city: '',
     state: '',
     pin: '',
-    contact: ''
+    contact: '',
+    pickupDeliveryLocation: ''
   },
 
   consignee: {
@@ -62,7 +67,8 @@ const INITIAL_FORM_STATE = {
     city: '',
     state: '',
     pin: '',
-    contact: ''
+    contact: '',
+    pickupDeliveryLocation: ''
   },
 
   origin: '',
@@ -145,30 +151,27 @@ const getFilteredAndRankedList = (list, searchTerm) => {
 
   const scoreItem = (item) => {
     const name = (item.name || '').trim().toLowerCase();
+    const code = (item.code || '').trim().toLowerCase();
     const city = (item.city || '').trim().toLowerCase();
+    const pickupLoc = (item.pickupDeliveryLocation || '').trim().toLowerCase();
+    const gst = (item.gstin || '').trim().toLowerCase();
+    const pin = (item.pin || '').trim().toLowerCase();
 
+    // Priority 1: Exact or prefix match on company name or company code (e.g. "ADVIK" or "CC101")
+    if (name.startsWith(query) || code.startsWith(query)) return 1;
+
+    // Priority 2: Any word in company name starts with query (e.g. "AUTOCOMP" in "ADVIK AUTOCOMP")
     const nameWords = name.split(/[\s\-\_\.\,\/\(\)]+/).filter(Boolean);
-    const cityWords = city.split(/[\s\-\_\.\,\/\(\)]+/).filter(Boolean);
-
-    // Priority 1: Company name STARTS with query (e.g. "D K AUTOMOTIVE" for "D", "TECHNIQUES..." for "T")
-    if (name.startsWith(query)) return 1;
-
-    // Priority 2: Any word in name STARTS with query (e.g. "TECH" in "A.R AUTO TECH" for "T")
     if (nameWords.some((w) => w.startsWith(query))) return 2;
 
-    // Priority 3: City STARTS with query or word in city STARTS with query
-    if (city.startsWith(query) || cityWords.some((w) => w.startsWith(query))) return 3;
+    // Priority 3: Pickup/Delivery location or City starts with query (e.g. "HOSUR" or "BANGALORE")
+    if (pickupLoc.startsWith(query) || city.startsWith(query)) return 3;
 
-    // For 1 or 2 letter search queries, ONLY include prefix/word-start matches to prevent false positives (like 'd' in ADVIK)
-    if (query.length < 3) {
-      return 999;
-    }
+    // Priority 4: Partial substring match anywhere in company name or company code
+    if (name.includes(query) || code.includes(query)) return 4;
 
-    // Priority 4: Substring match anywhere in name (only for 3+ char search)
-    if (name.includes(query)) return 4;
-
-    // Priority 5: Substring match anywhere in city
-    if (city.includes(query)) return 5;
+    // Priority 5: Partial substring match in pickup/delivery location, city, pin, or GST
+    if (pickupLoc.includes(query) || city.includes(query) || pin.includes(query) || gst.includes(query)) return 5;
 
     return 999;
   };
@@ -287,116 +290,67 @@ export const ShipmentFormPage = () => {
     });
   };
 
+  // Refresh active parties strictly from centralized Consignor & Consignee Master Directory
+  const refreshMasterParties = async () => {
+    try {
+      const masterParties = await consignorConsigneeService.getActiveParties();
+      const savedParties = (masterParties || []).map((p) => ({
+        id: p.id || p._id,
+        name: (p.companyName || '').trim().toUpperCase(),
+        code: (p.companyCode || '').trim().toUpperCase(),
+        gstin: (p.gstNumber || '').trim().toUpperCase(),
+        address: p.fullAddress || p.address?.addressLine1 || '',
+        addressLine1: p.address?.addressLine1 || '',
+        addressLine2: p.address?.addressLine2 || '',
+        city: p.address?.city || '',
+        state: p.address?.state || '',
+        pin: p.address?.pinCode || '',
+        contact: p.mobileNumber || p.contactPerson || '',
+        pickupDeliveryLocation: (p.pickupDeliveryLocation || '').trim().toUpperCase()
+      })).sort((a, b) =>
+        (a.name || '').localeCompare((b.name || ''), 'en', { sensitivity: 'base' })
+      );
+
+      setSavedConsignorsList(savedParties);
+      setSavedConsigneesList(savedParties);
+      return savedParties;
+    } catch (partyErr) {
+      console.warn('[ShipmentFormPage] Error refreshing master party records:', partyErr.message);
+      return [];
+    }
+  };
+
   useEffect(() => {
     const loadInitialData = async () => {
       setLoading(true);
       try {
-        const [compList, shipmentList] = await Promise.all([
+        const [compList, masterParties] = await Promise.all([
           companyService.getCompanies().catch(() => []),
-          shipmentService.getShipments().catch(() => [])
+          consignorConsigneeService.getActiveParties().catch(() => [])
         ]);
         setCompanies(compList);
 
-        // Dynamically extract all saved consignors & consignees from past shipments & companies
-        const consignorMap = new Map();
-        const consigneeMap = new Map();
-
-        const addConsignor = (c) => {
-          if (c && c.name && c.name.trim()) {
-            const key = c.name.trim().toLowerCase();
-            const isSSE = key.includes('ss enterprise') || key.includes('s s enterprise') || key.includes('ss enter');
-            const cleanGstin = !isSSE && c.gstin === '27CIOPK3596D2ZU' ? '' : (c.gstin || c.gstNo || '');
-            const cleanContact = !isSSE && c.contact === 'ssenterprises.nk2021@gmail.com' ? '' : (c.contact || c.contactPhone || c.phone || '');
-            const cleanPin = !isSSE && c.pin === '410501' ? '' : (c.pin || c.pinCode || '');
-            const cleanAddress = !isSSE && (c.address || '').includes('Chakan-Talegaon Road') ? '' : (c.address || c.pickupAddress || '');
-
-            if (!consignorMap.has(key)) {
-              consignorMap.set(key, {
-                id: c.id || `consignor-${consignorMap.size + 1}`,
-                name: c.name.trim(),
-                code: c.code || '',
-                gstin: cleanGstin,
-                address: cleanAddress,
-                city: c.city || '',
-                state: c.state || '',
-                pin: cleanPin,
-                contact: cleanContact
-              });
-            }
-          }
-        };
-
-        const addConsignee = (c) => {
-          if (c && c.name && c.name.trim()) {
-            const key = c.name.trim().toLowerCase();
-            const isAdvik = key.includes('advik');
-            const cleanGstin = !isAdvik && c.gstin === '29AASCA8132C1ZJ' ? '' : (c.gstin || c.gstNo || '');
-            const cleanPin = !isAdvik && c.pin === '563133' ? '' : (c.pin || c.pinCode || '');
-            const cleanAddress = !isAdvik && (c.address || '').includes('Plot No. 205, 206') ? '' : (c.address || c.deliveryAddress || '');
-
-            if (!consigneeMap.has(key)) {
-              consigneeMap.set(key, {
-                id: c.id || `consignee-${consigneeMap.size + 1}`,
-                name: c.name.trim(),
-                code: c.code || '',
-                gstin: cleanGstin,
-                address: cleanAddress,
-                city: c.city || '',
-                state: c.state || '',
-                pin: cleanPin,
-                contact: c.contact || c.contactPhone || c.phone || ''
-              });
-            }
-          }
-        };
-
-        (compList || []).forEach((comp) => {
-          if (comp.companyName) {
-            addConsignor({
-              id: comp.id,
-              name: comp.companyName,
-              code: comp.companyCode || '',
-              gstin: comp.gstin || '',
-              address: comp.billing?.address || '',
-              city: comp.billing?.city || '',
-              state: comp.billing?.state || '',
-              pin: comp.billing?.pinCode || '',
-              contact: comp.primaryContact?.phone || ''
-            });
-            addConsignee({
-              id: comp.id,
-              name: comp.companyName,
-              code: comp.companyCode || '',
-              gstin: comp.gstin || '',
-              address: comp.billing?.address || '',
-              city: comp.billing?.city || '',
-              state: comp.billing?.state || '',
-              pin: comp.billing?.pinCode || '',
-              contact: comp.primaryContact?.phone || ''
-            });
-          }
-          if (comp.hubs && Array.isArray(comp.hubs)) {
-            comp.hubs.forEach((hub) => {
-              addConsignor({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
-              addConsignee({ name: hub.name || hub.hubName, city: hub.city, address: hub.address, gstin: hub.gstin });
-            });
-          }
-        });
-
-        (shipmentList || []).forEach((s) => {
-          if (s.consignor) addConsignor(s.consignor);
-          if (s.consignee) addConsignee(s.consignee);
-        });
-
-        const sortedConsignors = Array.from(consignorMap.values()).sort((a, b) =>
-          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
-        );
-        const sortedConsignees = Array.from(consigneeMap.values()).sort((a, b) =>
-          (a.name || '').trim().localeCompare((b.name || '').trim(), 'en', { sensitivity: 'base' })
+        // EXCLUSIVELY map from active saved records in centralized MongoDB consignorConsignee collection
+        // Historical shipment records are NEVER included as fallback
+        const savedParties = (masterParties || []).map((p) => ({
+          id: p.id || p._id,
+          name: (p.companyName || '').trim().toUpperCase(),
+          code: (p.companyCode || '').trim().toUpperCase(),
+          gstin: (p.gstNumber || '').trim().toUpperCase(),
+          address: p.fullAddress || p.address?.addressLine1 || '',
+          addressLine1: p.address?.addressLine1 || '',
+          addressLine2: p.address?.addressLine2 || '',
+          city: p.address?.city || '',
+          state: p.address?.state || '',
+          pin: p.address?.pinCode || '',
+          contact: p.mobileNumber || p.contactPerson || '',
+          pickupDeliveryLocation: (p.pickupDeliveryLocation || '').trim().toUpperCase()
+        })).sort((a, b) =>
+          (a.name || '').localeCompare((b.name || ''), 'en', { sensitivity: 'base' })
         );
 
-        setSavedConsignorsList(sortedConsignors);
-        setSavedConsigneesList(sortedConsignees);
+        setSavedConsignorsList(savedParties);
+        setSavedConsigneesList(savedParties);
 
         if (isEditMode) {
           const existing = await shipmentService.getShipment(id);
@@ -448,7 +402,8 @@ export const ShipmentFormPage = () => {
               city: '',
               state: '',
               pin: '',
-              contact: ''
+              contact: '',
+              pickupDeliveryLocation: ''
             },
             consignee: {
               name: '',
@@ -458,7 +413,8 @@ export const ShipmentFormPage = () => {
               city: '',
               state: '',
               pin: '',
-              contact: ''
+              contact: '',
+              pickupDeliveryLocation: ''
             }
           }));
         }
@@ -486,13 +442,16 @@ export const ShipmentFormPage = () => {
           city: '',
           state: '',
           pin: '',
-          contact: ''
+          contact: '',
+          pickupDeliveryLocation: ''
         }
       }));
       return;
     }
 
-    const found = savedConsignorsList.find((c) => c.name === val || c.id === val);
+    const found = typeof val === 'object'
+      ? val
+      : savedConsignorsList.find((c) => c.id === val || (c.code && c.code === val) || c.name === val);
     if (found) {
       // Auto-detect billing company from consignor if not already set
       let matchedComp = null;
@@ -504,9 +463,11 @@ export const ShipmentFormPage = () => {
         });
       }
 
+      const originLoc = (found.pickupDeliveryLocation || found.city || prev.origin || '').toUpperCase();
       setFormData((prev) => ({
         ...prev,
-        origin: found.city || prev.origin,
+        consignorId: found.id || '',
+        origin: originLoc,
         ...(matchedComp ? {
           companyId: matchedComp.id,
           companyName: matchedComp.companyName,
@@ -514,13 +475,15 @@ export const ShipmentFormPage = () => {
         } : {}),
         consignor: {
           ...prev.consignor,
-          name: found.name,
-          gstin: found.gstin || '',
+          name: (found.name || '').toUpperCase(),
+          code: (found.code || '').toUpperCase(),
+          gstin: (found.gstin || '').toUpperCase(),
           contact: found.contact || '',
           address: found.address || '',
           city: found.city || '',
           state: found.state || '',
-          pin: found.pin || ''
+          pin: found.pin || '',
+          pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
         }
       }));
     }
@@ -539,13 +502,16 @@ export const ShipmentFormPage = () => {
           city: '',
           state: '',
           pin: '',
-          contact: ''
+          contact: '',
+          pickupDeliveryLocation: ''
         }
       }));
       return;
     }
 
-    const found = savedConsigneesList.find((e) => e.name === val || e.id === val);
+    const found = typeof val === 'object'
+      ? val
+      : savedConsigneesList.find((e) => e.id === val || (e.code && e.code === val) || e.name === val);
     if (found) {
       // Auto-detect billing company from consignee if not already set
       let matchedComp = null;
@@ -557,9 +523,11 @@ export const ShipmentFormPage = () => {
         });
       }
 
+      const destLoc = (found.pickupDeliveryLocation || found.city || prev.destination || '').toUpperCase();
       setFormData((prev) => ({
         ...prev,
-        destination: found.city || prev.destination,
+        consigneeId: found.id || '',
+        destination: destLoc,
         ...(matchedComp ? {
           companyId: matchedComp.id,
           companyName: matchedComp.companyName,
@@ -567,13 +535,15 @@ export const ShipmentFormPage = () => {
         } : {}),
         consignee: {
           ...prev.consignee,
-          name: found.name,
-          gstin: found.gstin || '',
+          name: (found.name || '').toUpperCase(),
+          code: (found.code || '').toUpperCase(),
+          gstin: (found.gstin || '').toUpperCase(),
           contact: found.contact || '',
           address: found.address || '',
           city: found.city || '',
           state: found.state || '',
-          pin: found.pin || ''
+          pin: found.pin || '',
+          pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
         }
       }));
     }
@@ -938,62 +908,179 @@ export const ShipmentFormPage = () => {
 
 
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                <div className="relative">
-                  <label className="block font-bold text-slate-600 mb-1">
-                    Consignor Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search company)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.consignor?.name || ''}
-                    onFocus={() => setShowConsignorSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowConsignorSuggestions(false), 200)}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      handleNestedInputChange('consignor', 'name', val);
-                      setConsignorSearchTerm(val);
-                      setShowConsignorSuggestions(true);
-                    }}
-                    placeholder="Type to search e.g. GKN, SS, Techniques..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-setu-600"
-                  />
+              <div className="space-y-3 pt-1 text-xs">
+                {/* Row 1: Consignor Name (Autocomplete) & Consignor Code */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 relative">
+                    <label className="block font-bold text-slate-600 mb-1">
+                      Consignor Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search master)</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.consignor?.name || ''}
+                      onFocus={() => {
+                        setShowConsignorSuggestions(true);
+                        refreshMasterParties();
+                      }}
+                      onBlur={() => setTimeout(() => setShowConsignorSuggestions(false), 200)}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        handleNestedInputChange('consignor', 'name', val);
+                        setConsignorSearchTerm(val);
+                        setShowConsignorSuggestions(true);
+                      }}
+                      placeholder="Type to search e.g. GKN, ADVIK, TECHNIQUES..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-setu-600 uppercase"
+                    />
 
-                  {/* Auto-complete Suggestions Dropdown */}
-                  {showConsignorSuggestions && (
-                    <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').map((c) => (
-                        <button
-                          key={c.id || c.name}
-                          type="button"
-                          onMouseDown={() => {
-                            handleConsignorSelect(c.name);
-                            setShowConsignorSuggestions(false);
-                          }}
-                          className="w-full text-left p-2.5 hover:bg-setu-50 transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="font-bold text-slate-900 text-xs">{c.name}</span>
-                          {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
-                        </button>
-                      ))}
-                      {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').length === 0 && (
-                        <div className="p-3 text-xs text-slate-500 text-center font-medium">
-                          No matching company found. Continue typing custom name.
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {/* Auto-complete Suggestions Dropdown */}
+                    {showConsignorSuggestions && (
+                      <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').map((c) => (
+                          <button
+                            key={c.id || c.code || `${c.name}-${c.city}-${c.pin}`}
+                            type="button"
+                            onMouseDown={() => {
+                              handleConsignorSelect(c.id ? c.id : c);
+                              setShowConsignorSuggestions(false);
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-setu-50 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="space-y-0.5 min-w-0 pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 text-xs truncate">{c.name}</span>
+                                {c.code && (
+                                  <span className="font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                                    {c.code}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                                {c.pickupDeliveryLocation && (
+                                  <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    📍 {c.pickupDeliveryLocation}
+                                  </span>
+                                )}
+                                {c.city && <span className="font-semibold text-slate-700">{c.city}</span>}
+                                {c.pin && <span className="font-mono text-slate-600">PIN: {c.pin}</span>}
+                                {c.address && <span className="truncate max-w-xs text-slate-400">• {c.address}</span>}
+                                {c.gstin && <span className="font-mono text-slate-400">• GST: {c.gstin}</span>}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        {getFilteredAndRankedList(savedConsignorsList, formData.consignor?.name || '').length === 0 && (
+                          <div className="p-4 text-xs text-slate-500 text-center space-y-2">
+                            <p className="font-bold text-slate-700">No saved consignor/consignee found.</p>
+                            <p className="text-[11px] text-slate-400">
+                              Only saved records from the centralized Master are shown.
+                            </p>
+                            <a
+                              href="/operations/consignors-consignees"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-setu-600 hover:text-setu-700 bg-setu-50 hover:bg-setu-100 px-3 py-1.5 rounded-lg border border-setu-200 transition-colors shadow-xs cursor-pointer"
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Consignor / Consignee
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Consignor Code</label>
+                    <input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={formData.consignor?.code || (formData.consignorId ? 'Linked' : 'Auto-assigned upon submit')}
+                      className="w-full p-2.5 bg-slate-100 border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs cursor-not-allowed"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Full Address</label>
-                  <input
-                    type="text"
-                    value={formData.consignor?.address || ''}
-                    onChange={(e) => handleNestedInputChange('consignor', 'address', e.target.value)}
-                    placeholder="Full pickup street address..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
-                  />
+                {/* Row 2: Address, City, State, PIN */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Pickup Street Address</label>
+                    <input
+                      type="text"
+                      value={formData.consignor?.address || ''}
+                      onChange={(e) => handleNestedInputChange('consignor', 'address', e.target.value)}
+                      placeholder="Street, Plot, Industrial Area..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">City</label>
+                    <input
+                      type="text"
+                      value={formData.consignor?.city || ''}
+                      onChange={(e) => handleNestedInputChange('consignor', 'city', e.target.value)}
+                      placeholder="e.g. Pune, Bhiwani..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">PIN Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={formData.consignor?.pin || ''}
+                      onChange={(e) => handleNestedInputChange('consignor', 'pin', e.target.value.replace(/\D/g, ''))}
+                      placeholder="6-digit PIN"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Pickup/Delivery, GSTIN & Contact Person */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">
+                      Pickup / Delivery <span className="text-[10px] text-setu-600 font-semibold">(Origin)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.consignor?.pickupDeliveryLocation || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        handleNestedInputChange('consignor', 'pickupDeliveryLocation', val);
+                        setFormData((prev) => ({ ...prev, origin: val }));
+                      }}
+                      placeholder="e.g. Pune Hub, Chakan..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Consignor GSTIN (Optional)</label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      value={formData.consignor?.gstin || ''}
+                      onChange={(e) => handleNestedInputChange('consignor', 'gstin', e.target.value.toUpperCase())}
+                      placeholder="15-character GSTIN"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Contact Details (Optional)</label>
+                    <input
+                      type="text"
+                      value={formData.consignor?.contact || ''}
+                      onChange={(e) => handleNestedInputChange('consignor', 'contact', e.target.value)}
+                      placeholder="Contact Person / Phone"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1008,64 +1095,179 @@ export const ShipmentFormPage = () => {
                 <span className="text-xs text-slate-400">Select receiver or enter name</span>
               </div>
 
+              <div className="space-y-3 pt-1 text-xs">
+                {/* Row 1: Consignee Name (Autocomplete) & Consignee Code */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 relative">
+                    <label className="block font-bold text-slate-600 mb-1">
+                      Consignee Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search master)</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.consignee?.name || ''}
+                      onFocus={() => {
+                        setShowConsigneeSuggestions(true);
+                        refreshMasterParties();
+                      }}
+                      onBlur={() => setTimeout(() => setShowConsigneeSuggestions(false), 200)}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        handleNestedInputChange('consignee', 'name', val);
+                        setConsigneeSearchTerm(val);
+                        setShowConsigneeSuggestions(true);
+                      }}
+                      placeholder="Type to search e.g. SANSERA, ADVIK, RELIANCE..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-emerald-600 uppercase"
+                    />
 
+                    {/* Auto-complete Suggestions Dropdown */}
+                    {showConsigneeSuggestions && (
+                      <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').map((c) => (
+                          <button
+                            key={c.id || c.code || `${c.name}-${c.city}-${c.pin}`}
+                            type="button"
+                            onMouseDown={() => {
+                              handleConsigneeSelect(c.id ? c.id : c);
+                              setShowConsigneeSuggestions(false);
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-emerald-50 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="space-y-0.5 min-w-0 pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 text-xs truncate">{c.name}</span>
+                                {c.code && (
+                                  <span className="font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                    {c.code}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                                {c.pickupDeliveryLocation && (
+                                  <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    📍 {c.pickupDeliveryLocation}
+                                  </span>
+                                )}
+                                {c.city && <span className="font-semibold text-slate-700">{c.city}</span>}
+                                {c.pin && <span className="font-mono text-slate-600">PIN: {c.pin}</span>}
+                                {c.address && <span className="truncate max-w-xs text-slate-400">• {c.address}</span>}
+                                {c.gstin && <span className="font-mono text-slate-400">• GST: {c.gstin}</span>}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').length === 0 && (
+                          <div className="p-4 text-xs text-slate-500 text-center space-y-2">
+                            <p className="font-bold text-slate-700">No saved consignor/consignee found.</p>
+                            <p className="text-[11px] text-slate-400">
+                              Only saved records from the centralized Master are shown.
+                            </p>
+                            <a
+                              href="/operations/consignors-consignees"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors shadow-xs cursor-pointer"
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Consignor / Consignee
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                <div className="relative">
-                  <label className="block font-bold text-slate-600 mb-1">
-                    Consignee Name <span className="text-rose-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(Type to search company)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.consignee?.name || ''}
-                    onFocus={() => setShowConsigneeSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowConsigneeSuggestions(false), 200)}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      handleNestedInputChange('consignee', 'name', val);
-                      setConsigneeSearchTerm(val);
-                      setShowConsigneeSuggestions(true);
-                    }}
-                    placeholder="Type to search e.g. Sansera, Advik, Reliance..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-emerald-600"
-                  />
-
-                  {/* Auto-complete Suggestions Dropdown */}
-                  {showConsigneeSuggestions && (
-                    <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-300 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
-                      {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').map((c) => (
-                        <button
-                          key={c.id || c.name}
-                          type="button"
-                          onMouseDown={() => {
-                            handleConsigneeSelect(c.name);
-                            setShowConsigneeSuggestions(false);
-                          }}
-                          className="w-full text-left p-2.5 hover:bg-emerald-50 transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="font-bold text-slate-900 text-xs">{c.name}</span>
-                          {c.city && <span className="text-[11px] text-slate-500 font-semibold">({c.city})</span>}
-                        </button>
-                      ))}
-                      {getFilteredAndRankedList(savedConsigneesList, formData.consignee?.name || '').length === 0 && (
-                        <div className="p-3 text-xs text-slate-500 text-center font-medium">
-                          No matching company found. Continue typing custom name.
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Consignee Code</label>
+                    <input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={formData.consignee?.code || (formData.consigneeId ? 'Linked' : 'Auto-assigned upon submit')}
+                      className="w-full p-2.5 bg-slate-100 border border-slate-300 rounded-lg font-mono font-bold text-slate-700 text-xs cursor-not-allowed"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Full Address</label>
-                  <input
-                    type="text"
-                    value={formData.consignee?.address || ''}
-                    onChange={(e) => handleNestedInputChange('consignee', 'address', e.target.value)}
-                    placeholder="Full delivery street address..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
-                  />
+                {/* Row 2: Address, City, State, PIN */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-600 mb-1">Delivery Street Address</label>
+                    <input
+                      type="text"
+                      value={formData.consignee?.address || ''}
+                      onChange={(e) => handleNestedInputChange('consignee', 'address', e.target.value)}
+                      placeholder="Street, Destination Hub, Unit..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">City</label>
+                    <input
+                      type="text"
+                      value={formData.consignee?.city || ''}
+                      onChange={(e) => handleNestedInputChange('consignee', 'city', e.target.value)}
+                      placeholder="e.g. Bangalore, Pantnagar..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">PIN Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={formData.consignee?.pin || ''}
+                      onChange={(e) => handleNestedInputChange('consignee', 'pin', e.target.value.replace(/\D/g, ''))}
+                      placeholder="6-digit PIN"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Pickup/Delivery, GSTIN & Contact Person */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">
+                      Pickup / Delivery <span className="text-[10px] text-emerald-600 font-semibold">(Destination)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.consignee?.pickupDeliveryLocation || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        handleNestedInputChange('consignee', 'pickupDeliveryLocation', val);
+                        setFormData((prev) => ({ ...prev, destination: val }));
+                      }}
+                      placeholder="e.g. Bangalore Hub, Peenya..."
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Consignee GSTIN (Optional)</label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      value={formData.consignee?.gstin || ''}
+                      onChange={(e) => handleNestedInputChange('consignee', 'gstin', e.target.value.toUpperCase())}
+                      placeholder="15-character GSTIN"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-semibold text-slate-900 uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Contact Details (Optional)</label>
+                    <input
+                      type="text"
+                      value={formData.consignee?.contact || ''}
+                      onChange={(e) => handleNestedInputChange('consignee', 'contact', e.target.value)}
+                      placeholder="Contact Person / Phone"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1085,9 +1287,9 @@ export const ShipmentFormPage = () => {
                   type="text"
                   required
                   value={formData.origin || ''}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
-                  placeholder="Auto-filled from consignor city..."
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all"
+                  onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value.toUpperCase() }))}
+                  placeholder="Auto-filled from consignor pickup/delivery or city..."
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all uppercase"
                 />
               </div>
 
@@ -1097,9 +1299,9 @@ export const ShipmentFormPage = () => {
                   type="text"
                   required
                   value={formData.destination || ''}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, destination: e.target.value }))}
-                  placeholder="Auto-filled from consignee city..."
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all"
+                  onChange={(e) => setFormData((prev) => ({ ...prev, destination: e.target.value.toUpperCase() }))}
+                  placeholder="Auto-filled from consignee pickup/delivery or city..."
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 text-sm focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all uppercase"
                 />
               </div>
             </div>

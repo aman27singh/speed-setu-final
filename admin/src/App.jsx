@@ -46,6 +46,7 @@ import { CustomerProfitabilityPage } from './pages/CustomerProfitabilityPage';
 import { RouteAnalysisPage } from './pages/RouteAnalysisPage';
 import { MonthlyMISPage } from './pages/MonthlyMISPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ConsignorConsigneePage } from './pages/ConsignorConsigneePage';
 import { LoadingState } from './components/common/LoadingState';
 import { ServerWarmingScreen } from './components/common/ServerWarmingScreen';
 
@@ -106,6 +107,8 @@ export const AppRoutes = () => {
       <Route path="/" element={<Navigate to="/admin/login" replace />} />
       <Route path="/login" element={<Navigate to="/admin/login" replace />} />
       <Route path="/admin/login" element={<LoginPage />} />
+      <Route path="/operations/consignors-consignees" element={<Navigate to="/admin/operations/consignors-consignees" replace />} />
+      <Route path="/consignors-consignees" element={<Navigate to="/admin/operations/consignors-consignees" replace />} />
 
       {/* Protected Admin Shell Routes */}
       <Route
@@ -139,6 +142,9 @@ export const AppRoutes = () => {
         <Route path="shipments/upload" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><DocumentExtractionPage /></ProtectedRoute>} />
         <Route path="shipments/:id" element={<ShipmentDetailPage />} />
         <Route path="shipments/:id/edit" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin', 'Driver']}><ShipmentFormPage /></ProtectedRoute>} />
+
+        <Route path="operations/consignors-consignees" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ConsignorConsigneePage /></ProtectedRoute>} />
+        <Route path="consignors-consignees" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><ConsignorConsigneePage /></ProtectedRoute>} />
 
         <Route path="trips" element={<TripsPage />} />
         <Route path="trips/new" element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']}><TripFormPage /></ProtectedRoute>} />

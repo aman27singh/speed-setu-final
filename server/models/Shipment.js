@@ -1,14 +1,15 @@
 const mongoose = require('mongoose');
 
 const ContactSubSchema = new mongoose.Schema({
-  name: String,
-  code: String,
-  gstin: String,
+  name: { type: String, uppercase: true, trim: true },
+  code: { type: String, uppercase: true, trim: true },
+  gstin: { type: String, uppercase: true, trim: true },
   address: String,
   city: String,
   state: String,
   pin: String,
-  contact: String
+  contact: String,
+  pickupDeliveryLocation: { type: String, default: '', trim: true, uppercase: true }
 }, { _id: false });
 
 const ShipmentSchema = new mongoose.Schema({
@@ -33,6 +34,10 @@ const ShipmentSchema = new mongoose.Schema({
   consignor: ContactSubSchema,
   consignee: ContactSubSchema,
   shipper: ContactSubSchema,
+  consignorId: { type: String, default: null },
+  consigneeId: { type: String, default: null },
+  consignorSnapshot: mongoose.Schema.Types.Mixed,
+  consigneeSnapshot: mongoose.Schema.Types.Mixed,
 
   actualWeight: { type: Number, default: 0 },
   chargeableWeight: { type: Number, default: 0 },

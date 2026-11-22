@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Shipment = require('../models/Shipment');
 const Counter = require('../models/Counter');
 const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
+const { autoResolveShipmentParties } = require('../services/consignorConsigneeService');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -473,9 +474,40 @@ router.post('/', async (req, res) => {
     const mode = req.body.mode || req.body.freightMode || 'Express LTL';
     const freightMode = req.body.freightMode || mode;
 
-    const consignor = req.body.consignor || req.body.shipper || {};
-    const shipper = req.body.shipper || consignor;
-    const consignee = req.body.consignee || {};
+    const rawConsignor = req.body.consignor || req.body.shipper || {};
+    const rawConsignee = req.body.consignee || {};
+
+    let resolvedParties = {
+      consignorId: req.body.consignorId || null,
+      consigneeId: req.body.consigneeId || null,
+      consignorSnapshot: null,
+      consigneeSnapshot: null,
+      consignor: rawConsignor,
+      consignee: rawConsignee
+    };
+
+    // Centralized Consignor & Consignee Auto-Resolution & Shared Master Auto-Save
+    try {
+      resolvedParties = await autoResolveShipmentParties({
+        consignor: rawConsignor,
+        consignee: rawConsignee,
+        consignorId: req.body.consignorId || null,
+        consigneeId: req.body.consigneeId || null
+      }, mongoose.connection);
+    } catch (partyErr) {
+      console.warn('[Shipment Create] Consignor/Consignee resolution note:', partyErr.message);
+    }
+
+    const consignor = resolvedParties.consignor;
+    const shipper = resolvedParties.consignor;
+    const consignee = resolvedParties.consignee;
+    const consignorId = resolvedParties.consignorId;
+    const consigneeId = resolvedParties.consigneeId;
+    const consignorSnapshot = resolvedParties.consignorSnapshot;
+    const consigneeSnapshot = resolvedParties.consigneeSnapshot;
+
+    const finalOrigin = req.body.origin || consignor?.pickupDeliveryLocation || consignor?.city || 'Booking Branch Hub';
+    const finalDestination = req.body.destination || consignee?.pickupDeliveryLocation || consignee?.city || '';
 
     const maxSaveRetries = 3;
     let saved = null;
@@ -495,6 +527,8 @@ router.post('/', async (req, res) => {
 
         const newShipment = new Shipment({
           ...req.body,
+          origin: finalOrigin,
+          destination: finalDestination,
           cnNumber: finalCN,
           cnDate,
           bookingDate,
@@ -503,6 +537,10 @@ router.post('/', async (req, res) => {
           consignor,
           shipper,
           consignee,
+          consignorId,
+          consigneeId,
+          consignorSnapshot,
+          consigneeSnapshot,
           chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
           volumetricWeight: req.body.volumetricWeight || req.body.chargeableWeight || 0,
           billingStatus: req.body.billingStatus || 'Not Ready',
