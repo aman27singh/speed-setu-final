@@ -21,7 +21,7 @@ const ShipmentSchema = new mongoose.Schema({
   companyName: String,
   companyCode: String,
 
-  status: { type: String, default: 'Booked' },
+  status: { type: String, enum: ['Booked', 'Delivered'], default: 'Booked' },
   podStatus: { type: String, default: 'Pending' },
   billingStatus: { type: String, default: 'Not Ready' },
 

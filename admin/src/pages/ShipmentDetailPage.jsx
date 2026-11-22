@@ -135,20 +135,8 @@ export const ShipmentDetailPage = () => {
   const handleUpdateStatusSubmit = async (e) => {
     e.preventDefault();
     try {
-      await shipmentService.updateShipmentStatus(
-        shipment.id,
-        newStatus,
-        statusLocation,
-        statusRemarks,
-        {
-          driver: statusDriver,
-          vehicle: statusVehicle,
-          transporter: statusTransporter,
-          transporterType: statusTransporterType,
-          pickupCost: statusPickupCost
-        }
-      );
-      setToastMessage(`Status updated to '${newStatus}' & operational specs saved to MongoDB!`);
+      await shipmentService.updateStatus(shipment._id || shipment.id, newStatus);
+      setToastMessage(`Status successfully updated to '${newStatus}' & saved to MongoDB!`);
       setShowStatusModal(false);
       setStatusRemarks('');
       fetchShipment();
@@ -860,14 +848,7 @@ export const ShipmentDetailPage = () => {
               className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900"
             >
               <option value="Booked">Booked</option>
-              <option value="Picked Up">Picked Up</option>
-              <option value="In Transit">In Transit</option>
-              <option value="Reached Destination">Reached Destination</option>
-              <option value="Out for Delivery">Out for Delivery</option>
-              <option value="Partially Delivered">Partially Delivered</option>
               <option value="Delivered">Delivered</option>
-              <option value="Delayed">Delayed</option>
-              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
 

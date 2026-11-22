@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
 import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight } from '../services/shipmentService';
@@ -27,8 +28,117 @@ import {
   FileText,
   FileSpreadsheet,
   User,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  Check
 } from 'lucide-react';
+
+/**
+ * Editable Status Dropdown for Shipments
+ * Supports strictly two statuses: Booked (Blue) and Delivered (Green).
+ */
+const EditableStatusDropdown = ({ shipment, onStatusChange, isUpdating }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const currentStatus = shipment.status === 'Delivered' ? 'Delivered' : 'Booked';
+  const isBooked = currentStatus === 'Booked';
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const handleSelect = (e, targetStatus) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsOpen(false);
+    if (targetStatus !== currentStatus) {
+      onStatusChange(shipment, targetStatus);
+    }
+  };
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        disabled={isUpdating}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className={clsx(
+          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-150 cursor-pointer shadow-sm select-none',
+          isBooked
+            ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
+          isUpdating && 'opacity-60 cursor-wait'
+        )}
+        title="Click to change status (Booked / Delivered)"
+      >
+        <span
+          className={clsx(
+            'w-1.5 h-1.5 rounded-full shrink-0',
+            isBooked ? 'bg-blue-500' : 'bg-emerald-500',
+            isUpdating && 'animate-ping'
+          )}
+        />
+        <span>{currentStatus}</span>
+        {isUpdating ? (
+          <span className="w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin ml-0.5" />
+        ) : (
+          <ChevronDown className={clsx('w-3 h-3 text-slate-400 transition-transform duration-150', isOpen && 'rotate-180')} />
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute z-50 left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-200 py-1 focus:outline-none animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-0.5">
+            Set Status
+          </div>
+          <button
+            type="button"
+            onClick={(e) => handleSelect(e, 'Booked')}
+            className={clsx(
+              'w-full text-left flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-slate-50',
+              isBooked ? 'text-blue-700 font-bold bg-blue-50/60' : 'text-slate-700'
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+              <span>Booked</span>
+            </div>
+            {isBooked && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleSelect(e, 'Delivered')}
+            className={clsx(
+              'w-full text-left flex items-center justify-between px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-slate-50',
+              !isBooked ? 'text-emerald-700 font-bold bg-emerald-50/60' : 'text-slate-700'
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>Delivered</span>
+            </div>
+            {!isBooked && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ShipmentsPage = () => {
   const navigate = useNavigate();
@@ -65,6 +175,38 @@ export const ShipmentsPage = () => {
   // Multi-selection state
   const [selectedIds, setSelectedIds] = useState([]);
   const [deletingBulk, setDeletingBulk] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
+
+  const handleStatusChange = async (shipment, newStatus) => {
+    const rowId = shipment._id || shipment.id || shipment.cnNumber;
+    const currentSt = shipment.status === 'Delivered' ? 'Delivered' : 'Booked';
+    if (currentSt === newStatus) return;
+
+    setUpdatingStatusId(rowId);
+    try {
+      await shipmentService.updateStatus(shipment._id || shipment.id, newStatus);
+
+      const updateList = (list) =>
+        list.map((s) => {
+          const match =
+            (shipment._id && s._id === shipment._id) ||
+            (shipment.id && s.id === shipment.id) ||
+            (shipment.cnNumber && s.cnNumber === shipment.cnNumber);
+          return match ? { ...s, status: newStatus } : s;
+        });
+
+      setBaseShipments(updateList);
+      setAllShipmentsMaster(updateList);
+
+      setToastMessage(`✓ Consignment Note ${shipment.cnNumber || rowId} status updated to '${newStatus}'`);
+      setTimeout(() => setToastMessage(''), 4000);
+    } catch (err) {
+      console.error('Failed to update shipment status:', err);
+      alert(`Failed to update status to '${newStatus}': ${err.message || 'Server error'}`);
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
 
   // Instant local search change
   const handleSearchChange = (val) => {
@@ -478,12 +620,7 @@ export const ShipmentsPage = () => {
   const statusFilterOptions = [
     { label: 'All Statuses', value: 'All' },
     { label: 'Booked', value: 'Booked' },
-    { label: 'Picked Up', value: 'Picked Up' },
-    { label: 'In Transit', value: 'In Transit' },
-    { label: 'Reached Destination', value: 'Reached Destination' },
-    { label: 'Out for Delivery', value: 'Out for Delivery' },
     { label: 'Delivered', value: 'Delivered' },
-    { label: 'Delayed', value: 'Delayed' },
   ];
 
   const columns = [
@@ -622,7 +759,13 @@ export const ShipmentsPage = () => {
     {
       header: 'Status',
       accessor: 'status',
-      render: (row) => <StatusBadge status={row.status} />
+      render: (row) => (
+        <EditableStatusDropdown
+          shipment={row}
+          onStatusChange={handleStatusChange}
+          isUpdating={updatingStatusId === (row._id || row.id || row.cnNumber)}
+        />
+      )
     },
     {
       header: 'POD',
@@ -1129,7 +1272,11 @@ export const ShipmentsPage = () => {
                   {/* Badges & Actions Footer */}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <StatusBadge status={row.status} />
+                      <EditableStatusDropdown
+                        shipment={row}
+                        onStatusChange={handleStatusChange}
+                        isUpdating={updatingStatusId === (row._id || row.id || row.cnNumber)}
+                      />
                       <StatusBadge status={row.podStatus} />
                     </div>
 

@@ -635,6 +635,37 @@ export const shipmentService = {
   },
 
   /**
+   * Update shipment status strictly to 'Booked' or 'Delivered' in MongoDB
+   */
+  async updateStatus(id, status) {
+    if (!id) {
+      throw new Error('Shipment identifier is required.');
+    }
+    const cleanStatus = String(status || '').trim();
+    if (!['Booked', 'Delivered'].includes(cleanStatus)) {
+      throw new Error('Invalid status. Status must be either "Booked" or "Delivered".');
+    }
+
+    const response = await apiRequest(`/shipments/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: cleanStatus })
+    });
+
+    if (response && response.shipment) {
+      const updated = response.shipment;
+      const idx = shipmentsStore.findIndex(
+        (s) => (s._id && s._id === updated._id) || (s.id && s.id === updated.id) || (s.cnNumber && s.cnNumber === updated.cnNumber)
+      );
+      if (idx !== -1) {
+        shipmentsStore[idx] = { ...shipmentsStore[idx], status: updated.status };
+      }
+      return updated;
+    }
+
+    return response;
+  },
+
+  /**
    * Update operational status and record history timeline entry
    */
   async updateShipmentStatus(idOrCN, newStatus, location = '', remarks = '', extraOperational = {}) {

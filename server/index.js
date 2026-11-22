@@ -126,7 +126,8 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/consignor-consignee', require('./routes/consignorConsignee'));
 app.use('/api/parties', require('./routes/consignorConsignee'));
 
-// Reverse Proxy Fallback for consignor-consignee and parties (/consignor-consignee -> routes/consignorConsignee)
+// Reverse Proxy Fallback for shipments, consignor-consignee, and parties
+app.use('/shipments', require('./routes/shipments'));
 app.use('/consignor-consignee', require('./routes/consignorConsignee'));
 app.use('/parties', require('./routes/consignorConsignee'));
 

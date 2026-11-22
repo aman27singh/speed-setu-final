@@ -5,6 +5,7 @@ const Shipment = require('../models/Shipment');
 const Counter = require('../models/Counter');
 const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
 const { autoResolveShipmentParties } = require('../services/consignorConsigneeService');
+const { protect } = require('../middleware/auth');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -516,10 +517,11 @@ router.post('/', async (req, res) => {
     while (saveAttempt < maxSaveRetries) {
       saveAttempt++;
       try {
+        const initialStatus = req.body.status === 'Delivered' ? 'Delivered' : 'Booked';
         const initialHistory = (req.body.statusHistory && req.body.statusHistory.length > 0)
           ? req.body.statusHistory
           : [{
-              status: req.body.status || 'Booked',
+              status: initialStatus,
               timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
               location: req.body.origin || 'Booking Branch Hub',
               remarks: `Shipment created. Consignment Note ${finalCN} issued.`
@@ -527,6 +529,7 @@ router.post('/', async (req, res) => {
 
         const newShipment = new Shipment({
           ...req.body,
+          status: initialStatus,
           origin: finalOrigin,
           destination: finalDestination,
           cnNumber: finalCN,
@@ -757,6 +760,94 @@ router.post('/validate-duplicates', async (req, res) => {
       commercialInvoiceErrors
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Middleware to authenticate and authorize status update
+const authStatusUpdate = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : (req.query && req.query.token);
+
+  // If a token is provided, run full protect verification
+  if (token) {
+    return protect(req, res, next);
+  }
+
+  // If no token is provided:
+  // Reject invalid status with 400 first if status was malformed
+  const { status } = req.body || {};
+  if (!status || !['Booked', 'Delivered'].includes(String(status).trim())) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Invalid status value. Status must be either "Booked" or "Delivered".'
+    });
+  }
+
+  // Otherwise enforce protect (returns 401 unauthorized)
+  return protect(req, res, next);
+};
+
+// PATCH /api/shipments/:id/status — Update shipment status strictly to 'Booked' or 'Delivered'
+router.patch('/:id/status', authStatusUpdate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // 1. Accept only Booked or Delivered. Reject invalid status values with HTTP 400
+    const ALLOWED_STATUSES = ['Booked', 'Delivered'];
+    if (!status || typeof status !== 'string' || !ALLOWED_STATUSES.includes(status.trim())) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid status value. Status must be either "Booked" or "Delivered".'
+      });
+    }
+
+    const trimmedStatus = status.trim();
+
+    // 2. Validate shipment ID & find shipment using its actual MongoDB _id (with fallback to cnNumber)
+    const isValidId = mongoose.isValidObjectId(id);
+    const shipment = await Shipment.findOne({
+      $or: [
+        ...(isValidId ? [{ _id: id }] : []),
+        { cnNumber: new RegExp(`^${escapeRegExp(id)}$`, 'i') }
+      ]
+    });
+
+    if (!shipment) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: `Shipment not found with identifier '${id}'.`
+      });
+    }
+
+    // 3. Update ONLY the status field, do not overwrite unrelated shipment fields
+    const oldStatus = shipment.status;
+    shipment.status = trimmedStatus;
+
+    if (oldStatus !== trimmedStatus) {
+      const historyEntry = {
+        status: trimmedStatus,
+        timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+        remarks: `Shipment status updated from ${oldStatus} to ${trimmedStatus}.`
+      };
+      if (Array.isArray(shipment.statusHistory)) {
+        shipment.statusHistory.push(historyEntry);
+      } else {
+        shipment.statusHistory = [historyEntry];
+      }
+    }
+
+    // 4. Persist update in MongoDB
+    await shipment.save();
+
+    return res.json({
+      success: true,
+      message: `Shipment status successfully updated to '${trimmedStatus}'.`,
+      shipment
+    });
+  } catch (err) {
+    console.error('[Shipment Status Update Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });
