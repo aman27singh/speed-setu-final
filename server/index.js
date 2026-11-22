@@ -126,6 +126,10 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/consignor-consignee', require('./routes/consignorConsignee'));
 app.use('/api/parties', require('./routes/consignorConsignee'));
 
+// Reverse Proxy Fallback for consignor-consignee and parties (/consignor-consignee -> routes/consignorConsignee)
+app.use('/consignor-consignee', require('./routes/consignorConsignee'));
+app.use('/parties', require('./routes/consignorConsignee'));
+
 // Sales Register Report (Mounted with and without /api prefix for reverse proxy compatibility)
 const { salesRegisterRouter } = require('./routes/salesRegister.route');
 const { protect, adminOnly } = require('./middleware/auth');
