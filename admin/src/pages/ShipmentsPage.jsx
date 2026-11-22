@@ -630,7 +630,6 @@ export const ShipmentsPage = () => {
         route: routeFilter,
         packageCount: packageFilter,
         weight: weightFilter,
-        status: statusFilter,
         ...dateParams
       });
 
@@ -679,10 +678,10 @@ export const ShipmentsPage = () => {
     }
   };
 
-  // Fetch shipments when dropdown or date filters change
+  // Fetch shipments when non-status filters change (status toggling is purely client-side)
   useEffect(() => {
     fetchData();
-  }, [companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
+  }, [companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
 
   // Fetch backend dynamic filter options aggregation for exact database verification
   useEffect(() => {
@@ -696,12 +695,11 @@ export const ShipmentsPage = () => {
       companyId: companyFilter,
       route: routeFilter,
       packageCount: packageFilter,
-      status: statusFilter,
       ...dateParams
     }).then((res) => {
       if (res) setBackendOptions(res);
     }).catch(() => {});
-  }, [companyFilter, routeFilter, packageFilter, statusFilter, dateFilter]);
+  }, [companyFilter, routeFilter, packageFilter, dateFilter]);
 
   // 1. Available Companies (across database, with counts)
   const availableCompanies = React.useMemo(() => {
@@ -862,59 +860,18 @@ export const ShipmentsPage = () => {
     }
   }, [availableWeights, weightFilter]);
 
-  // Instant in-memory multi-filter and search filtering (AND logic across all 4 filters + search)
-  const shipments = React.useMemo(() => {
+  // -------------------------------------------------------------
+  // Data Pipeline:
+  // Step 1: Base dataset after all non-status filters (Search, Company, Route, Packages, Weight, Date)
+  // Step 2: Calculate status counts (All, Booked, Delivered) from this base dataset BEFORE applying statusFilter
+  // Step 3: Apply statusFilter exclusively to determine displayed rows in the table
+  // -------------------------------------------------------------
+
+  // Step 1: Base dataset filtered by all active non-status filters
+  const baseFilteredShipments = React.useMemo(() => {
     let list = baseShipments;
 
-    // 1. Company Filter (AND)
-    if (companyFilter && companyFilter !== 'All') {
-      const cLower = companyFilter.toLowerCase();
-      list = list.filter((s) =>
-        s.companyId === companyFilter ||
-        s.companyCode === companyFilter ||
-        (s.companyName && s.companyName.toLowerCase() === cLower)
-      );
-    }
-
-    // 2. Origin – Destination Filter (AND)
-    if (routeFilter && routeFilter !== 'All') {
-      list = list.filter((s) => matchRoute(s.origin, s.destination, routeFilter));
-    }
-
-    // 3. Package Filter (AND)
-    if (packageFilter && packageFilter !== 'All') {
-      list = list.filter((s) => matchPackage(s.packages, packageFilter));
-    }
-
-    // 4. Weight Filter: 0 Weight vs Greater Than 0 (AND)
-    if (weightFilter && weightFilter !== 'All') {
-      list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
-    }
-
-    // 5. Status Filter (AND)
-    if (statusFilter && statusFilter !== 'All') {
-      list = list.filter((s) => {
-        const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
-        return st === statusFilter;
-      });
-    }
-
-    // 6. Date Filter (AND)
-    if (dateFilter.applied) {
-      if (dateFilter.mode === 'particular' && dateFilter.date) {
-        list = list.filter((s) => {
-          const dStr = getKolkataDateString(s.createdAt);
-          return dStr === dateFilter.date;
-        });
-      } else if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
-        list = list.filter((s) => {
-          const dStr = getKolkataDateString(s.createdAt);
-          return dStr && dStr >= dateFilter.startDate && dStr <= dateFilter.endDate;
-        });
-      }
-    }
-
-    // 7. Search Bar Query (AND) - CN, Company, Consignor, Consignee, Origin, Destination, Invoice...
+    // 1. Search Bar Query (AND) - CN, Company, Consignor, Consignee, Origin, Destination, Invoice...
     const q = (search || searchQuery || '').toLowerCase().trim();
     if (q) {
       list = list.filter((s) => {
@@ -959,8 +916,83 @@ export const ShipmentsPage = () => {
       });
     }
 
-    return sortShipments(list);
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
+    // 2. Company Filter (AND)
+    if (companyFilter && companyFilter !== 'All') {
+      const cLower = companyFilter.toLowerCase();
+      list = list.filter((s) =>
+        s.companyId === companyFilter ||
+        s.companyCode === companyFilter ||
+        (s.companyName && s.companyName.toLowerCase() === cLower)
+      );
+    }
+
+    // 3. Origin – Destination Filter (AND)
+    if (routeFilter && routeFilter !== 'All') {
+      list = list.filter((s) => matchRoute(s.origin, s.destination, routeFilter));
+    }
+
+    // 4. Package Filter (AND)
+    if (packageFilter && packageFilter !== 'All') {
+      list = list.filter((s) => matchPackage(s.packages, packageFilter));
+    }
+
+    // 5. Weight Filter: 0 Weight vs Greater Than 0 (AND)
+    if (weightFilter && weightFilter !== 'All') {
+      list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
+    }
+
+    // 6. Date Filter (AND)
+    if (dateFilter.applied) {
+      if (dateFilter.mode === 'particular' && dateFilter.date) {
+        list = list.filter((s) => {
+          const dStr = getKolkataDateString(s.createdAt);
+          return dStr === dateFilter.date;
+        });
+      } else if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
+        list = list.filter((s) => {
+          const dStr = getKolkataDateString(s.createdAt);
+          return dStr && dStr >= dateFilter.startDate && dStr <= dateFilter.endDate;
+        });
+      }
+    }
+
+    return list;
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
+
+  // Step 2: Calculate All, Booked, and Delivered counts from baseFilteredShipments (BEFORE status filter is applied)
+  const statusCounts = React.useMemo(() => {
+    let booked = 0;
+    let delivered = 0;
+
+    baseFilteredShipments.forEach((s) => {
+      const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
+      if (st === 'Delivered') {
+        delivered++;
+      } else {
+        booked++;
+      }
+    });
+
+    return {
+      all: baseFilteredShipments.length,
+      booked,
+      delivered
+    };
+  }, [baseFilteredShipments]);
+
+  // Step 3: Apply the selected status filter only to determine which rows are displayed in the table
+  const shipments = React.useMemo(() => {
+    if (!statusFilter || statusFilter === 'All') {
+      return sortShipments(baseFilteredShipments);
+    }
+
+    const filtered = baseFilteredShipments.filter((s) => {
+      const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
+      return st === statusFilter;
+    });
+
+    return sortShipments(filtered);
+  }, [baseFilteredShipments, statusFilter]);
 
   // Optional background fetch if query is not found locally, without blocking the UI
   useEffect(() => {
@@ -989,7 +1021,6 @@ export const ShipmentsPage = () => {
           route: routeFilter,
           packageCount: packageFilter,
           weight: weightFilter,
-          status: statusFilter,
           ...dateParams
         });
         if (isCurrent && Array.isArray(results) && results.length > 0) {
@@ -1008,7 +1039,7 @@ export const ShipmentsPage = () => {
       isCurrent = false;
       clearTimeout(timer);
     };
-  }, [search, searchQuery, baseShipments, companyFilter, routeFilter, packageFilter, weightFilter, statusFilter, dateFilter]);
+  }, [search, searchQuery, baseShipments, companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -1050,93 +1081,6 @@ export const ShipmentsPage = () => {
       }
     }
   };
-
-  const statusFilterOptions = [
-    { label: 'All Statuses', value: 'All' },
-    { label: 'Booked', value: 'Booked' },
-    { label: 'Delivered', value: 'Delivered' },
-  ];
-
-  // Exact real-time status counts reflecting active filters (company, route, package, weight, date, search)
-  const statusCounts = React.useMemo(() => {
-    let list = baseShipments;
-    if (companyFilter && companyFilter !== 'All') {
-      const cLower = companyFilter.toLowerCase();
-      list = list.filter((s) =>
-        s.companyId === companyFilter ||
-        s.companyCode === companyFilter ||
-        (s.companyName && s.companyName.toLowerCase() === cLower)
-      );
-    }
-    if (routeFilter && routeFilter !== 'All') {
-      list = list.filter((s) => matchRoute(s.origin, s.destination, routeFilter));
-    }
-    if (packageFilter && packageFilter !== 'All') {
-      list = list.filter((s) => matchPackage(s.packages, packageFilter));
-    }
-    if (weightFilter && weightFilter !== 'All') {
-      list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
-    }
-    if (dateFilter.applied) {
-      if (dateFilter.mode === 'particular' && dateFilter.date) {
-        list = list.filter((s) => getKolkataDateString(s.createdAt) === dateFilter.date);
-      } else if (dateFilter.mode === 'range' && dateFilter.startDate && dateFilter.endDate) {
-        list = list.filter((s) => {
-          const dStr = getKolkataDateString(s.createdAt);
-          return dStr && dStr >= dateFilter.startDate && dStr <= dateFilter.endDate;
-        });
-      }
-    }
-    const q = (search || searchQuery || '').toLowerCase().trim();
-    if (q) {
-      list = list.filter((s) => {
-        const cnMatch = s.cnNumber && s.cnNumber.toLowerCase().includes(q);
-        const compNameMatch = s.companyName && s.companyName.toLowerCase().includes(q);
-        const compCodeMatch = s.companyCode && s.companyCode.toLowerCase().includes(q);
-        const consignorMatch =
-          (s.consignor?.name && s.consignor.name.toLowerCase().includes(q)) ||
-          (s.consignor?.companyName && s.consignor.companyName.toLowerCase().includes(q)) ||
-          (s.consignor?.companyCode && s.consignor.companyCode.toLowerCase().includes(q)) ||
-          (s.consignorName && s.consignorName.toLowerCase().includes(q));
-        const consigneeMatch =
-          (s.consignee?.name && s.consignee.name.toLowerCase().includes(q)) ||
-          (s.consignee?.companyName && s.consignee.companyName.toLowerCase().includes(q)) ||
-          (s.consignee?.companyCode && s.consignee.companyCode.toLowerCase().includes(q)) ||
-          (s.consigneeName && s.consigneeName.toLowerCase().includes(q));
-        const originMatch = s.origin && s.origin.toLowerCase().includes(q);
-        const destMatch = s.destination && s.destination.toLowerCase().includes(q);
-        const invoiceMatch = s.invoiceDetails?.invoiceNumber && s.invoiceDetails.invoiceNumber.toLowerCase().includes(q);
-        const ewayMatch = s.ewayBillNumber && s.ewayBillNumber.toLowerCase().includes(q);
-        const awbMatch = s.awbNumber && s.awbNumber.toLowerCase().includes(q);
-        const commMatch = (s.commercialInvoices || []).some(
-          (inv) =>
-            (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(q)) ||
-            (inv.ewayBillNumber && inv.ewayBillNumber.toLowerCase().includes(q)) ||
-            (inv.awbNumber && inv.awbNumber.toLowerCase().includes(q))
-        );
-
-        return (
-          cnMatch || compNameMatch || compCodeMatch || consignorMatch ||
-          consigneeMatch || originMatch || destMatch || invoiceMatch ||
-          ewayMatch || awbMatch || commMatch
-        );
-      });
-    }
-
-    let booked = 0;
-    let delivered = 0;
-    list.forEach((s) => {
-      const st = s.status === 'Delivered' ? 'Delivered' : 'Booked';
-      if (st === 'Delivered') delivered++;
-      else booked++;
-    });
-
-    return {
-      all: list.length,
-      booked,
-      delivered
-    };
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
 
   const columns = [
     {
@@ -1666,7 +1610,7 @@ export const ShipmentsPage = () => {
                 className={clsx(
                   'px-3 py-1.5 text-xs rounded-md transition-all cursor-pointer flex items-center gap-1.5',
                   statusFilter === 'Delivered'
-                    ? 'bg-white text-blue-700 font-bold shadow-xs'
+                    ? 'bg-white text-emerald-700 font-bold shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 font-medium'
                 )}
               >
@@ -1675,7 +1619,7 @@ export const ShipmentsPage = () => {
                 <span
                   className={clsx(
                     'px-1.5 py-0.2 rounded-full text-[10px] font-semibold',
-                    statusFilter === 'Delivered' ? 'bg-blue-100/70 text-blue-700' : 'bg-slate-200/60 text-slate-500'
+                    statusFilter === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200/60 text-slate-500'
                   )}
                 >
                   {statusCounts.delivered}
