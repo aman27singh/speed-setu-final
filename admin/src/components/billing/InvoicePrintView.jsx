@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { formatINR, formatDate } from "../../utils/formatters";
 import { normalizeRateBasis, resolveShipmentFreightMode } from "../../utils/pricingValidation";
 import logoImg from "../../assets/logo2.png";
@@ -111,26 +111,32 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     invoice.shipment?.consignor?.pin ||
     "";
 
-  // Determine if GST is charged or exempt
+  // Determine if GST is charged or exempt from saved invoice data
+  const hasDocketTax =
+    Array.isArray(invoice.dockets) &&
+    invoice.dockets.some(
+      (d) =>
+        (Number(d.cgst) || 0) > 0 ||
+        (Number(d.sgst) || 0) > 0 ||
+        (Number(d.igst) || 0) > 0,
+    );
+
   const isInitiallyGstExempt =
     invoice.taxMode === "no_gst" ||
     invoice.isGstExempt === true ||
     invoice.gstRate === 0 ||
-    (invoice.gstAmount === 0 &&
+    (!hasDocketTax &&
+      invoice.gstAmount === 0 &&
       !invoice.cgst &&
       !invoice.sgst &&
       !invoice.igst &&
       !invoice.taxAmount);
 
-  const initialTaxMode =
-    invoice.taxMode ||
-    defaultTaxType ||
-    (isInitiallyGstExempt ? "no_gst" : "charging_gst");
-  const [taxMode, setTaxMode] = useState(initialTaxMode);
-
   const isChargingGst = invoice.taxMode
     ? invoice.taxMode === "charging_gst"
-    : taxMode === "charging_gst";
+    : defaultTaxType
+      ? defaultTaxType === "charging_gst"
+      : !isInitiallyGstExempt;
   const useDeliveryDate =
     invoice.is3PL === true ||
     invoice.useDeliveryDate === true ||
@@ -261,8 +267,9 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     const godownAmt = godownItem?.amount || 0;
 
     const taxable =
-      invoice.subTotal ||
-      invoice.taxableAmount ||
+      invoice.subTotal ??
+      invoice.subtotal ??
+      invoice.taxableAmount ??
       freightAmt +
         docketAmt +
         pickupAmt +
@@ -270,11 +277,17 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         packingAmt +
         laborAmt +
         godownAmt;
-    const gstRate = invoice.gstRate || 18;
+    const gstRate = typeof invoice.gstRate === "number" ? invoice.gstRate : 18;
+    const savedGstAmt = invoice.gstAmount ?? invoice.taxAmount;
     const gstAmt = isChargingGst
-      ? invoice.gstAmount || Math.round(taxable * (gstRate / 100))
+      ? typeof savedGstAmt === "number"
+        ? savedGstAmt
+        : Math.round(taxable * (gstRate / 100))
       : 0;
-    const totalVal = taxable + gstAmt;
+    const totalVal =
+      typeof (invoice.grandTotal ?? invoice.totalAmount) === "number"
+        ? (invoice.grandTotal ?? invoice.totalAmount)
+        : taxable + gstAmt;
 
     dockets = [
       {
@@ -284,18 +297,23 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           (invoice.cns && invoice.cns[0]) ||
           invoice.shipmentIds?.[0] ||
           "-",
-        docketDate: formatDate(invoice.invoiceDate || invoice.createdAt),
+        docketDate: formatDate(
+          invoice.shipment?.cnDate ||
+            invoice.shipment?.bookingDate ||
+            invoice.invoiceDate ||
+            invoice.createdAt,
+        ),
         origin: invoice.shipment?.origin || invoice.origin || "-",
         destination:
           invoice.shipment?.destination || invoice.destination || "-",
         noPack:
-          invoice.numberOfBoxes ||
-          invoice.noOfBoxes ||
-          invoice.boxes ||
-          invoice.packages ||
-          invoice.noPack ||
-          invoice.shipment?.packages ||
-          10,
+          invoice.numberOfBoxes ??
+          invoice.noOfBoxes ??
+          invoice.boxes ??
+          invoice.packages ??
+          invoice.noPack ??
+          invoice.shipment?.packages ??
+          0,
         weight: wt,
         rate: rate,
         freight: freightAmt,
@@ -307,43 +325,59 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
         godownCharges: godownAmt,
         otherCharges: packingAmt + laborAmt + godownAmt,
         taxableAmount: taxable,
-        cgst: 0,
-        sgst: 0,
-        igst: gstAmt,
+        cgst: Number(invoice.cgst) || 0,
+        sgst: Number(invoice.sgst) || 0,
+        igst: Number(invoice.igst) || gstAmt,
         totalInvoiceValue: totalVal,
       },
     ];
   } else {
-    const taxable = invoice.subTotal || invoice.taxableAmount || 0;
+    const taxable =
+      invoice.subTotal ?? invoice.subtotal ?? invoice.taxableAmount ?? 0;
+    const gstRate = typeof invoice.gstRate === "number" ? invoice.gstRate : 18;
+    const savedGstAmt = invoice.gstAmount ?? invoice.taxAmount;
     const gstAmt = isChargingGst
-      ? invoice.gstAmount || Math.round(taxable * 0.18)
+      ? typeof savedGstAmt === "number"
+        ? savedGstAmt
+        : Math.round(taxable * (gstRate / 100))
       : 0;
+    const totalVal =
+      typeof (invoice.grandTotal ?? invoice.totalAmount) === "number"
+        ? (invoice.grandTotal ?? invoice.totalAmount)
+        : taxable + gstAmt;
     dockets = [
       {
         slNo: 1,
         docketNo: invoice.cnNumber || (invoice.cns && invoice.cns[0]) || "-",
-        docketDate: formatDate(invoice.invoiceDate || invoice.createdAt),
-        origin: invoice.origin || "-",
-        destination: invoice.destination || "-",
+        docketDate: formatDate(
+          invoice.shipment?.cnDate ||
+            invoice.shipment?.bookingDate ||
+            invoice.invoiceDate ||
+            invoice.createdAt,
+        ),
+        origin: invoice.shipment?.origin || invoice.origin || "-",
+        destination:
+          invoice.shipment?.destination || invoice.destination || "-",
         noPack:
-          invoice.numberOfBoxes ||
-          invoice.noOfBoxes ||
-          invoice.boxes ||
-          invoice.packages ||
-          invoice.noPack ||
-          10,
-        weight: invoice.weight || 0,
-        rate: invoice.ratePerKg || 0,
+          invoice.numberOfBoxes ??
+          invoice.noOfBoxes ??
+          invoice.boxes ??
+          invoice.packages ??
+          invoice.noPack ??
+          invoice.shipment?.packages ??
+          0,
+        weight: invoice.weight ?? invoice.shipment?.chargeableWeight ?? 0,
+        rate: invoice.ratePerKg ?? invoice.rate ?? 0,
         freight: taxable,
         docketCharges: 0,
         pickupCharges: 0,
         deliveryCharges: 0,
         otherCharges: 0,
         taxableAmount: taxable,
-        cgst: 0,
-        sgst: 0,
-        igst: gstAmt,
-        totalInvoiceValue: taxable + gstAmt,
+        cgst: Number(invoice.cgst) || 0,
+        sgst: Number(invoice.sgst) || 0,
+        igst: Number(invoice.igst) || gstAmt,
+        totalInvoiceValue: totalVal,
       },
     ];
   }
@@ -539,7 +573,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       : calcGrandTotal;
 
   // Minimum table rows for nice A4 presentation
-  const MIN_TABLE_ROWS = 14;
+  const MIN_TABLE_ROWS = 16;
   const emptyRowsCount = Math.max(0, MIN_TABLE_ROWS - dockets.length);
   const emptyRows = Array.from({ length: emptyRowsCount }, () => ({
     isEmptyRow: true,
@@ -637,17 +671,6 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           <div>{supplierAddr1}</div>
           <div>{supplierAddr2}</div>
           <div className="pt-1 font-bold font-mono">GST - {supplierGstin}</div>
-          {(supplierPhone || supplierEmail) && (
-            <div className="text-[9px] text-slate-700">
-              {supplierPhone ? `Ph: ${supplierPhone}` : ""}{" "}
-              {supplierEmail ? `| Email: ${supplierEmail}` : ""}
-            </div>
-          )}
-          {supplierPan && (
-            <div className="text-[9px] font-mono font-medium">
-              PAN: {supplierPan}
-            </div>
-          )}
         </div>
 
         {/* BOX 2: BILL TO */}
@@ -676,12 +699,6 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                 : "GST - Unregistered"
               : "GST - N/A (Exempt / Unregistered)"}
           </div>
-          {(billTo.phone || billTo.email) && (
-            <div className="text-[9px] text-slate-700 pt-0.5">
-              {billTo.phone ? `Ph: ${billTo.phone}` : ""}{" "}
-              {billTo.email ? `| ${billTo.email}` : ""}
-            </div>
-          )}
         </div>
 
         {/* BOX 3: INVOICE NUMBER & DATE */}
@@ -702,18 +719,13 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
             <div className="font-bold text-[11px] print:text-[10px] font-mono">
               {formatDate(invoice.invoiceDate || invoice.createdAt)}
             </div>
-            {invoice.dueDate && (
-              <div className="text-[9px] text-slate-600 font-mono mt-0.5">
-                Due: {formatDate(invoice.dueDate)}
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* SUB-HEADER BAR: MODE, HSN CODE, VEHICLE NO, GR/LR */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 border border-black text-center font-bold text-xs print:text-[9.5px] divide-x divide-black">
-        <div className="p-1 print:p-1">
+      {/* SUB-HEADER BAR: MODE & HSN CODE */}
+      <div className="grid grid-cols-2 border border-black text-center font-bold text-xs print:text-[9.5px]">
+        <div className="p-1 print:p-1 border-r border-black">
           MODE:{" "}
           <span className="font-extrabold uppercase">{transportMode}</span>
         </div>
@@ -721,18 +733,6 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           HSN CODE:{" "}
           <span className="font-mono font-extrabold">
             {isChargingGst ? hsnCode : "NA"}
-          </span>
-        </div>
-        <div className="p-1 print:p-1">
-          VEHICLE NO:{" "}
-          <span className="font-mono font-extrabold uppercase">
-            {vehicleNo || "NA"}
-          </span>
-        </div>
-        <div className="p-1 print:p-1">
-          GR/LR NO:{" "}
-          <span className="font-mono font-extrabold">
-            {grNo || (invoice.cns && invoice.cns[0]) || "NA"}
           </span>
         </div>
       </div>
@@ -855,7 +855,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                       {d.destination || "-"}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">
-                      {d.noPack || 1}
+                      {d.noPack || "-"}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">
                       {d.weight > 0 ? d.weight : "-"}
@@ -1084,7 +1084,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                       {d.destination || "-"}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">
-                      {d.noPack || 1}
+                      {d.noPack || "-"}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono">
                       {d.weight > 0 ? d.weight : "-"}
@@ -1210,10 +1210,6 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
               <strong className="text-black">Bank Name :</strong> {bankName}
             </div>
             <div>
-              <strong className="text-black">Account Name :</strong>{" "}
-              {accountHolder}
-            </div>
-            <div>
               <strong className="text-black">Account Number :</strong>{" "}
               {accountNumber}
             </div>
@@ -1223,18 +1219,13 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
             <div>
               <strong className="text-black">Branch :</strong> {branchName}
             </div>
-            {upiId && (
-              <div>
-                <strong className="text-black">UPI ID :</strong> {upiId}
-              </div>
-            )}
           </div>
         </div>
 
         {/* SIGNATORY BOX */}
-        <div className="col-span-5 border border-black p-2 print:p-2 flex flex-col justify-between text-center min-h-[75px] print:min-h-[70px]">
-          <div className="flex-1 flex items-center justify-center">
-            {signatureUrl ? (
+        <div className="col-span-5 border border-black p-2 print:p-2 flex flex-col justify-end text-center min-h-[65px] print:min-h-[60px]">
+          {signatureUrl ? (
+            <div className="flex-1 flex items-center justify-center">
               <img
                 src={signatureUrl}
                 alt="Signature"
@@ -1243,33 +1234,13 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                   e.target.style.display = "none";
                 }}
               />
-            ) : (
-              <div className="text-[9px] text-slate-400 italic">
-                For {supplierName}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="font-bold text-[9.5px] print:text-[8.5px] text-slate-900">
-              {signatoryName}
             </div>
-            {signatoryDesignation && (
-              <div className="text-[8.5px] text-slate-600">
-                {signatoryDesignation}
-              </div>
-            )}
-            <div className="font-extrabold uppercase text-[9px] print:text-[8px] tracking-wider text-black pt-0.5 border-t border-slate-200 mt-0.5">
-              AUTHORISED SIGNATORY
-            </div>
+          ) : null}
+          <div className="font-extrabold uppercase text-[9px] print:text-[8px] tracking-wider text-black">
+            AUTHORISED SIGNATORY
           </div>
         </div>
       </div>
-
-      {footerNotes && (
-        <div className="text-center text-[8.5px] text-slate-500 italic pt-1 print:pt-0.5">
-          {footerNotes}
-        </div>
-      )}
     </div>
   );
 };

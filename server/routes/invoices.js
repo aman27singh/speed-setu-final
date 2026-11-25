@@ -119,7 +119,7 @@ router.get('/', async (req, res) => {
 
 const escapeRegExp = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// GET /api/invoices/:id — Get single invoice
+// GET /api/invoices/:id — Get single invoice (enriched with linked Company & Shipment data when invoice fields are missing)
 router.get('/:id', async (req, res) => {
   try {
     const param = req.params.id;
@@ -129,8 +129,88 @@ router.get('/:id', async (req, res) => {
         { invoiceNumber: new RegExp(`^${escapeRegExp(param)}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
-    });
+    }).lean();
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    // Enrich missing billing / shipment details from saved MongoDB records without overwriting saved invoice values
+    try {
+      const Company = require('../models/Company');
+      const Shipment = require('../models/Shipment');
+
+      const compId = inv.billToDetails?.companyId || inv.companyId;
+      const compCode = inv.companyCode;
+      const compName = inv.billToDetails?.companyName || inv.companyName;
+
+      const compOr = [];
+      if (compId) {
+        if (mongoose.isValidObjectId(compId)) compOr.push({ _id: compId });
+        compOr.push({ companyId: compId }, { companyCode: compId });
+      }
+      if (compCode) compOr.push({ companyCode: compCode });
+      if (compName) compOr.push({ companyName: new RegExp(`^${escapeRegExp(compName.trim())}$`, 'i') });
+
+      if (compOr.length > 0) {
+        const company = await Company.findOne({ $or: compOr }).lean();
+        if (company) {
+          inv.company = inv.company || company;
+          inv.companyBilling = inv.companyBilling || company.billing || {};
+          const bill = company.billing || {};
+          inv.companyAddress = inv.companyAddress || bill.address || '';
+          inv.city = inv.city || bill.city || '';
+          inv.state = inv.state || bill.state || '';
+          inv.pinCode = inv.pinCode || bill.pinCode || '';
+          inv.companyGstin = inv.companyGstin || bill.gstin || company.gstin || '';
+          inv.billToDetails = {
+            companyId: inv.billToDetails?.companyId || company.companyId || company._id?.toString() || '',
+            companyName: inv.billToDetails?.companyName || inv.companyName || company.companyName || '',
+            address: inv.billToDetails?.address || inv.companyAddress || bill.address || '',
+            addressLine2: inv.billToDetails?.addressLine2 || bill.addressLine2 || '',
+            city: inv.billToDetails?.city || inv.city || bill.city || '',
+            state: inv.billToDetails?.state || inv.state || bill.state || '',
+            pinCode: inv.billToDetails?.pinCode || inv.pinCode || bill.pinCode || '',
+            gstin: inv.billToDetails?.gstin || inv.companyGstin || bill.gstin || company.gstin || '',
+            phone: inv.billToDetails?.phone || company.primaryContact?.phone || '',
+            email: inv.billToDetails?.email || bill.billingEmail || company.primaryContact?.email || ''
+          };
+        }
+      }
+
+      const cnKeys = Array.from(new Set([
+        ...(inv.cns || []),
+        ...(inv.shipmentIds || []),
+        inv.cnNumber,
+        ...(inv.dockets || []).map((d) => d?.docketNo || d?.cnNumber)
+      ].filter(Boolean).map((c) => String(c).trim())));
+
+      if (cnKeys.length > 0) {
+        const shipments = await Shipment.find({
+          cnNumber: { $in: cnKeys.map((c) => new RegExp(`^${escapeRegExp(c)}$`, 'i')) }
+        }).lean();
+
+        if (shipments.length > 0) {
+          if (!inv.shipment) inv.shipment = shipments[0];
+          if (Array.isArray(inv.dockets) && inv.dockets.length > 0) {
+            inv.dockets = inv.dockets.map((d) => {
+              const key = String(d?.docketNo || d?.cnNumber || '').trim().toLowerCase();
+              const matched = shipments.find((s) => (s.cnNumber || '').toLowerCase() === key);
+              if (!matched) return d;
+              return {
+                ...d,
+                docketDate: d.docketDate || matched.cnDate || matched.bookingDate || '',
+                origin: d.origin || matched.origin || '',
+                destination: d.destination || matched.destination || '',
+                freightMode: d.freightMode || resolveShipmentFreightMode(matched) || '',
+                noPack: d.noPack || matched.packages || 0,
+                weight: d.weight ?? matched.chargeableWeight ?? matched.actualWeight ?? 0
+              };
+            });
+          }
+        }
+      }
+    } catch (enrichErr) {
+      console.warn('[Invoice GET Enrichment Notice]:', enrichErr.message);
+    }
+
     res.json(inv);
   } catch (err) {
     res.status(500).json({ error: err.message });
