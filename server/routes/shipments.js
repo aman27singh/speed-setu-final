@@ -1339,15 +1339,25 @@ router.patch('/:idOrCN/pricing', async (req, res) => {
 
     if (action === 'assign_quotation' && quotationId) {
       const Quotation = require('../models/Quotation');
-      const { findMatchingRule } = require('../services/pricingValidationService');
+      const { findMatchingRule, buildPricingSnapshot } = require('../services/pricingValidationService');
       const isObjectId = mongoose.Types.ObjectId.isValid(quotationId);
       const quote = await Quotation.findOne(isObjectId ? { $or: [{ _id: quotationId }, { quotationNumber: quotationId }] } : { quotationNumber: quotationId });
       if (!quote) return res.status(404).json({ error: 'Quotation not found' });
 
+      const targetMode = shipment.freightMode || shipment.mode || 'Air';
+      const targetDate = shipment.bookingDate || shipment.cnDate || new Date().toISOString().split('T')[0];
       const rulesList = [...(Array.isArray(quote.rateRules) ? quote.rateRules : []), ...(Array.isArray(quote.routes) ? quote.routes : [])];
-      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, shipment.freightMode || shipment.mode);
-      const appliedRate = matchedRule ? (typeof matchedRule.freightRate === 'number' ? matchedRule.freightRate : (parseFloat(matchedRule.freightRate) || 0)) : (quote.rateRules?.[0]?.freightRate || 0);
-      const minWeight = matchedRule ? (typeof matchedRule.minimumChargeableWeight === 'number' ? matchedRule.minimumChargeableWeight : (parseFloat(matchedRule.minimumChargeableWeight) || 50)) : (quote.rateRules?.[0]?.minimumChargeableWeight || 50);
+      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, targetMode) || rulesList[0] || {};
+      const pricingSnapshot = buildPricingSnapshot({
+        source: 'QUOTATION',
+        doc: quote,
+        matchedRule,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        mode: targetMode,
+        date: targetDate,
+        weight: shipment.chargeableWeight || shipment.actualWeight || 0
+      });
 
       updatedValidation = {
         status: 'MATCHED',
@@ -1355,17 +1365,32 @@ router.patch('/:idOrCN/pricing', async (req, res) => {
         quotationId: quote._id.toString(),
         quotationNumber: quote.quotationNumber,
         quotationVersion: quote.version || 1,
+        agreementVersion: quote.version || 1,
         rateCardId: null,
         rateCardNumber: null,
         rateCardVersion: null,
         companyId: quote.companyId || shipment.companyId,
+        companyCode: quote.companyCode || shipment.companyCode,
         companyName: quote.companyName || shipment.companyName,
         origin: shipment.origin,
         destination: shipment.destination,
-        freightMode: shipment.freightMode || shipment.mode,
-        appliedRate: appliedRate,
-        minimumChargeableWeight: minWeight,
-        appliedRuleSnapshot: matchedRule || quote.rateRules?.[0] || null,
+        freightMode: targetMode,
+        rateBasis: pricingSnapshot.rateBasis,
+        appliedRate: pricingSnapshot.baseFreightRate,
+        minimumChargeableWeight: pricingSnapshot.minimumWeight,
+        appliedRuleSnapshot: {
+          quotationNumber: quote.quotationNumber,
+          version: quote.version || 1,
+          origin: matchedRule.origin || shipment.origin,
+          destination: matchedRule.destination || shipment.destination,
+          mode: matchedRule.mode || targetMode,
+          rateBasis: pricingSnapshot.rateBasis,
+          freightRate: pricingSnapshot.baseFreightRate,
+          minimumChargeableWeight: pricingSnapshot.minimumWeight,
+          additionalCharges: matchedRule.additionalCharges || quote.additionalCharges || [],
+          taxConfiguration: pricingSnapshot.taxConfiguration
+        },
+        pricingSnapshot,
         validatedAt: new Date(),
         overrideConfirmed: false,
         overrideConfirmedBy: null,
@@ -1386,15 +1411,25 @@ router.patch('/:idOrCN/pricing', async (req, res) => {
       };
     } else if (action === 'assign_rate_card' && rateCardId) {
       const RateCard = require('../models/RateCard');
-      const { findMatchingRule } = require('../services/pricingValidationService');
+      const { findMatchingRule, buildPricingSnapshot } = require('../services/pricingValidationService');
       const isObjectId = mongoose.Types.ObjectId.isValid(rateCardId);
       const rc = await RateCard.findOne(isObjectId ? { $or: [{ _id: rateCardId }, { rateCardNumber: rateCardId }] } : { rateCardNumber: rateCardId });
       if (!rc) return res.status(404).json({ error: 'Rate card not found' });
 
+      const targetMode = shipment.freightMode || shipment.mode || 'Air';
+      const targetDate = shipment.bookingDate || shipment.cnDate || new Date().toISOString().split('T')[0];
       const rulesList = [...(Array.isArray(rc.rateRules) ? rc.rateRules : []), ...(Array.isArray(rc.routes) ? rc.routes : [])];
-      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, shipment.freightMode || shipment.mode);
-      const appliedRate = matchedRule ? (typeof matchedRule.freightRate === 'number' ? matchedRule.freightRate : (parseFloat(matchedRule.freightRate) || 0)) : (rc.rateRules?.[0]?.freightRate || 0);
-      const minWeight = matchedRule ? (typeof matchedRule.minimumChargeableWeight === 'number' ? matchedRule.minimumChargeableWeight : (parseFloat(matchedRule.minimumChargeableWeight) || 50)) : (rc.rateRules?.[0]?.minimumChargeableWeight || 50);
+      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, targetMode) || rulesList[0] || {};
+      const pricingSnapshot = buildPricingSnapshot({
+        source: 'RATE_CARD',
+        doc: rc,
+        matchedRule,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        mode: targetMode,
+        date: targetDate,
+        weight: shipment.chargeableWeight || shipment.actualWeight || 0
+      });
 
       updatedValidation = {
         status: 'MATCHED',
@@ -1406,14 +1441,30 @@ router.patch('/:idOrCN/pricing', async (req, res) => {
         rateCardNumber: rc.rateCardNumber,
         rateCardName: rc.name,
         rateCardVersion: rc.version || 1,
+        agreementVersion: rc.version || 1,
         companyId: shipment.companyId,
+        companyCode: shipment.companyCode,
         companyName: shipment.companyName,
         origin: shipment.origin,
         destination: shipment.destination,
-        freightMode: shipment.freightMode || shipment.mode,
-        appliedRate: appliedRate,
-        minimumChargeableWeight: minWeight,
-        appliedRuleSnapshot: matchedRule || rc.rateRules?.[0] || null,
+        freightMode: targetMode,
+        rateBasis: pricingSnapshot.rateBasis,
+        appliedRate: pricingSnapshot.baseFreightRate,
+        minimumChargeableWeight: pricingSnapshot.minimumWeight,
+        appliedRuleSnapshot: {
+          rateCardNumber: rc.rateCardNumber,
+          rateCardName: rc.name,
+          version: rc.version || 1,
+          origin: matchedRule.origin || shipment.origin,
+          destination: matchedRule.destination || shipment.destination,
+          mode: matchedRule.mode || targetMode,
+          rateBasis: pricingSnapshot.rateBasis,
+          freightRate: pricingSnapshot.baseFreightRate,
+          minimumChargeableWeight: pricingSnapshot.minimumWeight,
+          additionalCharges: matchedRule.additionalCharges || rc.additionalCharges || [],
+          taxConfiguration: pricingSnapshot.taxConfiguration
+        },
+        pricingSnapshot,
         validatedAt: new Date(),
         overrideConfirmed: false,
         overrideConfirmedBy: null,

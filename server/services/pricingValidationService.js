@@ -566,5 +566,6 @@ module.exports = {
   normalizeMode,
   isDateValid,
   findMatchingRule,
+  buildPricingSnapshot,
   validateShipmentPricing
 };

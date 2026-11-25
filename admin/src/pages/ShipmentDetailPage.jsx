@@ -185,18 +185,24 @@ export const ShipmentDetailPage = () => {
     e.preventDefault();
     setSavingPricing(true);
     try {
-      await pricingService.assignPricing(shipment.cnNumber || shipment.id || shipment._id, {
+      const result = await pricingService.assignPricing(shipment.cnNumber || shipment.id || shipment._id, {
         action: pricingAction,
         quotationId: pricingAction === 'assign_quotation' ? selectedQuoteId : undefined,
         rateCardId: pricingAction === 'assign_rate_card' ? selectedRateCardId : undefined,
         reason: pricingResolutionReason || 'Operational manual assignment',
         modifiedBy: 'Admin User'
       });
-      setToastMessage('Pricing agreement successfully updated and validated!');
+      const pv = result?.pricingValidation;
+      if (pv?.status === 'MATCHED') {
+        const refNum = pv.quotationNumber || pv.rateCardNumber || 'Agreement';
+        setToastMessage(`Pricing matched and applied (${refNum} v${pv.agreementVersion || pv.quotationVersion || 1} — ₹${pv.appliedRate || 0}/Kg)!`);
+      } else {
+        setToastMessage(pv?.message || 'Revalidation completed: No active quotation or rate card covers this route/mode.');
+      }
       setShowPricingModal(false);
       setPricingResolutionReason('');
       await fetchShipment();
-      setTimeout(() => setToastMessage(''), 4000);
+      setTimeout(() => setToastMessage(''), 5000);
     } catch (err) {
       alert(err.message || 'Failed to update pricing agreement.');
     } finally {
