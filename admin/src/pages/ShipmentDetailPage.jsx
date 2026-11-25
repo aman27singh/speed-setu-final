@@ -578,15 +578,37 @@ export const ShipmentDetailPage = () => {
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[11px]">Applied Base Freight Rate</span>
-                          <span className="font-bold font-mono text-slate-900">₹{pv.appliedRate || 0}/Kg</span>
+                          <span className="font-bold font-mono text-slate-900">
+                            ₹{pv.appliedRate || pv.pricingSnapshot?.baseFreightRate || 0} / {pv.rateBasis || pv.pricingSnapshot?.rateBasis || pv.appliedRuleSnapshot?.rateBasis || 'Per KG'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[11px]">Minimum Chargeable Weight</span>
-                          <span className="font-bold font-mono text-slate-900">{pv.minimumChargeableWeight || 50} Kg</span>
+                          <span className="font-bold font-mono text-slate-900">{pv.minimumChargeableWeight || pv.pricingSnapshot?.minimumWeight || 50} Kg</span>
                         </div>
+                        {(pv.pricingSnapshot?.docketCharges > 0 || pv.pricingSnapshot?.pickupCharges > 0 || pv.pricingSnapshot?.deliveryCharges > 0) && (
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Agreement Charges</span>
+                            <span className="font-bold font-mono text-slate-800">
+                              {[
+                                pv.pricingSnapshot?.docketCharges > 0 ? `Docket ₹${pv.pricingSnapshot.docketCharges}` : null,
+                                pv.pricingSnapshot?.pickupCharges > 0 ? `Pickup ₹${pv.pricingSnapshot.pickupCharges}` : null,
+                                pv.pricingSnapshot?.deliveryCharges > 0 ? `Delivery ₹${pv.pricingSnapshot.deliveryCharges}` : null
+                              ].filter(Boolean).join(' • ')}
+                            </span>
+                          </div>
+                        )}
                         <div>
                           <span className="text-slate-400 block text-[11px]">GST Configuration</span>
-                          <span className="font-bold text-slate-900">Standard 18% Integrated IGST</span>
+                          <span className="font-bold text-slate-900">
+                            {(() => {
+                              const tc = pv.pricingSnapshot?.taxConfiguration || pv.appliedRuleSnapshot?.taxConfiguration;
+                              const gstPct = pv.pricingSnapshot?.gstPercentage ?? tc?.gstRate ?? 18;
+                              const isRcm = pv.pricingSnapshot?.isRcm || tc?.isRcm || /rcm|reverse\s*charge/i.test(String(tc?.notes || ''));
+                              if (tc?.applicable === false || gstPct === 0) return '0% GST Exempt';
+                              return `${gstPct}% GST${isRcm ? ' (Under RCM)' : ' Integrated IGST'}`;
+                            })()}
+                          </span>
                         </div>
                       </div>
 

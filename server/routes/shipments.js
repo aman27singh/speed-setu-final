@@ -765,6 +765,9 @@ router.post('/', async (req, res) => {
           consignorSnapshot,
           consigneeSnapshot,
           pricingValidation: finalPricingValidation,
+          pickupCharges: (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (finalPricingValidation.pricingSnapshot?.pickupCharges || 0),
+          deliveryCharges: (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (finalPricingValidation.pricingSnapshot?.deliveryCharges || 0),
+          gstRate: req.body.isGstExempt ? 0 : (finalPricingValidation.pricingSnapshot?.gstPercentage ?? req.body.gstRate ?? 18),
           billingSnapshot: {
             mode,
             chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,

@@ -138,6 +138,13 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
 
   const taxConfig = matchedRule.taxConfiguration || doc.taxConfiguration || { applicable: true, gstRate: 18 };
   const gstRate = taxConfig.applicable !== false ? (taxConfig.gstRate !== undefined ? taxConfig.gstRate : 18) : 0;
+  const isRcm = Boolean(
+    taxConfig.isRcm ||
+    taxConfig.rcm ||
+    taxConfig.reverseCharge ||
+    /rcm|reverse\s*charge/i.test(String(taxConfig.notes || doc.notes || ''))
+  );
+  const rateBasis = matchedRule.rateBasis || doc.rateBasis || 'Per KG';
 
   const effectiveWeight = Math.max(weight || minWeight, minWeight);
   const freightAmount = baseFreight * effectiveWeight;
@@ -158,6 +165,7 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     origin,
     destination,
     freightMode: mode,
+    rateBasis,
     baseFreightRate: baseFreight,
     minimumWeight: minWeight,
     chargeableWeight: effectiveWeight,
@@ -167,7 +175,8 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     otherCharges: otherAmt,
     additionalCharges: additionalList,
     gstPercentage: gstRate,
-    taxConfiguration: taxConfig,
+    isRcm,
+    taxConfiguration: { ...taxConfig, isRcm },
     calculatedCharges: {
       freightAmount,
       docketCharges: docketAmt,
@@ -393,6 +402,7 @@ async function validateShipmentPricing({
         origin,
         destination,
         freightMode: targetMode,
+        rateBasis: pricingSnapshot.rateBasis,
         appliedRate: baseFreight,
         minimumChargeableWeight: minWeight,
         appliedRuleSnapshot: {
@@ -401,10 +411,11 @@ async function validateShipmentPricing({
           origin: matchedRule.origin,
           destination: matchedRule.destination,
           mode: matchedRule.mode || targetMode,
+          rateBasis: pricingSnapshot.rateBasis,
           freightRate: baseFreight,
           minimumChargeableWeight: minWeight,
           additionalCharges: matchedRule.additionalCharges || quote.additionalCharges || [],
-          taxConfiguration: matchedRule.taxConfiguration || { applicable: true, gstRate: 18 }
+          taxConfiguration: pricingSnapshot.taxConfiguration
         },
         pricingSnapshot,
         validatedAt: new Date(),
@@ -494,6 +505,7 @@ async function validateShipmentPricing({
         origin,
         destination,
         freightMode: targetMode,
+        rateBasis: pricingSnapshot.rateBasis,
         appliedRate: baseFreight,
         minimumChargeableWeight: minWeight,
         appliedRuleSnapshot: {
@@ -503,10 +515,11 @@ async function validateShipmentPricing({
           origin: matchedRule.origin,
           destination: matchedRule.destination,
           mode: matchedRule.mode || targetMode,
+          rateBasis: pricingSnapshot.rateBasis,
           freightRate: baseFreight,
           minimumChargeableWeight: minWeight,
           additionalCharges: matchedRule.additionalCharges || rc.additionalCharges || [],
-          taxConfiguration: matchedRule.taxConfiguration || { applicable: true, gstRate: 18 }
+          taxConfiguration: pricingSnapshot.taxConfiguration
         },
         pricingSnapshot,
         validatedAt: new Date(),

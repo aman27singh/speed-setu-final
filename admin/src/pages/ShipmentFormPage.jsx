@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { shipmentService } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
@@ -229,6 +229,65 @@ export const ShipmentFormPage = () => {
   const [validatingPricing, setValidatingPricing] = useState(false);
   const [showUnpricedConfirmModal, setShowUnpricedConfirmModal] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState(null);
+  const lastAppliedPricingKeyRef = useRef(null);
+
+  const extractChargeAmounts = (res) => {
+    const snap = res?.pricingSnapshot || {};
+    const rule = res?.appliedRuleSnapshot || {};
+    const additionalList = Array.isArray(snap.additionalCharges)
+      ? snap.additionalCharges
+      : (Array.isArray(rule.additionalCharges) ? rule.additionalCharges : []);
+
+    let docketAmt = typeof snap.docketCharges === 'number' ? snap.docketCharges : 0;
+    let pickupAmt = typeof snap.pickupCharges === 'number' ? snap.pickupCharges : 0;
+    let deliveryAmt = typeof snap.deliveryCharges === 'number' ? snap.deliveryCharges : 0;
+    let otherAmt = typeof snap.otherCharges === 'number' ? snap.otherCharges : 0;
+
+    if (docketAmt === 0 && pickupAmt === 0 && deliveryAmt === 0 && additionalList.length > 0) {
+      for (const chg of additionalList) {
+        const name = (chg.name || chg.chargeName || chg.type || '').toLowerCase();
+        const val = typeof chg.amount === 'number' ? chg.amount : (parseFloat(chg.amount || chg.rate || chg.value) || 0);
+        if (name.includes('docket') || name.includes('lr') || name.includes('bilty') || name.includes('cn charge')) {
+          docketAmt += val;
+        } else if (name.includes('pickup') || name.includes('first mile')) {
+          pickupAmt += val;
+        } else if (name.includes('delivery') || name.includes('door delivery') || name.includes('last mile')) {
+          deliveryAmt += val;
+        } else {
+          otherAmt += val;
+        }
+      }
+    }
+
+    const taxConfig = snap.taxConfiguration || rule.taxConfiguration || { applicable: true, gstRate: 18 };
+    const gstApplicable = taxConfig.applicable !== false;
+    const gstRateVal = gstApplicable
+      ? (taxConfig.gstRate !== undefined ? taxConfig.gstRate : (snap.gstPercentage !== undefined ? snap.gstPercentage : 18))
+      : 0;
+    const isGstExempt = !gstApplicable || gstRateVal === 0;
+    const isRcm = Boolean(
+      snap.isRcm ||
+      taxConfig.isRcm ||
+      taxConfig.rcm ||
+      taxConfig.reverseCharge ||
+      /rcm|reverse\s*charge/i.test(String(taxConfig.notes || ''))
+    );
+
+    return {
+      baseFreight: res?.appliedRate ?? snap.baseFreightRate ?? rule.freightRate ?? 0,
+      rateBasis: res?.rateBasis || snap.rateBasis || rule.rateBasis || 'Per KG',
+      minWeight: res?.minimumChargeableWeight ?? snap.minimumWeight ?? rule.minimumChargeableWeight ?? 50,
+      docketAmt,
+      pickupAmt,
+      deliveryAmt,
+      otherAmt,
+      additionalList,
+      taxConfig: { ...taxConfig, isRcm },
+      gstRateVal,
+      isGstExempt,
+      isRcm
+    };
+  };
 
   const checkPricingCoverage = async (overrideForm = null) => {
     const data = overrideForm || formData;
@@ -236,8 +295,8 @@ export const ShipmentFormPage = () => {
       setPricingValidation(null);
       return null;
     }
-    const currentOrigin = data.origin || data.consignor?.city || '';
-    const currentDest = data.destination || data.consignee?.city || '';
+    const currentOrigin = data.origin || data.consignor?.pickupDeliveryLocation || data.consignor?.city || '';
+    const currentDest = data.destination || data.consignee?.pickupDeliveryLocation || data.consignee?.city || '';
 
     setValidatingPricing(true);
     try {
@@ -252,6 +311,52 @@ export const ShipmentFormPage = () => {
         date: data.cnDate || data.bookingDate
       });
       setPricingValidation(res);
+
+      // Requirement 4 & 5: Automatically populate pricing fields for newly created shipments when matched
+      // without overwriting historical saved shipment pricing in edit mode.
+      if (!isEditMode) {
+        if (res?.status === 'MATCHED') {
+          const ruleKey = `${res.source}:${res.quotationNumber || res.rateCardNumber}:v${res.agreementVersion || 1}:${res.origin}:${res.destination}:${res.freightMode}`;
+          if (lastAppliedPricingKeyRef.current !== ruleKey) {
+            lastAppliedPricingKeyRef.current = ruleKey;
+            const extracted = extractChargeAmounts(res);
+            setFormData((prev) => {
+              const rawActual = parseFloat(prev.actualWeight) || 0;
+              const nextChargeable = rawActual > 0 ? Math.max(rawActual, extracted.minWeight) : prev.chargeableWeight;
+              return {
+                ...prev,
+                baseFreightRate: extracted.baseFreight,
+                rateBasis: extracted.rateBasis,
+                minimumWeight: extracted.minWeight,
+                docketCharges: extracted.docketAmt,
+                pickupCharges: extracted.pickupAmt > 0 ? extracted.pickupAmt : '',
+                deliveryCharges: extracted.deliveryAmt > 0 ? extracted.deliveryAmt : '',
+                gstRate: extracted.gstRateVal,
+                isGstExempt: extracted.isGstExempt,
+                rcmApplicable: extracted.isRcm,
+                taxConfiguration: extracted.taxConfig,
+                chargeableWeight: nextChargeable
+              };
+            });
+          }
+        } else if ((res?.status === 'MISSING' || res?.status === 'PENDING_ROUTE') && lastAppliedPricingKeyRef.current !== null) {
+          lastAppliedPricingKeyRef.current = null;
+          setFormData((prev) => ({
+            ...prev,
+            baseFreightRate: 0,
+            rateBasis: '',
+            minimumWeight: 0,
+            docketCharges: 0,
+            pickupCharges: '',
+            deliveryCharges: '',
+            gstRate: 18,
+            isGstExempt: false,
+            rcmApplicable: false,
+            taxConfiguration: null
+          }));
+        }
+      }
+
       return res;
     } catch (e) {
       console.warn('Pricing validation check failed:', e.message);
@@ -272,9 +377,12 @@ export const ShipmentFormPage = () => {
     return () => clearTimeout(timer);
   }, [
     formData.companyId,
+    formData.companyCode,
     formData.companyName,
     formData.origin,
     formData.destination,
+    formData.consignor?.pickupDeliveryLocation,
+    formData.consignee?.pickupDeliveryLocation,
     formData.consignor?.city,
     formData.consignee?.city,
     formData.mode,
@@ -525,29 +633,31 @@ export const ShipmentFormPage = () => {
         });
       }
 
-      const originLoc = (found.pickupDeliveryLocation || found.city || prev.origin || '').toUpperCase();
-      setFormData((prev) => ({
-        ...prev,
-        consignorId: found.id || '',
-        origin: originLoc,
-        ...(matchedComp ? {
-          companyId: matchedComp.id,
-          companyName: matchedComp.companyName,
-          companyCode: matchedComp.companyCode
-        } : {}),
-        consignor: {
-          ...prev.consignor,
-          name: (found.name || '').toUpperCase(),
-          code: (found.code || '').toUpperCase(),
-          gstin: (found.gstin || '').toUpperCase(),
-          contact: found.contact || '',
-          address: found.address || '',
-          city: found.city || '',
-          state: found.state || '',
-          pin: found.pin || '',
-          pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
-        }
-      }));
+      setFormData((prev) => {
+        const originLoc = (found.pickupDeliveryLocation || found.city || prev.origin || '').toUpperCase();
+        return {
+          ...prev,
+          consignorId: found.id || '',
+          origin: originLoc,
+          ...(matchedComp ? {
+            companyId: matchedComp.id,
+            companyName: matchedComp.companyName,
+            companyCode: matchedComp.companyCode
+          } : {}),
+          consignor: {
+            ...prev.consignor,
+            name: (found.name || '').toUpperCase(),
+            code: (found.code || '').toUpperCase(),
+            gstin: (found.gstin || '').toUpperCase(),
+            contact: found.contact || '',
+            address: found.address || '',
+            city: found.city || '',
+            state: found.state || '',
+            pin: found.pin || '',
+            pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
+          }
+        };
+      });
     }
   };
 
@@ -585,29 +695,31 @@ export const ShipmentFormPage = () => {
         });
       }
 
-      const destLoc = (found.pickupDeliveryLocation || found.city || prev.destination || '').toUpperCase();
-      setFormData((prev) => ({
-        ...prev,
-        consigneeId: found.id || '',
-        destination: destLoc,
-        ...(matchedComp ? {
-          companyId: matchedComp.id,
-          companyName: matchedComp.companyName,
-          companyCode: matchedComp.companyCode
-        } : {}),
-        consignee: {
-          ...prev.consignee,
-          name: (found.name || '').toUpperCase(),
-          code: (found.code || '').toUpperCase(),
-          gstin: (found.gstin || '').toUpperCase(),
-          contact: found.contact || '',
-          address: found.address || '',
-          city: found.city || '',
-          state: found.state || '',
-          pin: found.pin || '',
-          pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
-        }
-      }));
+      setFormData((prev) => {
+        const destLoc = (found.pickupDeliveryLocation || found.city || prev.destination || '').toUpperCase();
+        return {
+          ...prev,
+          consigneeId: found.id || '',
+          destination: destLoc,
+          ...(matchedComp ? {
+            companyId: matchedComp.id,
+            companyName: matchedComp.companyName,
+            companyCode: matchedComp.companyCode
+          } : {}),
+          consignee: {
+            ...prev.consignee,
+            name: (found.name || '').toUpperCase(),
+            code: (found.code || '').toUpperCase(),
+            gstin: (found.gstin || '').toUpperCase(),
+            contact: found.contact || '',
+            address: found.address || '',
+            city: found.city || '',
+            state: found.state || '',
+            pin: found.pin || '',
+            pickupDeliveryLocation: (found.pickupDeliveryLocation || '').toUpperCase()
+          }
+        };
+      });
     }
   };
 
@@ -721,10 +833,18 @@ export const ShipmentFormPage = () => {
     }
 
     if (pricingValidation.status === 'MATCHED' && pricingValidation.source === 'QUOTATION') {
+      const details = extractChargeAmounts(pricingValidation);
+      const otherAddl = details.additionalList.filter((chg) => {
+        const n = (chg.name || chg.chargeName || chg.type || '').toLowerCase();
+        return !n.includes('docket') && !n.includes('lr') && !n.includes('bilty') && !n.includes('cn charge') &&
+               !n.includes('pickup') && !n.includes('first mile') &&
+               !n.includes('delivery') && !n.includes('door delivery') && !n.includes('last mile');
+      });
+
       return (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-950 text-xs space-y-1 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
+        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-950 text-xs space-y-2.5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 font-bold text-emerald-900 text-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>✓ Quotation Available</span>
               <span className="px-2 py-0.5 text-[10px] font-mono bg-emerald-100 text-emerald-800 rounded font-semibold border border-emerald-200">
@@ -732,24 +852,55 @@ export const ShipmentFormPage = () => {
               </span>
             </div>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
-              Pricing Source: Company Quotation
+              Pricing Source: Company Quotation (Auto-Applied)
             </span>
           </div>
-          <div className="text-[11px] text-emerald-800 flex flex-wrap gap-x-4 gap-y-1 pt-1 font-mono">
-            <span>Route: <strong>{pricingValidation.origin} → {pricingValidation.destination}</strong></span>
-            <span>Mode: <strong>{pricingValidation.freightMode}</strong></span>
-            <span>Agreed Rate: <strong>₹{pricingValidation.appliedRate}/Kg</strong></span>
-            <span>Min Chargeable Wt: <strong>{pricingValidation.minimumChargeableWeight || 50} Kg</strong></span>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px] bg-white/75 p-2.5 rounded-lg border border-emerald-200/80">
+            <div>
+              <span className="text-emerald-700/80 block text-[10px] uppercase font-sans font-bold">Route & Mode</span>
+              <strong className="text-emerald-950">{pricingValidation.origin} → {pricingValidation.destination} ({pricingValidation.freightMode})</strong>
+            </div>
+            <div>
+              <span className="text-emerald-700/80 block text-[10px] uppercase font-sans font-bold">Base Freight ({details.rateBasis})</span>
+              <strong className="text-emerald-950">₹{details.baseFreight} / {details.rateBasis}</strong>
+            </div>
+            <div>
+              <span className="text-emerald-700/80 block text-[10px] uppercase font-sans font-bold">Min Chargeable Wt</span>
+              <strong className="text-emerald-950">{details.minWeight} Kg</strong>
+            </div>
+            <div>
+              <span className="text-emerald-700/80 block text-[10px] uppercase font-sans font-bold">GST Configuration</span>
+              <strong className="text-emerald-950">
+                {details.isGstExempt ? '0% GST Exempt' : `${details.gstRateVal}% GST`}
+                {details.isRcm && ' • RCM'}
+              </strong>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-emerald-900">
+            <span>Docket Charge: <strong>₹{details.docketAmt.toLocaleString('en-IN')}</strong></span>
+            <span>Pickup Charge: <strong>₹{details.pickupAmt.toLocaleString('en-IN')}</strong></span>
+            <span>Delivery Charge: <strong>₹{details.deliveryAmt.toLocaleString('en-IN')}</strong></span>
+            {otherAddl.map((chg, i) => (
+              <span key={i}>{chg.name || chg.chargeName}: <strong>₹{(parseFloat(chg.amount || chg.rate || 0) || 0).toLocaleString('en-IN')}</strong></span>
+            ))}
+            {details.taxConfig?.notes && (
+              <span className="text-emerald-800 font-sans font-semibold bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                {details.taxConfig.notes}
+              </span>
+            )}
           </div>
         </div>
       );
     }
 
     if (pricingValidation.status === 'MATCHED' && pricingValidation.source === 'RATE_CARD') {
+      const details = extractChargeAmounts(pricingValidation);
       return (
-        <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-xl text-blue-950 text-xs space-y-1 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-blue-900 text-sm">
+        <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-xl text-blue-950 text-xs space-y-2 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 font-bold text-blue-900 text-sm">
               <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
               <span>✓ Rate Card Applied</span>
               <span className="px-2 py-0.5 text-[10px] font-mono bg-blue-100 text-blue-800 rounded font-semibold border border-blue-200">
@@ -763,12 +914,47 @@ export const ShipmentFormPage = () => {
           <p className="text-[11px] text-blue-800 leading-normal">
             No company-specific quotation covers this route. Freight charges will be calculated using the applicable rate card agreement.
           </p>
-          <div className="text-[11px] text-blue-900 flex flex-wrap gap-x-4 gap-y-1 pt-1 font-mono">
-            <span>Route: <strong>{pricingValidation.origin} → {pricingValidation.destination}</strong></span>
-            <span>Mode: <strong>{pricingValidation.freightMode}</strong></span>
-            <span>Rate Card Freight: <strong>₹{pricingValidation.appliedRate}/Kg</strong></span>
-            <span>Min Chargeable Wt: <strong>{pricingValidation.minimumChargeableWeight || 50} Kg</strong></span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] bg-white/75 p-2.5 rounded-lg border border-blue-200/80">
+            <div>
+              <span className="text-blue-700/80 block text-[10px] uppercase font-sans font-bold">Route & Mode</span>
+              <strong>{pricingValidation.origin} → {pricingValidation.destination} ({pricingValidation.freightMode})</strong>
+            </div>
+            <div>
+              <span className="text-blue-700/80 block text-[10px] uppercase font-sans font-bold">Rate ({details.rateBasis})</span>
+              <strong>₹{details.baseFreight} / {details.rateBasis}</strong>
+            </div>
+            <div>
+              <span className="text-blue-700/80 block text-[10px] uppercase font-sans font-bold">Min Chargeable Wt</span>
+              <strong>{details.minWeight} Kg</strong>
+            </div>
+            <div>
+              <span className="text-blue-700/80 block text-[10px] uppercase font-sans font-bold">Charges & GST</span>
+              <strong>
+                D:₹{details.docketAmt} P:₹{details.pickupAmt} Del:₹{details.deliveryAmt} • {details.gstRateVal}%{details.isRcm ? ' RCM' : ''}
+              </strong>
+            </div>
           </div>
+        </div>
+      );
+    }
+
+    if (pricingValidation.status === 'ERROR') {
+      return (
+        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-950 text-xs space-y-1.5 shadow-xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Unable to Verify Quotation Coverage</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => checkPricingCoverage()}
+              className="px-2.5 py-1 text-[11px] font-bold text-amber-900 bg-amber-200/70 hover:bg-amber-200 rounded border border-amber-300 cursor-pointer"
+            >
+              Retry Lookup
+            </button>
+          </div>
+          <p className="text-[11px] text-amber-800">{pricingValidation.message}</p>
         </div>
       );
     }
@@ -813,8 +999,13 @@ export const ShipmentFormPage = () => {
 
     // Pre-save pricing validation check (Section 2 Scenario C)
     let currentPricing = pricingValidation;
-    if ((!currentPricing || currentPricing.status === 'PENDING_ROUTE') && formData.companyId) {
+    if ((!currentPricing || currentPricing.status === 'PENDING_ROUTE' || currentPricing.status === 'ERROR') && (formData.companyId || formData.companyName)) {
       currentPricing = await checkPricingCoverage();
+    }
+
+    if (currentPricing && currentPricing.status === 'ERROR') {
+      alert(currentPricing.message || 'Unable to verify quotation coverage with server. Please retry before saving.');
+      return;
     }
 
     if (currentPricing && currentPricing.status === 'MISSING' && !confirmedOverride) {
@@ -1587,14 +1778,24 @@ export const ShipmentFormPage = () => {
                   step="any"
                   required
                   value={formData.actualWeight || ''}
-                  onChange={(e) => setFormData((prev) => ({
-                    ...prev,
-                    actualWeight: e.target.value,
-                    chargeableWeight: e.target.value
-                  }))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const num = parseFloat(val) || 0;
+                    const minWt = pricingValidation?.status === 'MATCHED' ? (pricingValidation.minimumChargeableWeight || 0) : 0;
+                    setFormData((prev) => ({
+                      ...prev,
+                      actualWeight: val,
+                      chargeableWeight: num > 0 ? Math.max(num, minWt) : val
+                    }));
+                  }}
                   placeholder="e.g. 250"
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold font-mono text-slate-900 text-sm focus:ring-2 focus:ring-purple-600 focus:bg-white transition-all"
                 />
+                {pricingValidation?.status === 'MATCHED' && pricingValidation.minimumChargeableWeight > 0 && (
+                  <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                    Min Chargeable Weight per {pricingValidation.quotationNumber || pricingValidation.rateCardNumber}: {pricingValidation.minimumChargeableWeight} Kg
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -2136,7 +2337,15 @@ export const ShipmentFormPage = () => {
                 type="number"
                 step="0.1"
                 value={formData.actualWeight}
-                onChange={(e) => setFormData((prev) => ({ ...prev, actualWeight: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  const minWt = pricingValidation?.status === 'MATCHED' ? (pricingValidation.minimumChargeableWeight || 0) : 0;
+                  setFormData((prev) => ({
+                    ...prev,
+                    actualWeight: val,
+                    chargeableWeight: val > 0 ? Math.max(val, minWt) : 0
+                  }));
+                }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono font-bold text-slate-900"
               />
             </div>
@@ -2470,9 +2679,17 @@ export const ShipmentFormPage = () => {
           </div>
 
           <div className="pt-2 border-t border-slate-100">
-            <label className="block font-bold text-slate-800 uppercase tracking-wider mb-2">
-              GST Tax Applicable For This Shipment Bill?
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <label className="block font-bold text-slate-800 uppercase tracking-wider">
+                GST Tax Applicable For This Shipment Bill?
+              </label>
+              {pricingValidation?.status === 'MATCHED' && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  From Quotation: {formData.isGstExempt ? '0% GST Exempt' : `${formData.gstRate ?? 18}% GST`}
+                  {formData.rcmApplicable ? ' • Under RCM' : ''}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <label className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
                 !formData.isGstExempt && formData.gstRate !== 0
@@ -2483,12 +2700,16 @@ export const ShipmentFormPage = () => {
                   type="radio"
                   name="gstExemptOption"
                   checked={!formData.isGstExempt && formData.gstRate !== 0}
-                  onChange={() => setFormData((prev) => ({ ...prev, isGstExempt: false, gstRate: 18 }))}
+                  onChange={() => setFormData((prev) => ({ ...prev, isGstExempt: false, gstRate: prev.taxConfiguration?.gstRate || 18 }))}
                   className="text-setu-600 focus:ring-0"
                 />
                 <div>
-                  <span className="font-bold text-slate-900 block text-xs">Charge Standard 18% IGST Tax</span>
-                  <span className="text-[11px] text-slate-500 font-normal">Add 18% GST on Freight, Packing, Labor & Charges</span>
+                  <span className="font-bold text-slate-900 block text-xs">
+                    Charge {formData.gstRate || 18}% GST Tax{formData.rcmApplicable ? ' (Under RCM)' : ' (IGST)'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-normal">
+                    {formData.taxConfiguration?.notes || 'Add GST on Freight, Packing, Labor & Charges'}
+                  </span>
                 </div>
               </label>
 
