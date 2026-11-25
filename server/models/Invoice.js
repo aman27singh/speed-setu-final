@@ -47,7 +47,7 @@ const InvoiceSchema = new mongoose.Schema({
   },
   billTo: Object,
   transportDetails: {
-    mode: { type: String, default: 'TRAIN' },
+    mode: { type: String, default: '' },
     hsnCode: { type: String, default: '996531' },
     vehicleNo: { type: String, default: '' },
     driverName: { type: String, default: '' },
@@ -111,7 +111,7 @@ const InvoiceSchema = new mongoose.Schema({
   taxMode: { type: String, default: 'charging_gst' },
   gstRate: { type: Number, default: 18 },
   hsnCode: { type: String, default: '996531' },
-  mode: { type: String, default: 'TRAIN' },
+  mode: { type: String, default: '' },
   notes: String,
   cancellationReason: String
 }, { timestamps: true, strict: false });

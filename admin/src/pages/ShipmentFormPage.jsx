@@ -1125,8 +1125,8 @@ export const ShipmentFormPage = () => {
         },
         origin: formData.origin || formData.consignor?.city || '',
         destination: formData.destination || formData.consignee?.city || '',
-        mode: formData.mode || formData.freightMode || 'Express LTL',
-        freightMode: formData.freightMode || formData.mode || 'Road',
+        mode: formData.mode || formData.freightMode || '',
+        freightMode: formData.mode || formData.freightMode || '',
         packages: formData.packages || 1,
         actualWeight: parseFloat(formData.actualWeight) || 0,
         chargeableWeight: parseFloat(formData.chargeableWeight) || parseFloat(formData.actualWeight) || 0,
@@ -1722,7 +1722,7 @@ export const ShipmentFormPage = () => {
                 return (
                   <label
                     key={m.id}
-                    onClick={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
+                    onClick={() => setFormData((prev) => ({ ...prev, mode: m.id, freightMode: m.id }))}
                     className={`py-3.5 px-4 rounded-xl border-2 font-extrabold text-center transition-all flex items-center justify-center gap-3 cursor-pointer select-none ${
                       isSelected
                         ? 'border-setu-600 bg-setu-50 text-setu-900 shadow-sm ring-1 ring-setu-600'
@@ -1739,7 +1739,7 @@ export const ShipmentFormPage = () => {
                       name="transportMode"
                       value={m.id}
                       checked={isSelected}
-                      onChange={() => setFormData((prev) => ({ ...prev, mode: m.id }))}
+                      onChange={() => setFormData((prev) => ({ ...prev, mode: m.id, freightMode: m.id }))}
                       className="sr-only"
                     />
                     <span className="text-xs font-extrabold uppercase tracking-wide">{m.label}</span>
@@ -2307,7 +2307,7 @@ export const ShipmentFormPage = () => {
               </label>
               <select
                 value={formData.mode}
-                onChange={(e) => setFormData((prev) => ({ ...prev, mode: e.target.value }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, mode: e.target.value, freightMode: e.target.value }))}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-slate-900"
               >
                 {MODE_OPTIONS.map((m) => (

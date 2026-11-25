@@ -14,6 +14,125 @@ export const PRICING_SOURCE = {
   NONE: 'NONE'
 };
 
+export function normalizeRateBasis(basis) {
+  const b = String(basis || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-]+/g, '_');
+
+  if (
+    b === 'PER_SHIPMENT' ||
+    b === 'SHIPMENT' ||
+    b === 'FIXED_PER_SHIPMENT' ||
+    b === 'FLAT_RATE' ||
+    b === 'FLAT' ||
+    b === 'FIXED' ||
+    b === 'LUMP_SUM'
+  ) {
+    return 'PER_SHIPMENT';
+  }
+  if (b === 'PER_BOX' || b === 'PER_PACKAGE' || b === 'PER_PKG' || b === 'BOX') {
+    return 'PER_BOX';
+  }
+  if (b === 'PER_KM' || b === 'KM') {
+    return 'PER_KM';
+  }
+  return 'PER_KG';
+}
+
+export function getRateBasisMeta(basis) {
+  const norm = normalizeRateBasis(basis);
+  if (norm === 'PER_SHIPMENT') {
+    const rawStr = String(basis || '').trim();
+    const label = /flat/i.test(rawStr) ? 'Flat Rate' : 'Per Shipment';
+    return { normalizedBasis: 'PER_SHIPMENT', label, unit: 'Shipment' };
+  }
+  if (norm === 'PER_BOX') {
+    return { normalizedBasis: 'PER_BOX', label: 'Per Box', unit: 'Box' };
+  }
+  if (norm === 'PER_KM') {
+    return { normalizedBasis: 'PER_KM', label: 'Per KM', unit: 'Km' };
+  }
+  return { normalizedBasis: 'PER_KG', label: 'Per KG', unit: 'Kg' };
+}
+
+export function calculateFreightAmount({
+  rateBasis = 'Per KG',
+  baseRate = 0,
+  actualWeight = 0,
+  chargeableWeight = 0,
+  minimumWeight = 0,
+  packages = 1,
+  distanceKm = 1
+} = {}) {
+  const { normalizedBasis, label, unit } = getRateBasisMeta(rateBasis);
+  const rate = Number(baseRate) || 0;
+  const rawWeight = Number(chargeableWeight) || Number(actualWeight) || 0;
+  const minWt = Number(minimumWeight) || 0;
+  const effectiveWeight = minWt > 0 ? Math.max(rawWeight, minWt) : rawWeight;
+  const pkgCount = Math.max(1, parseInt(packages, 10) || 1);
+  const km = Math.max(1, Number(distanceKm) || 1);
+
+  let freightAmount = 0;
+  let quantity = 1;
+
+  if (normalizedBasis === 'PER_SHIPMENT') {
+    freightAmount = Math.round(rate);
+    quantity = 1;
+  } else if (normalizedBasis === 'PER_BOX') {
+    freightAmount = Math.round(rate * pkgCount);
+    quantity = pkgCount;
+  } else if (normalizedBasis === 'PER_KM') {
+    freightAmount = Math.round(rate * km);
+    quantity = km;
+  } else {
+    freightAmount = Math.round(rate * effectiveWeight);
+    quantity = effectiveWeight;
+  }
+
+  const formattedRate = rate.toLocaleString('en-IN');
+  const rateDisplay = `₹${formattedRate} / ${unit}`;
+
+  return {
+    normalizedBasis,
+    rateBasisLabel: label,
+    unit,
+    rate,
+    quantity,
+    rawWeight,
+    minimumWeight: minWt,
+    effectiveWeight,
+    freightAmount,
+    rateDisplay
+  };
+}
+
+export function resolveShipmentFreightMode(shipment) {
+  if (!shipment) return '';
+  const m = String(shipment.mode || '').trim();
+  const fm = String(shipment.freightMode || '').trim();
+  const pvMode = String(
+    shipment.pricingValidation?.freightMode ||
+    shipment.pricingValidation?.appliedRuleSnapshot?.mode ||
+    shipment.pricingValidation?.pricingSnapshot?.freightMode ||
+    ''
+  ).trim();
+
+  if (m && m.toLowerCase() !== 'express ltl') return m;
+  if (fm) return fm;
+  if (m) return m;
+  return pvMode || '';
+}
+
+export function formatFreightDescription({ rateBasis, rate, source, agreementNumber, version }) {
+  const { rateDisplay } = calculateFreightAmount({ rateBasis, baseRate: rate });
+  if (agreementNumber) {
+    const sourceLabel = source === 'RATE_CARD' ? 'Rate Card' : 'Company Quotation';
+    return `Base Freight @ ${rateDisplay} (${sourceLabel} ${agreementNumber} v${version || 1})`;
+  }
+  return `Base Freight @ ${rateDisplay}`;
+}
+
 /**
  * Determine pricing badge config for a shipment
  * @param {Object} shipment
@@ -23,6 +142,8 @@ export const getPricingBadgeInfo = (shipment) => {
   const pv = shipment?.pricingValidation;
   const status = pv?.status;
   const source = pv?.source;
+  const basisRaw = pv?.rateBasis || pv?.pricingSnapshot?.rateBasis || pv?.appliedRuleSnapshot?.rateBasis || 'Per KG';
+  const { unit } = getRateBasisMeta(basisRaw);
 
   if (status === 'MATCHED' && source === 'QUOTATION') {
     return {
@@ -31,7 +152,7 @@ export const getPricingBadgeInfo = (shipment) => {
       variant: 'success', // green
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       dotClass: 'bg-emerald-500',
-      tooltip: `Quotation Applied: ${pv.quotationNumber || 'Agreed Rate'} (v${pv.quotationVersion || 1}) • ₹${pv.appliedRate || 0}/Kg`,
+      tooltip: `Quotation Applied: ${pv.quotationNumber || 'Agreed Rate'} (v${pv.quotationVersion || 1}) • ₹${(pv.appliedRate || 0).toLocaleString('en-IN')} / ${unit}`,
       isCovered: true,
       isBlocked: false
     };
@@ -44,7 +165,7 @@ export const getPricingBadgeInfo = (shipment) => {
       variant: 'info', // blue
       badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
       dotClass: 'bg-blue-500',
-      tooltip: `Rate Card Applied: ${pv.rateCardNumber || pv.rateCardName || 'Standard'} (v${pv.rateCardVersion || 1}) • ₹${pv.appliedRate || 0}/Kg`,
+      tooltip: `Rate Card Applied: ${pv.rateCardNumber || pv.rateCardName || 'Standard'} (v${pv.rateCardVersion || 1}) • ₹${(pv.appliedRate || 0).toLocaleString('en-IN')} / ${unit}`,
       isCovered: true,
       isBlocked: false
     };
@@ -159,7 +280,7 @@ export function findMatchingRuleInList(rulesList, origin, destination, mode) {
 /**
  * Build complete pricing snapshot matching backend pricingValidationService.js structure
  */
-export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, destination, mode, date, weight = 0 }) {
+export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, destination, mode, date, weight = 0, packages = 1 }) {
   const isQuote = source === 'QUOTATION';
   const baseFreight = typeof matchedRule.freightRate === 'number'
     ? matchedRule.freightRate
@@ -203,10 +324,18 @@ export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, d
     taxConfig.reverseCharge ||
     /rcm|reverse\s*charge/i.test(String(taxConfig.notes || doc.notes || ''))
   );
-  const rateBasis = matchedRule.rateBasis || doc.rateBasis || 'Per KG';
+  const rawRateBasis = matchedRule.rateBasis || doc.rateBasis || 'Per KG';
+  const freightCalc = calculateFreightAmount({
+    rateBasis: rawRateBasis,
+    baseRate: baseFreight,
+    actualWeight: weight,
+    chargeableWeight: weight,
+    minimumWeight: minWeight,
+    packages
+  });
 
-  const effectiveWeight = Math.max(weight || minWeight, minWeight);
-  const freightAmount = baseFreight * effectiveWeight;
+  const effectiveWeight = freightCalc.effectiveWeight;
+  const freightAmount = freightCalc.freightAmount;
   const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
   const gstAmount = Math.round(taxableAmount * (gstRate / 100));
   const grandTotal = taxableAmount + gstAmount;
@@ -224,10 +353,12 @@ export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, d
     origin,
     destination,
     freightMode: mode,
-    rateBasis,
+    rateBasis: freightCalc.rateBasisLabel,
+    rateBasisNormalized: freightCalc.normalizedBasis,
+    rateUnit: freightCalc.unit,
     baseFreightRate: baseFreight,
     minimumWeight: minWeight,
-    chargeableWeight: effectiveWeight,
+    chargeableWeight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : (Number(weight) || minWeight),
     docketCharges: docketAmt,
     pickupCharges: pickupAmt,
     deliveryCharges: deliveryAmt,
@@ -247,7 +378,22 @@ export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, d
       gstAmount,
       grandTotal,
       lineItems: [
-        { name: 'Freight Charges', rate: baseFreight, weight: effectiveWeight, amount: freightAmount },
+        {
+          name: 'Freight Charges',
+          description: formatFreightDescription({
+            rateBasis: freightCalc.rateBasisLabel,
+            rate: baseFreight,
+            source,
+            agreementNumber: isQuote ? doc.quotationNumber : (doc.rateCardNumber || doc.name),
+            version: doc.version || 1
+          }),
+          rate: baseFreight,
+          rateBasis: freightCalc.rateBasisLabel,
+          quantity: freightCalc.quantity,
+          unit: freightCalc.unit,
+          weight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : 0,
+          amount: freightAmount
+        },
         ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
         ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
         ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])

@@ -8,6 +8,13 @@ const {
   claimDocketsForInvoice,
   releaseDocketsForInvoice
 } = require('../services/duplicateValidationService');
+const {
+  calculateFreightAmount,
+  getRateBasisMeta,
+  resolveShipmentFreightMode,
+  calculateShipmentBilling,
+  formatFreightDescription
+} = require('../services/freightCalculationService');
 
 // Initialize normalized active dockets index once database connection is open
 if (mongoose.connection.readyState === 1) {
@@ -31,6 +38,59 @@ router.post('/validate-duplicates', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[Duplicate Validation Route Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/invoices/calculate-shipment — Centralized authoritative shipment freight & billing calculation
+router.post('/calculate-shipment', async (req, res) => {
+  try {
+    const Shipment = require('../models/Shipment');
+    const { validateShipmentPricing } = require('../services/pricingValidationService');
+    const { cnNumber, shipmentId, shipment: rawShipment } = req.body || {};
+
+    let targetShipment = null;
+    const lookupKey = cnNumber || shipmentId || rawShipment?.cnNumber || rawShipment?._id || rawShipment?.id;
+
+    if (lookupKey) {
+      const keyStr = String(lookupKey).trim();
+      const isValidId = mongoose.isValidObjectId(keyStr);
+      targetShipment = await Shipment.findOne({
+        $or: [
+          { cnNumber: new RegExp(`^${keyStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          ...(isValidId ? [{ _id: keyStr }] : [])
+        ]
+      }).lean();
+    }
+
+    if (!targetShipment && rawShipment && typeof rawShipment === 'object') {
+      targetShipment = { ...rawShipment };
+    }
+
+    if (!targetShipment) {
+      return res.status(404).json({ error: 'Shipment not found for billing calculation.' });
+    }
+
+    // Preserve historical shipment pricing if already matched at creation;
+    // only validate on-the-fly for legacy shipments lacking pricingValidation.
+    if (!targetShipment.pricingValidation || !targetShipment.pricingValidation.status) {
+      const resolvedPricing = await validateShipmentPricing({
+        companyId: targetShipment.companyId,
+        companyCode: targetShipment.companyCode,
+        companyName: targetShipment.companyName,
+        origin: targetShipment.origin,
+        destination: targetShipment.destination,
+        freightMode: targetShipment.freightMode || targetShipment.mode,
+        mode: targetShipment.mode,
+        date: targetShipment.bookingDate || targetShipment.cnDate
+      }, mongoose.connection);
+      targetShipment = { ...targetShipment, pricingValidation: resolvedPricing };
+    }
+
+    const calculation = calculateShipmentBilling(targetShipment);
+    res.json(calculation);
+  } catch (err) {
+    console.error('[Invoice Calculate Shipment Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -183,28 +243,165 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Resolve authoritative freight mode from actual shipment record(s), never hardcoding 'TRAIN'
+    const shipmentModesSeen = new Map();
+    for (const cn of associatedCNs) {
+      const matchingShipment = shipmentsInInvoice.find(s => s.cnNumber?.toLowerCase() === String(cn).toLowerCase());
+      const m = resolveShipmentFreightMode(matchingShipment);
+      if (m) {
+        const key = m.toUpperCase();
+        if (!shipmentModesSeen.has(key)) shipmentModesSeen.set(key, m);
+      }
+    }
+    const uniqueShipmentModes = Array.from(shipmentModesSeen.values());
+    const authoritativeMode = uniqueShipmentModes.length > 0
+      ? uniqueShipmentModes.join(' / ')
+      : String(req.body.transportDetails?.mode || req.body.mode || req.body.billingSnapshot?.mode || '').trim();
+
     let finalDockets = req.body.dockets || [];
+    let docketsFreightCorrected = false;
+    const isGstExemptReq = req.body.isGstExempt === true || req.body.taxMode === 'no_gst' || req.body.gstRate === 0;
+    const invoiceGstRate = isGstExemptReq ? 0 : (typeof req.body.gstRate === 'number' ? req.body.gstRate : 18);
+
     if (Array.isArray(finalDockets) && finalDockets.length > 0 && shipmentsInInvoice) {
       finalDockets = finalDockets.map(d => {
         const matchingShipment = shipmentsInInvoice.find(s => s.cnNumber?.toLowerCase() === (d.docketNo || d.cnNumber)?.toLowerCase());
-        if (matchingShipment && matchingShipment.pricingValidation) {
-          const pv = matchingShipment.pricingValidation;
-          const version = pv.quotationVersion || pv.rateCardVersion || pv.agreementVersion || 1;
-          const agreementNum = pv.quotationNumber || pv.rateCardNumber || 'Agreed Rate';
+        const pv = matchingShipment?.pricingValidation;
+        const snap = pv?.pricingSnapshot || {};
+        const rule = pv?.appliedRuleSnapshot || {};
+        const version = pv?.quotationVersion || pv?.rateCardVersion || pv?.agreementVersion || 1;
+        const agreementNum = pv?.quotationNumber || pv?.rateCardNumber || d.agreementNumber || 'Agreed Rate';
+        const rateBasisRaw = d.rateBasis || pv?.rateBasis || snap.rateBasis || rule.rateBasis || 'Per KG';
+        const basisMeta = getRateBasisMeta(rateBasisRaw);
+        const appliedRate = (d.rate !== undefined && d.rate > 0) ? d.rate : (pv?.appliedRate || snap.baseFreightRate || 0);
+        const shipMode = resolveShipmentFreightMode(matchingShipment) || authoritativeMode;
+
+        let nextFreight = d.freight;
+        let nextTaxable = d.taxableAmount;
+        let nextCgst = d.cgst || 0;
+        let nextSgst = d.sgst || 0;
+        let nextIgst = d.igst || 0;
+        let nextTotal = d.totalInvoiceValue;
+
+        const isGodownOnly = d.isGodownOnly || matchingShipment?.isGodownOnlyBilling;
+        if (!isGodownOnly && matchingShipment && pv?.status === 'MATCHED') {
+          const calc = calculateFreightAmount({
+            rateBasis: rateBasisRaw,
+            baseRate: appliedRate,
+            actualWeight: matchingShipment.actualWeight,
+            chargeableWeight: (d.weight !== undefined && d.weight > 0) ? d.weight : matchingShipment.chargeableWeight,
+            minimumWeight: pv.minimumChargeableWeight || snap.minimumWeight || 50,
+            packages: d.noPack || matchingShipment.packages || 1
+          });
+
+          if (calc.normalizedBasis === 'PER_SHIPMENT' && Number(nextFreight) !== calc.freightAmount) {
+            docketsFreightCorrected = true;
+            nextFreight = calc.freightAmount;
+            nextTaxable =
+              nextFreight +
+              (Number(d.docketCharges) || 0) +
+              (Number(d.pickupCharges) || 0) +
+              (Number(d.deliveryCharges) || 0) +
+              (Number(d.packingCharges) || 0) +
+              (Number(d.laborCharges) || 0) +
+              (Number(d.godownCharges) || 0);
+            if (isGstExemptReq || invoiceGstRate === 0) {
+              nextCgst = 0;
+              nextSgst = 0;
+              nextIgst = 0;
+            } else if ((Number(d.cgst) || 0) > 0 || (Number(d.sgst) || 0) > 0) {
+              nextCgst = Math.round(nextTaxable * (invoiceGstRate / 200));
+              nextSgst = Math.round(nextTaxable * (invoiceGstRate / 200));
+              nextIgst = 0;
+            } else {
+              nextIgst = Math.round(nextTaxable * (invoiceGstRate / 100));
+              nextCgst = 0;
+              nextSgst = 0;
+            }
+            nextTotal = nextTaxable + nextCgst + nextSgst + nextIgst;
+          }
+        }
+
+        return {
+          ...d,
+          rate: appliedRate,
+          rateBasis: basisMeta.label,
+          rateUnit: basisMeta.unit,
+          freightMode: shipMode,
+          freight: nextFreight,
+          taxableAmount: nextTaxable,
+          cgst: nextCgst,
+          sgst: nextSgst,
+          igst: nextIgst,
+          totalInvoiceValue: nextTotal,
+          agreementNumber: agreementNum,
+          agreementVersion: version,
+          pricingSource: pv?.source || d.pricingSource
+        };
+      });
+    }
+
+    let finalTaxableAmount = req.body.taxableAmount;
+    let finalSubTotal = req.body.subTotal ?? req.body.subtotal;
+    let finalGstAmount = req.body.gstAmount;
+    let finalGrandTotal = req.body.grandTotal;
+    let finalBalanceAmount = req.body.balanceAmount;
+    let finalBalanceDue = req.body.balanceDue;
+
+    if (docketsFreightCorrected && Array.isArray(finalDockets) && finalDockets.length > 0) {
+      finalTaxableAmount = finalDockets.reduce((sum, d) => sum + (Number(d.taxableAmount) || 0), 0);
+      finalSubTotal = finalTaxableAmount;
+      finalGstAmount = isGstExemptReq
+        ? 0
+        : finalDockets.reduce((sum, d) => sum + (Number(d.cgst) || 0) + (Number(d.sgst) || 0) + (Number(d.igst) || 0), 0);
+      finalGrandTotal = finalTaxableAmount + finalGstAmount;
+      finalBalanceAmount = finalGrandTotal - (Number(req.body.paidAmount) || 0);
+      finalBalanceDue = finalBalanceAmount;
+    }
+
+    // Normalize freight line item descriptions if provided
+    let finalLineItems = req.body.lineItems;
+    if (Array.isArray(finalLineItems) && finalLineItems.length > 0 && finalDockets.length > 0) {
+      const primaryDocket = finalDockets[0];
+      finalLineItems = finalLineItems.map((item) => {
+        if ((item.name || '').toLowerCase().includes('freight') && primaryDocket.rateBasis) {
+          const norm = getRateBasisMeta(primaryDocket.rateBasis);
+          const correctedAmt = norm.normalizedBasis === 'PER_SHIPMENT' ? Math.round(primaryDocket.rate || item.rate || 0) : item.amount;
           return {
-            ...d,
-            rate: (d.rate !== undefined && d.rate > 0) ? d.rate : pv.appliedRate,
-            agreementNumber: agreementNum,
-            agreementVersion: version,
-            pricingSource: pv.source
+            ...item,
+            rateBasis: norm.label,
+            unit: norm.unit,
+            quantity: norm.normalizedBasis === 'PER_SHIPMENT' ? 1 : item.quantity,
+            amount: correctedAmt,
+            description: formatFreightDescription({
+              rateBasis: norm.label,
+              rate: primaryDocket.rate || item.rate || 0,
+              source: primaryDocket.pricingSource,
+              agreementNumber: primaryDocket.agreementNumber,
+              version: primaryDocket.agreementVersion
+            })
           };
         }
-        return d;
+        return item;
       });
     }
 
     const newInvoice = new Invoice({
       ...req.body,
+      mode: authoritativeMode,
+      transportDetails: {
+        ...(req.body.transportDetails || {}),
+        mode: authoritativeMode
+      },
+      billingSnapshot: {
+        ...(req.body.billingSnapshot || {}),
+        mode: authoritativeMode
+      },
+      ...(finalLineItems ? { lineItems: finalLineItems } : {}),
+      ...(finalTaxableAmount !== undefined ? { taxableAmount: finalTaxableAmount, subtotal: finalSubTotal } : {}),
+      ...(finalGstAmount !== undefined ? { gstAmount: finalGstAmount, taxAmount: finalGstAmount } : {}),
+      ...(finalGrandTotal !== undefined ? { grandTotal: finalGrandTotal, totalAmount: finalGrandTotal } : {}),
+      ...(finalBalanceAmount !== undefined ? { balanceAmount: finalBalanceAmount, balanceDue: finalBalanceDue } : {}),
       dockets: finalDockets,
       cns: associatedCNs,
       shipmentIds: associatedCNs,

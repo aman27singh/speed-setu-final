@@ -195,7 +195,8 @@ export const ShipmentDetailPage = () => {
       const pv = result?.pricingValidation;
       if (pv?.status === 'MATCHED') {
         const refNum = pv.quotationNumber || pv.rateCardNumber || 'Agreement';
-        setToastMessage(`Pricing matched and applied (${refNum} v${pv.agreementVersion || pv.quotationVersion || 1} — ₹${pv.appliedRate || 0}/Kg)!`);
+        const unitLabel = /ship/i.test(pv.rateBasis || pv.pricingSnapshot?.rateBasis || '') ? 'Shipment' : 'Kg';
+        setToastMessage(`Pricing matched and applied (${refNum} v${pv.agreementVersion || pv.quotationVersion || 1} — ₹${(pv.appliedRate || 0).toLocaleString('en-IN')} / ${unitLabel})!`);
       } else {
         setToastMessage(pv?.message || 'Revalidation completed: No active quotation or rate card covers this route/mode.');
       }
@@ -662,7 +663,9 @@ export const ShipmentDetailPage = () => {
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[11px]">Applied Freight Rate</span>
-                          <span className="font-bold font-mono text-slate-900">₹{pv.appliedRate || 0}/Kg</span>
+                          <span className="font-bold font-mono text-slate-900">
+                            ₹{(pv.appliedRate || 0).toLocaleString('en-IN')} / {pv.rateBasis || pv.pricingSnapshot?.rateBasis || pv.appliedRuleSnapshot?.rateBasis || 'Per KG'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-slate-400 block text-[11px]">Minimum Chargeable Weight</span>

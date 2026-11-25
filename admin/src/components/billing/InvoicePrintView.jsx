@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { formatINR, formatDate } from "../../utils/formatters";
+import { normalizeRateBasis, resolveShipmentFreightMode } from "../../utils/pricingValidation";
 import logoImg from "../../assets/logo2.png";
 
 const DEFAULT_TERMS = [
@@ -135,10 +136,17 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
     invoice.useDeliveryDate === true ||
     invoice.companyBilling?.is3PL === true;
 
-  // Transport details
+  // Transport details — use shipment/invoice mode directly, never default silently to TRAIN
   const transport = invoice.transportDetails || {};
-  const transportMode =
-    transport.mode || invoice.billingSnapshot?.mode || invoice.mode || "TRAIN";
+  const docketMode = (invoice.dockets || []).map((d) => d?.freightMode || d?.mode).filter(Boolean).join(" / ");
+  const rawMode =
+    (transport.mode && transport.mode.trim()) ||
+    (invoice.mode && invoice.mode.trim()) ||
+    (invoice.billingSnapshot?.mode && invoice.billingSnapshot.mode.trim()) ||
+    resolveShipmentFreightMode(invoice.shipment) ||
+    docketMode ||
+    "";
+  const transportMode = rawMode || "NOT SPECIFIED";
   const hsnCode =
     transport.hsnCode ||
     invoice.hsnCode ||
@@ -854,6 +862,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">
                       ₹{(d.rate || 0).toLocaleString("en-IN")}
+                      {normalizeRateBasis(d.rateBasis || invoice.billingSnapshot?.rateBasis) === "PER_SHIPMENT" ? " / Shp" : ""}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">
                       ₹{(d.freight || 0).toLocaleString("en-IN")}
@@ -1082,6 +1091,7 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">
                       ₹{(d.rate || 0).toLocaleString("en-IN")}
+                      {normalizeRateBasis(d.rateBasis || invoice.billingSnapshot?.rateBasis) === "PER_SHIPMENT" ? " / Shp" : ""}
                     </td>
                     <td className="px-1 py-0.5 print:py-0.5 print:px-[1px] font-mono whitespace-nowrap">
                       ₹{(d.freight || 0).toLocaleString("en-IN")}

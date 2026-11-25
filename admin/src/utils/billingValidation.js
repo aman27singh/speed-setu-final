@@ -1,6 +1,7 @@
 /**
  * Speed Setu Logistics Admin - Billing Calculation & Rate Card Matching Engine
  */
+import { calculateFreightAmount } from './pricingValidation';
 
 export const calculateChargeableWeight = (actualWeight = 0, minimumChargeableWeight = 0) => {
   const actual = parseFloat(actualWeight) || 0;
@@ -10,36 +11,28 @@ export const calculateChargeableWeight = (actualWeight = 0, minimumChargeableWei
 
 export const calculateFreightLineItem = (rateRule, shipment) => {
   const basis = rateRule?.rateBasis || 'Per KG';
-  const rate = parseFloat(rateRule?.rate) || 0;
-  const minWeight = parseFloat(rateRule?.minWeight) || 0;
-  const actualWeight = parseFloat(shipment?.actualWeight) || 0;
+  const rate = parseFloat(rateRule?.rate ?? rateRule?.freightRate) || 0;
+  const minWeight = parseFloat(rateRule?.minWeight ?? rateRule?.minimumChargeableWeight) || 0;
+  const actualWeight = parseFloat(shipment?.actualWeight ?? shipment?.chargeableWeight) || 0;
   const packages = parseInt(shipment?.packages, 10) || 1;
 
-  const chargeableWeight = calculateChargeableWeight(actualWeight, minWeight);
-
-  let freightAmount = 0;
-
-  if (basis === 'Per KG') {
-    freightAmount = chargeableWeight * rate;
-  } else if (basis === 'Flat Rate') {
-    freightAmount = rate;
-  } else if (basis === 'Per Box' || basis === 'Per Package') {
-    freightAmount = packages * rate;
-  } else if (basis === 'Weight Slab') {
-    // Select slab rate
-    freightAmount = chargeableWeight * rate;
-  } else {
-    freightAmount = chargeableWeight * rate;
-  }
+  const calc = calculateFreightAmount({
+    rateBasis: basis,
+    baseRate: rate,
+    actualWeight,
+    chargeableWeight: actualWeight,
+    minimumWeight: minWeight,
+    packages
+  });
 
   return {
-    name: `Freight Charges (${basis} @ ₹${rate}${basis === 'Per KG' || basis === 'Weight Slab' ? '/kg' : ''})`,
-    quantity: basis === 'Per KG' || basis === 'Weight Slab' ? chargeableWeight : basis === 'Per Box' ? packages : 1,
-    unit: basis === 'Per KG' || basis === 'Weight Slab' ? 'KG' : basis === 'Per Box' ? 'BOX' : 'SHIPMENT',
+    name: `Base Freight @ ${calc.rateDisplay}`,
+    quantity: calc.quantity,
+    unit: calc.unit,
     rate,
-    amount: Math.round(freightAmount),
-    basis,
-    chargeableWeight
+    amount: calc.freightAmount,
+    basis: calc.rateBasisLabel,
+    chargeableWeight: calc.effectiveWeight
   };
 };
 

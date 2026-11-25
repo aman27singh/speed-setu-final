@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { shipmentService } from '../../services/shipmentService';
 import { companyService } from '../../services/companyService';
 import { billingService } from '../../services/billingService';
-import { getPricingBadgeInfo } from '../../utils/pricingValidation';
+import { getPricingBadgeInfo, resolveShipmentFreightMode, getRateBasisMeta } from '../../utils/pricingValidation';
 import { formatINR, formatDate } from '../../utils/formatters';
 import {
   Calendar,
@@ -206,6 +206,10 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
             quotationNumber: calc.matchedQuotation
           };
 
+          const docketMode = resolveShipmentFreightMode(s) || calc.freightMode || '';
+          const docketRateBasis = freightItem?.rateBasis || calc.rateBasis || s.pricingValidation?.rateBasis || 'Per KG';
+          const docketRateUnit = freightItem?.unit || calc.rateUnit || getRateBasisMeta(docketRateBasis).unit;
+
           evaluatedDockets.push({
             id: s.id || s.cnNumber,
             shipment: s,
@@ -215,10 +219,12 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
             deliveryDate: deliveryDateVal,
             origin: originVal,
             destination: destVal,
-            mode: s.mode || s.freightMode || 'Express LTL',
+            mode: docketMode,
             noPack: s.packages || s.numberOfBoxes || s.noOfBoxes || 1,
             chargeableWeight: wt,
             rate: rate,
+            rateBasis: docketRateBasis,
+            rateUnit: docketRateUnit,
             freightAmount: freightAmt,
             docketCharges: docketAmt,
             pickupCharges: pickupAmt,
@@ -391,9 +397,12 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
           is3PL: is3PL,
           origin: item.origin || item.shipment?.origin || (item.shipment?.consignor && item.shipment.consignor.city) || '-',
           destination: item.destination || item.shipment?.destination || (item.shipment?.consignee && item.shipment.consignee.city) || '-',
+          freightMode: item.mode || resolveShipmentFreightMode(item.shipment),
           noPack: item.noPack || 1,
           weight: item.chargeableWeight > 0 ? item.chargeableWeight : 0,
           rate: item.rate,
+          rateBasis: item.rateBasis || 'Per KG',
+          rateUnit: item.rateUnit || 'Kg',
           freight: item.freightAmount,
           docketCharges: item.docketCharges,
           pickupCharges: item.pickupCharges,
@@ -412,9 +421,25 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
         };
       });
 
+      const resolvedModeMap = new Map();
+      selectedCNsList.forEach((item) => {
+        const m = item.mode || resolveShipmentFreightMode(item.shipment);
+        if (m) {
+          const key = m.toUpperCase();
+          if (!resolvedModeMap.has(key)) resolvedModeMap.set(key, m);
+        }
+      });
+      const resolvedInvoiceMode = Array.from(resolvedModeMap.values()).join(' / ');
+
       const newInvoicePayload = {
         invoiceDate: new Date().toISOString().split('T')[0],
         dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        mode: resolvedInvoiceMode,
+        transportDetails: {
+          mode: resolvedInvoiceMode,
+          hsnCode: hsnCode || '996531',
+          grNo: selectedCNsList.map((s) => s.cnNumber).join(', ')
+        },
         hsnCode: hsnCode || '996531',
         chargingGst: !isGstExempt,
         isGstExempt: isGstExempt,
@@ -441,9 +466,10 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
         paidAmount: 0,
         status: 'Draft',
         billingSnapshot: {
-          mode: selectedCNsList[0]?.mode || 'Express LTL',
+          mode: resolvedInvoiceMode,
           chargeableWeight: totalWeight,
-          ratePerKg: selectedCNsList[0]?.rate || 18
+          ratePerKg: selectedCNsList[0]?.rate || 0,
+          rateBasis: selectedCNsList[0]?.rateBasis || 'Per KG'
         }
       };
 
@@ -680,7 +706,10 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                             <td className="p-2 text-slate-700">{cn.origin} → {cn.destination}</td>
                             <td className="p-2 text-center font-mono">{cn.noPack || 1}</td>
                             <td className="p-2 text-right font-mono font-bold">{cn.chargeableWeight > 0 ? `${cn.chargeableWeight} Kg` : '-'}</td>
-                            <td className="p-2 text-right font-mono">₹{cn.rate || 65}</td>
+                            <td className="p-2 text-right font-mono">
+                              ₹{(cn.rate || 0).toLocaleString('en-IN')}
+                              {cn.rateUnit && cn.rateUnit !== 'Kg' ? ` / ${cn.rateUnit}` : '/Kg'}
+                            </td>
                             <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                               {(() => {
                                 const badge = getPricingBadgeInfo({ pricingValidation: cn.pricingValidation || cn.shipment?.pricingValidation });

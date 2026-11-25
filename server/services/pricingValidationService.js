@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Quotation = require('../models/Quotation');
 const RateCard = require('../models/RateCard');
 const Company = require('../models/Company');
+const { calculateFreightAmount, formatFreightDescription } = require('./freightCalculationService');
 
 /**
  * Normalize location name for deterministic exact route comparison.
@@ -102,7 +103,7 @@ function findMatchingRule(rulesList, origin, destination, mode) {
   return agnosticModeMatch || null;
 }
 
-function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, mode, date, weight = 0 }) {
+function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, mode, date, weight = 0, packages = 1 }) {
   const isQuote = source === 'QUOTATION';
   const baseFreight = typeof matchedRule.freightRate === 'number'
     ? matchedRule.freightRate
@@ -144,10 +145,18 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     taxConfig.reverseCharge ||
     /rcm|reverse\s*charge/i.test(String(taxConfig.notes || doc.notes || ''))
   );
-  const rateBasis = matchedRule.rateBasis || doc.rateBasis || 'Per KG';
+  const rawRateBasis = matchedRule.rateBasis || doc.rateBasis || 'Per KG';
+  const freightCalc = calculateFreightAmount({
+    rateBasis: rawRateBasis,
+    baseRate: baseFreight,
+    actualWeight: weight,
+    chargeableWeight: weight,
+    minimumWeight: minWeight,
+    packages
+  });
 
-  const effectiveWeight = Math.max(weight || minWeight, minWeight);
-  const freightAmount = baseFreight * effectiveWeight;
+  const effectiveWeight = freightCalc.effectiveWeight;
+  const freightAmount = freightCalc.freightAmount;
   const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
   const gstAmount = Math.round(taxableAmount * (gstRate / 100));
   const grandTotal = taxableAmount + gstAmount;
@@ -165,10 +174,12 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     origin,
     destination,
     freightMode: mode,
-    rateBasis,
+    rateBasis: freightCalc.rateBasisLabel,
+    rateBasisNormalized: freightCalc.normalizedBasis,
+    rateUnit: freightCalc.unit,
     baseFreightRate: baseFreight,
     minimumWeight: minWeight,
-    chargeableWeight: effectiveWeight,
+    chargeableWeight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : (Number(weight) || minWeight),
     docketCharges: docketAmt,
     pickupCharges: pickupAmt,
     deliveryCharges: deliveryAmt,
@@ -188,7 +199,22 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
       gstAmount,
       grandTotal,
       lineItems: [
-        { name: 'Freight Charges', rate: baseFreight, weight: effectiveWeight, amount: freightAmount },
+        {
+          name: 'Freight Charges',
+          description: formatFreightDescription({
+            rateBasis: freightCalc.rateBasisLabel,
+            rate: baseFreight,
+            source,
+            agreementNumber: isQuote ? doc.quotationNumber : (doc.rateCardNumber || doc.name),
+            version: doc.version || 1
+          }),
+          rate: baseFreight,
+          rateBasis: freightCalc.rateBasisLabel,
+          quantity: freightCalc.quantity,
+          unit: freightCalc.unit,
+          weight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : 0,
+          amount: freightAmount
+        },
         ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
         ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
         ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])

@@ -6,6 +6,7 @@ const Counter = require('../models/Counter');
 const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
 const { autoResolveShipmentParties } = require('../services/consignorConsigneeService');
 const { validateShipmentPricing } = require('../services/pricingValidationService');
+const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreightMode } = require('../services/freightCalculationService');
 const { protect } = require('../middleware/auth');
 
 // GET /api/shipments — List all shipments
@@ -671,25 +672,41 @@ router.post('/', async (req, res) => {
     } else {
       const rawActual = parseFloat(req.body.actualWeight) || 0;
       const rawVolumetric = parseFloat(req.body.volumetricWeight) || 0;
-      const rawChargeable = parseFloat(req.body.chargeableWeight) || Math.max(rawActual, rawVolumetric, 1);
+      const rawChargeable = parseFloat(req.body.chargeableWeight) || Math.max(rawActual, rawVolumetric, 0);
       const minWeight = pricingResult.minimumChargeableWeight || 50;
-      const effectiveWeight = Math.max(rawChargeable, minWeight);
       const baseFreightRate = pricingResult.appliedRate || 0;
-      const freightAmount = baseFreightRate * effectiveWeight;
 
       const snapshot = pricingResult.pricingSnapshot || {};
+      const rateBasis = pricingResult.rateBasis || snapshot.rateBasis || pricingResult.appliedRuleSnapshot?.rateBasis || 'Per KG';
+      const freightCalc = calculateFreightAmount({
+        rateBasis,
+        baseRate: baseFreightRate,
+        actualWeight: rawActual,
+        chargeableWeight: rawChargeable,
+        minimumWeight: minWeight,
+        packages: req.body.packages || 1
+      });
+      const effectiveWeight = freightCalc.normalizedBasis === 'PER_KG' ? freightCalc.effectiveWeight : (rawChargeable || minWeight);
+      const freightAmount = freightCalc.freightAmount;
+
       const docketAmt = snapshot.docketCharges || 0;
       const pickupAmt = (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (snapshot.pickupCharges || 0);
       const deliveryAmt = (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (snapshot.deliveryCharges || 0);
       const otherAmt = snapshot.otherCharges || 0;
       const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
-      const gstRate = snapshot.gstPercentage !== undefined ? snapshot.gstPercentage : 18;
+      const gstRate = req.body.isGstExempt ? 0 : (snapshot.gstPercentage !== undefined ? snapshot.gstPercentage : 18);
       const gstAmount = Math.round(taxableAmount * (gstRate / 100));
       const grandTotal = taxableAmount + gstAmount;
 
       finalPricingValidation.agreementVersion = pricingResult.agreementVersion || pricingResult.quotationVersion || pricingResult.rateCardVersion || 1;
+      finalPricingValidation.rateBasis = freightCalc.rateBasisLabel;
+      finalPricingValidation.rateBasisNormalized = freightCalc.normalizedBasis;
+      finalPricingValidation.rateUnit = freightCalc.unit;
       finalPricingValidation.pricingSnapshot = {
         ...snapshot,
+        rateBasis: freightCalc.rateBasisLabel,
+        rateBasisNormalized: freightCalc.normalizedBasis,
+        rateUnit: freightCalc.unit,
         chargeableWeight: effectiveWeight,
         baseFreightRate,
         minimumWeight: minWeight,
@@ -708,7 +725,22 @@ router.post('/', async (req, res) => {
           gstAmount,
           grandTotal,
           lineItems: [
-            { name: 'Freight Charges', rate: baseFreightRate, weight: effectiveWeight, amount: freightAmount },
+            {
+              name: 'Freight Charges',
+              description: formatFreightDescription({
+                rateBasis: freightCalc.rateBasisLabel,
+                rate: baseFreightRate,
+                source: pricingResult.source,
+                agreementNumber: pricingResult.quotationNumber || pricingResult.rateCardNumber,
+                version: finalPricingValidation.agreementVersion
+              }),
+              rate: baseFreightRate,
+              rateBasis: freightCalc.rateBasisLabel,
+              quantity: freightCalc.quantity,
+              unit: freightCalc.unit,
+              weight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : 0,
+              amount: freightAmount
+            },
             ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
             ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
             ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])
@@ -769,9 +801,11 @@ router.post('/', async (req, res) => {
           deliveryCharges: (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (finalPricingValidation.pricingSnapshot?.deliveryCharges || 0),
           gstRate: req.body.isGstExempt ? 0 : (finalPricingValidation.pricingSnapshot?.gstPercentage ?? req.body.gstRate ?? 18),
           billingSnapshot: {
-            mode,
+            mode: resolveShipmentFreightMode({ mode, freightMode, pricingValidation: finalPricingValidation }),
             chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
             ratePerKg: finalPricingValidation.appliedRate || 0,
+            appliedRate: finalPricingValidation.appliedRate || 0,
+            rateBasis: finalPricingValidation.rateBasis || 'Per KG',
             quotationNumber: finalPricingValidation.quotationNumber || finalPricingValidation.rateCardNumber,
             version: finalPricingValidation.agreementVersion || 1,
             pricingSource: finalPricingValidation.source

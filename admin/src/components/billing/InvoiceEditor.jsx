@@ -163,9 +163,9 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
       transportDetails: {
         mode:
           inv.transportDetails?.mode ||
-          inv.billingSnapshot?.mode ||
           inv.mode ||
-          "TRAIN",
+          inv.billingSnapshot?.mode ||
+          "",
         hsnCode:
           inv.transportDetails?.hsnCode ||
           inv.hsnCode ||

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { billingService } from '../services/billingService';
 import { shipmentService } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
+import { resolveShipmentFreightMode, getRateBasisMeta } from '../utils/pricingValidation';
 import { formatINR, formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
@@ -184,6 +185,9 @@ export const BillingReviewPage = () => {
       const wt = isGodownOnly ? 1 : (calculation.weight || calculation.shipment?.chargeableWeight || calculation.shipment?.actualWeight || 0);
       const rate = freightItem ? freightItem.rate : (isGodownOnly ? godownItem?.rate || calculation.shipment?.godownCharges || 0 : 0);
       const freightAmt = freightItem ? freightItem.amount : 0;
+      const rateBasisLabel = freightItem?.rateBasis || calculation.rateBasis || 'Per KG';
+      const rateUnitLabel = freightItem?.unit || calculation.rateUnit || getRateBasisMeta(rateBasisLabel).unit;
+      const shipmentMode = resolveShipmentFreightMode(calculation.shipment) || calculation.freightMode || '';
       const docketAmt = isGstExempt ? 0 : (docketItem ? docketItem.amount : 0);
       const pickupAmt = ((typeof calculation.shipment?.pickupCharges === 'number' && !isNaN(calculation.shipment.pickupCharges) && calculation.shipment.pickupCharges > 0) ? calculation.shipment.pickupCharges : (pickupItem ? pickupItem.amount : 0)) + addedPickupAdj;
       const deliveryAmt = ((typeof calculation.shipment?.deliveryCharges === 'number' && !isNaN(calculation.shipment.deliveryCharges) && calculation.shipment.deliveryCharges > 0) ? calculation.shipment.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0)) + addedDeliveryAdj;
@@ -198,9 +202,12 @@ export const BillingReviewPage = () => {
           docketDate: formatDate(calculation.shipment?.cnDate || calculation.shipment?.bookingDate),
           origin: calculation.shipment?.origin || 'Origin',
           destination: calculation.shipment?.destination || 'Destination',
+          freightMode: shipmentMode,
           noPack: calculation.shipment?.packages || calculation.shipment?.noPack || 1,
           weight: wt,
           rate: rate,
+          rateBasis: rateBasisLabel,
+          rateUnit: rateUnitLabel,
           freight: freightAmt,
           docketCharges: docketAmt,
           pickupCharges: pickupAmt,
@@ -229,6 +236,20 @@ export const BillingReviewPage = () => {
 
       const created = await billingService.createInvoice({
         ...calculation,
+        mode: shipmentMode,
+        transportDetails: {
+          mode: shipmentMode,
+          hsnCode: hsnCode || '996531',
+          vehicleNo: calculation.shipment?.operational?.vehicle || '',
+          driverName: calculation.shipment?.operational?.driver || '',
+          grNo: associatedCNs[0] || calculation.cnNumber || ''
+        },
+        billingSnapshot: {
+          ...(calculation.billingSnapshot || {}),
+          mode: shipmentMode,
+          rateBasis: rateBasisLabel,
+          appliedRate: rate
+        },
         cns: associatedCNs,
         shipmentIds: associatedCNs,
         cnNumber: associatedCNs[0] || calculation.cnNumber,
@@ -411,9 +432,13 @@ export const BillingReviewPage = () => {
                 <tr key={idx}>
                   <td className="p-3 font-bold text-slate-900">{item.description || item.name}</td>
                   <td className="p-3 text-center font-mono">
-                    {item.weight ? `${item.weight} Kg` : (item.quantity ? `${item.quantity} ${item.unit || ''}` : '1 Job')}
+                    {item.unit === 'Shipment'
+                      ? '1 Shipment'
+                      : (item.weight ? `${item.weight} Kg` : (item.quantity ? `${item.quantity} ${item.unit || ''}` : '1 Job'))}
                   </td>
-                  <td className="p-3 text-right font-mono">₹{item.rate}</td>
+                  <td className="p-3 text-right font-mono">
+                    ₹{(item.rate || 0).toLocaleString('en-IN')}{item.unit ? ` / ${item.unit}` : ''}
+                  </td>
                   <td className="p-3 text-right font-mono font-bold text-slate-900">{formatINR(item.amount)}</td>
                 </tr>
               ))}

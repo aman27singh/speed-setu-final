@@ -2,6 +2,11 @@
 import { apiRequest, simulateDelay } from './apiClient';
 import { shipmentService } from './shipmentService';
 import { quotationService } from './quotationService';
+import {
+  calculateFreightAmount,
+  resolveShipmentFreightMode,
+  formatFreightDescription
+} from '../utils/pricingValidation';
 
 let invoicesStore = [];
 
@@ -183,7 +188,26 @@ export const billingService = {
       };
     }
 
-    const rawShipmentWeight = shipment.chargeableWeight || Math.max(shipment.actualWeight || 0, shipment.volumetricWeight || 0, 1);
+    const rawShipmentWeight = shipment.chargeableWeight || Math.max(shipment.actualWeight || 0, shipment.volumetricWeight || 0, 0);
+    const shipmentMode = resolveShipmentFreightMode(shipment);
+
+    // Authoritative Backend Freight Calculation Endpoint (Single Source of Truth)
+    try {
+      const backendCalc = await apiRequest('/invoices/calculate-shipment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cnNumber: shipment.cnNumber,
+          shipmentId: shipment._id || shipment.id,
+          shipment
+        })
+      });
+      if (backendCalc && (backendCalc.hasValidRateCard !== undefined || backendCalc.lineItems)) {
+        return backendCalc;
+      }
+    } catch (calcErr) {
+      console.warn('[Billing Engine] Backend calculate-shipment fallback triggered:', calcErr.message);
+    }
 
     // If shipment was confirmed with missing pricing, block agreed rate calculation
     if (shipment.pricingValidation?.status === 'MISSING' || shipment.pricingValidation?.source === 'NONE') {
@@ -192,6 +216,7 @@ export const billingService = {
         shipment,
         cnNumber: shipment.cnNumber,
         companyName: shipment.companyName,
+        freightMode: shipmentMode,
         numberOfBoxes,
         noOfBoxes: numberOfBoxes,
         boxes: numberOfBoxes,
@@ -220,11 +245,6 @@ export const billingService = {
     // =========================================================================
     // IMMUTABLE PRICING PROTECTION: USE SHIPMENT'S SAVED PRICING SNAPSHOT
     // =========================================================================
-    // When a shipment was created with an agreed quotation or rate card,
-    // billing MUST retrieve the shipment's saved pricing snapshot.
-    // Never fetch the latest rate card or recalculate historical shipments.
-    // Rate card and quotation changes apply prospectively, never retroactively.
-    // =========================================================================
     if (shipment.pricingValidation && shipment.pricingValidation.status === 'MATCHED') {
       const pv = shipment.pricingValidation;
       const snap = pv.pricingSnapshot || {};
@@ -234,6 +254,8 @@ export const billingService = {
         ? pv.appliedRate
         : (snap.baseFreightRate || appliedRule.freightRate || 0);
 
+      const rateBasis = pv.rateBasis || snap.rateBasis || appliedRule.rateBasis || 'Per KG';
+
       const minChargeableWeight = typeof pv.minimumChargeableWeight === 'number' && pv.minimumChargeableWeight > 0
         ? pv.minimumChargeableWeight
         : (snap.minimumWeight || appliedRule.minimumChargeableWeight || 50);
@@ -242,8 +264,16 @@ export const billingService = {
       const matchedQuotationNum = pv.quotationNumber || pv.rateCardNumber || snap.agreementNumber || appliedRule.rateCardNumber || appliedRule.quotationNumber || 'Agreed Rate';
 
       const numberOfBoxes = shipment.packages || shipment.numberOfBoxes || shipment.noOfBoxes || shipment.boxes || 1;
-      const effectiveWeight = Math.max(rawShipmentWeight, minChargeableWeight);
-      const freightAmount = Math.round(ratePerKg * effectiveWeight);
+      const freightCalc = calculateFreightAmount({
+        rateBasis,
+        baseRate: ratePerKg,
+        actualWeight: shipment.actualWeight,
+        chargeableWeight: rawShipmentWeight,
+        minimumWeight: minChargeableWeight,
+        packages: numberOfBoxes
+      });
+      const effectiveWeight = freightCalc.normalizedBasis === 'PER_KG' ? freightCalc.effectiveWeight : (rawShipmentWeight || minChargeableWeight);
+      const freightAmount = freightCalc.freightAmount;
 
       // Determine additional charges from saved snapshot / shipment
       let docketCharge = 0;
@@ -277,9 +307,19 @@ export const billingService = {
       const lineItems = [
         {
           name: 'Freight Charges',
-          description: `Base Freight @ ₹${ratePerKg}/Kg (${pv.source === 'QUOTATION' ? 'Company Quotation' : 'Rate Card'} ${matchedQuotationNum} v${quotationVersion})`,
+          description: formatFreightDescription({
+            rateBasis,
+            rate: ratePerKg,
+            source: pv.source,
+            agreementNumber: matchedQuotationNum,
+            version: quotationVersion
+          }),
           cnNumber: shipment.cnNumber,
-          weight: effectiveWeight,
+          rateBasis: freightCalc.rateBasisLabel,
+          rateBasisNormalized: freightCalc.normalizedBasis,
+          weight: freightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : 0,
+          quantity: freightCalc.quantity,
+          unit: freightCalc.unit,
           rate: ratePerKg,
           amount: freightAmount
         }
@@ -353,6 +393,7 @@ export const billingService = {
         shipment,
         cnNumber: shipment.cnNumber,
         companyName: shipment.companyName,
+        freightMode: shipmentMode,
         numberOfBoxes,
         noOfBoxes: numberOfBoxes,
         boxes: numberOfBoxes,
@@ -361,6 +402,12 @@ export const billingService = {
         minChargeableWeight,
         weight: effectiveWeight,
         ratePerKg,
+        appliedRate: ratePerKg,
+        rateBasis: freightCalc.rateBasisLabel,
+        rateBasisNormalized: freightCalc.normalizedBasis,
+        rateUnit: freightCalc.unit,
+        rateDisplay: freightCalc.rateDisplay,
+        freightAmount,
         hasValidRateCard: true,
         matchedQuotation: matchedQuotationNum,
         quotationVersion,
@@ -376,9 +423,12 @@ export const billingService = {
         gstAmount,
         grandTotal,
         billingSnapshot: {
-          mode: pv.freightMode || shipment.mode || 'Air',
+          mode: shipmentMode,
           chargeableWeight: effectiveWeight,
           ratePerKg,
+          appliedRate: ratePerKg,
+          rateBasis: freightCalc.rateBasisLabel,
+          rateBasisNormalized: freightCalc.normalizedBasis,
           quotationNumber: matchedQuotationNum,
           version: quotationVersion,
           pricingSource: pv.source
@@ -716,22 +766,42 @@ export const billingService = {
     if (pickupCharge === 0 && !hasRateCard) pickupCharge = 500;
     if (deliveryCharge === 0 && !hasRateCard) deliveryCharge = 500;
 
+    const legacyRateBasis = matchedRuleInfo?.rateBasis || 'Per KG';
+    const legacyPkgCount = shipment.packages || shipment.numberOfBoxes || shipment.noOfBoxes || shipment.boxes || 1;
     const actualRawWeight = shipment.chargeableWeight || shipment.actualWeight || shipment.volumetricWeight || 0;
-    const effectiveWeight = (hasRateCard && minChargeableWeight > 0)
-      ? Math.max(actualRawWeight, minChargeableWeight)
-      : (actualRawWeight > 0 ? actualRawWeight : 0);
+    const legacyFreightCalc = calculateFreightAmount({
+      rateBasis: legacyRateBasis,
+      baseRate: ratePerKg,
+      actualWeight: shipment.actualWeight,
+      chargeableWeight: actualRawWeight,
+      minimumWeight: hasRateCard ? minChargeableWeight : 0,
+      packages: legacyPkgCount
+    });
+    const effectiveWeight = legacyFreightCalc.normalizedBasis === 'PER_KG'
+      ? ((hasRateCard && minChargeableWeight > 0) ? Math.max(actualRawWeight, minChargeableWeight) : (actualRawWeight > 0 ? actualRawWeight : 0))
+      : (actualRawWeight || minChargeableWeight || 0);
 
-    const freightAmount = effectiveWeight * ratePerKg;
+    const freightAmount = legacyFreightCalc.normalizedBasis === 'PER_KG'
+      ? Math.round(effectiveWeight * ratePerKg)
+      : legacyFreightCalc.freightAmount;
 
     const lineItems = [];
     if (effectiveWeight > 0 || freightAmount > 0 || (isRateFoundFromCard && ratePerKg > 0)) {
       lineItems.push({
         name: `Freight (${shipment.origin} → ${shipment.destination})`,
-        description: `Freight (${shipment.origin} → ${shipment.destination}) [${effectiveWeight} Kg Chargeable Wt @ ₹${ratePerKg}/Kg]`,
+        description: formatFreightDescription({
+          rateBasis: legacyFreightCalc.rateBasisLabel,
+          rate: ratePerKg,
+          source: 'QUOTATION',
+          agreementNumber: matchedQuotationNum,
+          version: quotationVersion
+        }),
         cnNumber: shipment.cnNumber,
-        weight: effectiveWeight,
-        quantity: effectiveWeight,
-        unit: 'Kg',
+        rateBasis: legacyFreightCalc.rateBasisLabel,
+        rateBasisNormalized: legacyFreightCalc.normalizedBasis,
+        weight: legacyFreightCalc.normalizedBasis === 'PER_KG' ? effectiveWeight : 0,
+        quantity: legacyFreightCalc.quantity,
+        unit: legacyFreightCalc.unit,
         rate: ratePerKg,
         amount: freightAmount
       });
@@ -869,6 +939,7 @@ export const billingService = {
       shipment,
       cnNumber: shipment.cnNumber,
       companyName: shipment.companyName,
+      freightMode: shipmentMode,
       numberOfBoxes,
       noOfBoxes: numberOfBoxes,
       boxes: numberOfBoxes,
@@ -877,6 +948,12 @@ export const billingService = {
       minChargeableWeight,
       weight: effectiveWeight,
       ratePerKg,
+      appliedRate: ratePerKg,
+      rateBasis: legacyFreightCalc.rateBasisLabel,
+      rateBasisNormalized: legacyFreightCalc.normalizedBasis,
+      rateUnit: legacyFreightCalc.unit,
+      rateDisplay: legacyFreightCalc.rateDisplay,
+      freightAmount,
       hasValidRateCard: lineItems.length > 0,
       warnings,
       matchedQuotation: matchedQuotationNum,
@@ -887,7 +964,17 @@ export const billingService = {
       subTotal,
       gstRate,
       gstAmount,
-      grandTotal
+      grandTotal,
+      billingSnapshot: {
+        mode: shipmentMode,
+        chargeableWeight: effectiveWeight,
+        ratePerKg,
+        appliedRate: ratePerKg,
+        rateBasis: legacyFreightCalc.rateBasisLabel,
+        rateBasisNormalized: legacyFreightCalc.normalizedBasis,
+        quotationNumber: matchedQuotationNum,
+        version: quotationVersion
+      }
     };
   },
 

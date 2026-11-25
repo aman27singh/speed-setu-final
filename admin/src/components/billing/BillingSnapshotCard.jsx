@@ -21,17 +21,23 @@ export const BillingSnapshotCard = ({ snapshot }) => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-700">
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase block">Quotation Reference</span>
-          <span className="font-mono font-bold text-slate-900">{snapshot.quotationId || 'QT-2026-002'} (Version {snapshot.quotationVersion || 1})</span>
+          <span className="font-mono font-bold text-slate-900">
+            {snapshot.quotationNumber || snapshot.quotationId || snapshot.rateCardNumber || 'Agreed Rate'} (Version {snapshot.version || snapshot.quotationVersion || 1})
+          </span>
         </div>
 
         <div>
           <span className="text-[10px] font-bold text-slate-400 uppercase block">Applied Rate & Basis</span>
-          <span className="font-mono font-bold text-setu-700">₹{snapshot.appliedRate} ({snapshot.rateBasis || 'Per KG'})</span>
+          <span className="font-mono font-bold text-setu-700">
+            ₹{(snapshot.appliedRate ?? snapshot.ratePerKg ?? 0).toLocaleString('en-IN')} ({snapshot.rateBasis || 'Per KG'})
+          </span>
         </div>
 
         <div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">Chargeable Weight</span>
-          <span className="font-mono font-bold text-slate-900">{snapshot.chargeableWeight} Kg (Actual: {snapshot.actualWeight} Kg)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">Freight Mode & Weight</span>
+          <span className="font-mono font-bold text-slate-900">
+            {snapshot.mode || 'N/A'} • {snapshot.chargeableWeight || 0} Kg
+          </span>
         </div>
 
         <div>
