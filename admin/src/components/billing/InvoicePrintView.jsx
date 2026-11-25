@@ -610,12 +610,12 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
       id="printable-invoice"
       className="bg-white text-slate-900 font-sans p-3 sm:p-5 w-full max-w-7xl mx-auto space-y-2.5 print:space-y-2 print:p-0 print:m-0 print:max-w-none text-xs"
     >
-      {/* PRINT-SPECIFIC CSS RULES INJECTED FOR MULTI-PAGE PRECISION */}
+      {/* PRINT-SPECIFIC CSS RULES FOR A4 LANDSCAPE SINGLE-PAGE PDF */}
       <style>{`
         @media print {
           @page {
-            size: A4;
-            margin: 8mm 8mm 8mm 8mm;
+            size: A4 landscape;
+            margin: 4mm;
           }
           body {
             -webkit-print-color-adjust: exact !important;
@@ -623,19 +623,6 @@ export const InvoicePrintView = ({ invoice, defaultTaxType }) => {
           }
           .no-print {
             display: none !important;
-          }
-          table {
-            page-break-inside: auto;
-          }
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-          thead {
-            display: table-header-group;
-          }
-          tfoot {
-            display: table-footer-group;
           }
         }
       `}</style>
