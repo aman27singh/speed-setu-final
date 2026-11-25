@@ -35,6 +35,7 @@ import { PublicTrackingPage } from "./pages/PublicTrackingPage";
 import { BillingPage } from "./pages/BillingPage";
 import { BillingReviewPage } from "./pages/BillingReviewPage";
 import { InvoiceDetailPage } from "./pages/InvoiceDetailPage";
+import { InvoiceEditPage } from "./pages/InvoiceEditPage";
 import { SalesRegisterPage } from "./pages/SalesRegisterPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ReceivablesPage } from "./pages/ReceivablesPage";
@@ -364,6 +365,30 @@ export const AppRoutes = () => {
           element={
             <ProtectedRoute allowedRoles={["Super Admin", "Admin"]}>
               <InvoiceDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="billing/invoices/:id/edit"
+          element={
+            <ProtectedRoute allowedRoles={["Super Admin", "Admin"]}>
+              <InvoiceEditPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="invoices/:invoiceId"
+          element={
+            <ProtectedRoute allowedRoles={["Super Admin", "Admin"]}>
+              <InvoiceDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="invoices/:invoiceId/edit"
+          element={
+            <ProtectedRoute allowedRoles={["Super Admin", "Admin"]}>
+              <InvoiceEditPage />
             </ProtectedRoute>
           }
         />

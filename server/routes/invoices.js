@@ -117,6 +117,8 @@ router.get('/', async (req, res) => {
   }
 });
 
+const escapeRegExp = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // GET /api/invoices/:id — Get single invoice
 router.get('/:id', async (req, res) => {
   try {
@@ -124,7 +126,7 @@ router.get('/:id', async (req, res) => {
     const isValidId = mongoose.isValidObjectId(param);
     const inv = await Invoice.findOne({
       $or: [
-        { invoiceNumber: new RegExp(`^${param}$`, 'i') },
+        { invoiceNumber: new RegExp(`^${escapeRegExp(param)}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
     });
@@ -462,7 +464,7 @@ router.put('/:id', async (req, res) => {
 
     const existing = await Invoice.findOne({
       $or: [
-        { invoiceNumber: new RegExp(`^${param}$`, 'i') },
+        { invoiceNumber: new RegExp(`^${escapeRegExp(param)}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
     });
@@ -526,10 +528,12 @@ router.put('/:id', async (req, res) => {
     req.body.balanceDue = balanceDue;
     req.body.balanceAmount = balanceDue;
 
-    if (balanceDue === 0 && paidAmount > 0) {
-      req.body.status = 'Paid';
-    } else if (paidAmount > 0 && balanceDue > 0 && (!req.body.status || req.body.status === 'Draft' || req.body.status === 'Paid')) {
-      req.body.status = 'Partially Paid';
+    if (existing.status !== 'Cancelled' && req.body.status !== 'Cancelled') {
+      if (balanceDue === 0 && paidAmount > 0) {
+        req.body.status = 'Paid';
+      } else if (paidAmount > 0 && balanceDue > 0 && (!req.body.status || req.body.status === 'Draft' || req.body.status === 'Paid')) {
+        req.body.status = 'Partially Paid';
+      }
     }
 
     // Sync docket numbers with CNs list
@@ -654,7 +658,7 @@ router.delete('/:id', async (req, res) => {
 
     const deleted = await Invoice.findOneAndDelete({
       $or: [
-        { invoiceNumber: new RegExp(`^${param}$`, 'i') },
+        { invoiceNumber: new RegExp(`^${escapeRegExp(param)}$`, 'i') },
         ...(isValidId ? [{ _id: param }] : [])
       ]
     });

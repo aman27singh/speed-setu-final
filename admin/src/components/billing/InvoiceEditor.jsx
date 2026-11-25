@@ -60,14 +60,80 @@ const DEFAULT_BANK = {
   upiId: "",
 };
 
+const toInputDate = (val, fallback = "") => {
+  if (!val) return fallback;
+  const str = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return str.slice(0, 10);
+  const parts = str.split(/[\s\-\/]+/);
+  if (parts.length === 3) {
+    const months = {
+      jan: "01",
+      feb: "02",
+      mar: "03",
+      apr: "04",
+      may: "05",
+      jun: "06",
+      jul: "07",
+      aug: "08",
+      sep: "09",
+      oct: "10",
+      nov: "11",
+      dec: "12",
+    };
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+    }
+    const day = parts[0].padStart(2, "0");
+    const month = isNaN(parts[1])
+      ? months[parts[1].toLowerCase().slice(0, 3)]
+      : parts[1].padStart(2, "0");
+    const year = parts[2];
+    if (year && year.length === 4 && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  const parsed = Date.parse(str);
+  if (!isNaN(parsed)) {
+    return new Date(parsed).toISOString().split("T")[0];
+  }
+  return fallback;
+};
+
+const normalizePartyDetails = (party) => ({
+  name: party?.name || party?.companyName || "",
+  code: party?.code || "",
+  gstin: party?.gstin || "",
+  address: party?.address || "",
+  city: party?.city || "",
+  state: party?.state || "",
+  pin: party?.pin || party?.pinCode || "",
+  contact: party?.contact || party?.phone || "",
+  pickupDeliveryLocation: party?.pickupDeliveryLocation || "",
+});
+
 export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
   // Normalize initial form state
   const normalizeInitialState = (inv) => {
+    const hasDocketGst =
+      Array.isArray(inv.dockets) &&
+      inv.dockets.some(
+        (d) =>
+          (Number(d.cgst) || 0) > 0 ||
+          (Number(d.sgst) || 0) > 0 ||
+          (Number(d.igst) || 0) > 0,
+      );
+
     const rawTaxMode =
       inv.taxMode ||
       (inv.isGstExempt === true ||
       inv.gstRate === 0 ||
-      (inv.gstAmount === 0 && !inv.cgst && !inv.sgst && !inv.igst)
+      (!hasDocketGst &&
+        inv.gstAmount === 0 &&
+        !inv.cgst &&
+        !inv.sgst &&
+        !inv.igst &&
+        ((inv.taxableAmount || 0) > 0 || (inv.subtotal || 0) > 0))
         ? "no_gst"
         : "charging_gst");
 
@@ -78,8 +144,16 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
         slNo: d.slNo || idx + 1,
         docketNo: d.docketNo || d.cnNumber || "",
         docketDate: d.docketDate || d.cnDate || inv.invoiceDate || "",
-        origin: d.origin || "",
-        destination: d.destination || "",
+        deliveryDate: d.deliveryDate || "",
+        is3PL: d.is3PL,
+        origin: d.origin || inv.shipment?.origin || "",
+        destination: d.destination || inv.shipment?.destination || "",
+        freightMode: d.freightMode || d.mode || "",
+        rateBasis: d.rateBasis || "",
+        rateUnit: d.rateUnit || "",
+        agreementNumber: d.agreementNumber || "",
+        agreementVersion: d.agreementVersion || "",
+        pricingSource: d.pricingSource || "",
         noPack: d.noPack || d.numberOfBoxes || d.packages || 1,
         weight: Number(d.weight) || 0,
         rate: Number(d.rate) || 0,
@@ -100,6 +174,109 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
         igst: Number(d.igst) || 0,
         totalInvoiceValue: Number(d.totalInvoiceValue) || 0,
       }));
+    } else if (
+      inv.lineItems &&
+      Array.isArray(inv.lineItems) &&
+      inv.lineItems.length > 0
+    ) {
+      const findItem = (matcher) =>
+        inv.lineItems.find((i) =>
+          matcher((i.name || i.description || "").toLowerCase()),
+        );
+      const freightItem = findItem((t) => t.includes("freight"));
+      const docketItem = findItem((t) => t.includes("docket"));
+      const pickupItem = findItem((t) => t.includes("pickup"));
+      const deliveryItem = findItem((t) => t.includes("delivery"));
+      const packingItem = findItem((t) => t.includes("packing"));
+      const laborItem = findItem(
+        (t) => t.includes("labor") || t.includes("loading"),
+      );
+      const godownItem = findItem(
+        (t) => t.includes("godown") || t.includes("storage"),
+      );
+
+      const freightAmt = Number(freightItem?.amount) || 0;
+      const docketAmt = Number(docketItem?.amount) || 0;
+      const pickupAmt = Number(pickupItem?.amount) || 0;
+      const deliveryAmt = Number(deliveryItem?.amount) || 0;
+      const packingAmt = Number(packingItem?.amount) || 0;
+      const laborAmt = Number(laborItem?.amount) || 0;
+      const godownAmt = Number(godownItem?.amount) || 0;
+      const taxableVal =
+        Number(inv.subTotal ?? inv.subtotal ?? inv.taxableAmount) ||
+        freightAmt +
+          docketAmt +
+          pickupAmt +
+          deliveryAmt +
+          packingAmt +
+          laborAmt +
+          godownAmt;
+      const igstVal =
+        rawTaxMode === "charging_gst"
+          ? Number(inv.gstAmount ?? inv.taxAmount) || 0
+          : 0;
+
+      initDockets = [
+        {
+          id: `docket-${Date.now()}-0`,
+          slNo: 1,
+          docketNo:
+            inv.cnNumber ||
+            (inv.cns && inv.cns[0]) ||
+            (inv.shipmentIds && inv.shipmentIds[0]) ||
+            "",
+          docketDate: inv.invoiceDate || inv.shipment?.cnDate || "",
+          origin: inv.origin || inv.shipment?.origin || "",
+          destination: inv.destination || inv.shipment?.destination || "",
+          freightMode:
+            inv.transportDetails?.mode ||
+            inv.mode ||
+            inv.billingSnapshot?.mode ||
+            "",
+          rateBasis:
+            freightItem?.rateBasis || inv.billingSnapshot?.rateBasis || "",
+          rateUnit: freightItem?.unit || "",
+          noPack:
+            inv.numberOfBoxes ||
+            inv.noOfBoxes ||
+            inv.boxes ||
+            inv.packages ||
+            inv.noPack ||
+            inv.shipment?.packages ||
+            1,
+          weight:
+            Number(
+              freightItem?.weight ||
+                freightItem?.quantity ||
+                inv.weight ||
+                inv.shipment?.chargeableWeight,
+            ) || 0,
+          rate:
+            Number(
+              freightItem?.rate ||
+                godownItem?.rate ||
+                inv.ratePerKg ||
+                inv.rate,
+            ) || 0,
+          freight: freightAmt || taxableVal,
+          docketCharges: docketAmt,
+          pickupCharges: pickupAmt,
+          deliveryCharges: deliveryAmt,
+          packingCharges: packingAmt,
+          laborCharges: laborAmt,
+          godownCharges: godownAmt,
+          godownRatePerMonth: Number(inv.shipment?.godownRatePerMonth) || 0,
+          godownMonths: Number(inv.shipment?.godownMonths) || 1,
+          godownDays: Number(inv.shipment?.godownDays) || 0,
+          otherCharges: packingAmt + laborAmt + godownAmt,
+          taxableAmount: taxableVal,
+          cgst: Number(inv.cgst) || 0,
+          sgst: Number(inv.sgst) || 0,
+          igst: Number(inv.igst) || igstVal,
+          totalInvoiceValue:
+            Number(inv.grandTotal || inv.totalAmount) || taxableVal + igstVal,
+        },
+      ];
     } else {
       initDockets = [
         {
@@ -107,35 +284,49 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
           slNo: 1,
           docketNo: inv.cnNumber || (inv.cns && inv.cns[0]) || "",
           docketDate: inv.invoiceDate || "",
-          origin: inv.origin || "",
-          destination: inv.destination || "",
-          noPack: inv.numberOfBoxes || inv.noPack || 1,
-          weight: Number(inv.weight) || 0,
+          origin: inv.origin || inv.shipment?.origin || "",
+          destination: inv.destination || inv.shipment?.destination || "",
+          noPack:
+            inv.numberOfBoxes ||
+            inv.noOfBoxes ||
+            inv.packages ||
+            inv.noPack ||
+            1,
+          weight: Number(inv.weight || inv.shipment?.chargeableWeight) || 0,
           rate: Number(inv.ratePerKg || inv.rate) || 0,
-          freight: Number(inv.subTotal || inv.taxableAmount) || 0,
-          docketCharges: 0,
-          pickupCharges: 0,
-          deliveryCharges: 0,
-          packingCharges: 0,
-          laborCharges: 0,
-          godownCharges: 0,
+          freight: Number(inv.subTotal ?? inv.subtotal ?? inv.taxableAmount) || 0,
+          docketCharges: Number(inv.docketCharges) || 0,
+          pickupCharges: Number(inv.pickupCharges) || 0,
+          deliveryCharges: Number(inv.deliveryCharges) || 0,
+          packingCharges: Number(inv.packingCharges) || 0,
+          laborCharges: Number(inv.laborCharges) || 0,
+          godownCharges: Number(inv.godownCharges) || 0,
           godownRatePerMonth: 0,
           godownMonths: 1,
           godownDays: 0,
-          otherCharges: 0,
-          taxableAmount: Number(inv.subTotal || inv.taxableAmount) || 0,
-          cgst: 0,
-          sgst: 0,
-          igst: Number(inv.gstAmount) || 0,
+          otherCharges: Number(inv.otherCharges) || 0,
+          taxableAmount:
+            Number(inv.subTotal ?? inv.subtotal ?? inv.taxableAmount) || 0,
+          cgst: Number(inv.cgst) || 0,
+          sgst: Number(inv.sgst) || 0,
+          igst: Number(inv.igst ?? inv.gstAmount) || 0,
           totalInvoiceValue: Number(inv.grandTotal || inv.totalAmount) || 0,
         },
       ];
     }
 
+    const billToSrc = inv.billToDetails || inv.billTo || {};
+    const compBill =
+      inv.companyBilling || inv.billing || inv.company?.billing || {};
+    const shipConsignor = inv.shipment?.consignor || {};
+
     return {
       invoiceNumber: inv.invoiceNumber || "",
-      invoiceDate: inv.invoiceDate || new Date().toISOString().split("T")[0],
-      dueDate: inv.dueDate || "",
+      invoiceDate: toInputDate(
+        inv.invoiceDate || inv.createdAt,
+        new Date().toISOString().split("T")[0],
+      ),
+      dueDate: toInputDate(inv.dueDate, ""),
       status: inv.status || "Draft",
       taxMode: rawTaxMode,
       gstRate: typeof inv.gstRate === "number" ? inv.gstRate : 18,
@@ -147,18 +338,71 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
       },
 
       billToDetails: {
-        companyId: inv.billToDetails?.companyId || inv.companyId || "",
-        companyName: inv.billToDetails?.companyName || inv.companyName || "",
+        companyId:
+          billToSrc.companyId ||
+          inv.companyId ||
+          inv.company?.id ||
+          inv.company?._id ||
+          "",
+        companyName:
+          billToSrc.companyName ||
+          compBill.companyName ||
+          inv.companyName ||
+          inv.company?.companyName ||
+          "",
         address:
-          inv.billToDetails?.address || inv.companyAddress || inv.address || "",
-        addressLine2: inv.billToDetails?.addressLine2 || "",
-        city: inv.billToDetails?.city || inv.city || "",
-        state: inv.billToDetails?.state || inv.state || "",
-        pinCode: inv.billToDetails?.pinCode || inv.pinCode || "",
-        gstin: inv.billToDetails?.gstin || inv.companyGstin || inv.gstin || "",
-        phone: inv.billToDetails?.phone || "",
-        email: inv.billToDetails?.email || "",
+          billToSrc.address ||
+          inv.companyAddress ||
+          inv.address ||
+          compBill.address ||
+          shipConsignor.address ||
+          "",
+        addressLine2:
+          billToSrc.addressLine2 || compBill.addressLine2 || "",
+        city:
+          billToSrc.city ||
+          inv.city ||
+          compBill.city ||
+          shipConsignor.city ||
+          "",
+        state:
+          billToSrc.state ||
+          inv.state ||
+          compBill.state ||
+          shipConsignor.state ||
+          "",
+        pinCode:
+          billToSrc.pinCode ||
+          inv.pinCode ||
+          compBill.pinCode ||
+          shipConsignor.pin ||
+          "",
+        gstin:
+          billToSrc.gstin ||
+          inv.companyGstin ||
+          inv.gstin ||
+          compBill.gstin ||
+          inv.company?.gstin ||
+          shipConsignor.gstin ||
+          "",
+        phone:
+          billToSrc.phone ||
+          inv.company?.primaryContact?.phone ||
+          shipConsignor.contact ||
+          "",
+        email:
+          billToSrc.email ||
+          compBill.billingEmail ||
+          inv.company?.primaryContact?.email ||
+          "",
       },
+
+      consignorDetails: normalizePartyDetails(
+        inv.consignorDetails || inv.consignor || inv.shipment?.consignor,
+      ),
+      consigneeDetails: normalizePartyDetails(
+        inv.consigneeDetails || inv.consignee || inv.shipment?.consignee,
+      ),
 
       transportDetails: {
         mode:
@@ -171,11 +415,26 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
           inv.hsnCode ||
           inv.billingSnapshot?.hsnCode ||
           "996531",
-        vehicleNo: inv.transportDetails?.vehicleNo || inv.vehicleNo || "",
-        driverName: inv.transportDetails?.driverName || "",
+        vehicleNo:
+          inv.transportDetails?.vehicleNo ||
+          inv.vehicleNo ||
+          inv.shipment?.operational?.vehicle ||
+          "",
+        driverName:
+          inv.transportDetails?.driverName ||
+          inv.shipment?.operational?.driver ||
+          "",
         driverPhone: inv.transportDetails?.driverPhone || "",
-        grNo: inv.transportDetails?.grNo || (inv.cns && inv.cns[0]) || "",
-        lrDate: inv.transportDetails?.lrDate || inv.invoiceDate || "",
+        grNo:
+          inv.transportDetails?.grNo ||
+          inv.grNo ||
+          inv.cnNumber ||
+          (inv.cns && inv.cns[0]) ||
+          "",
+        lrDate: toInputDate(
+          inv.transportDetails?.lrDate || inv.invoiceDate,
+          "",
+        ),
         notes: inv.transportDetails?.notes || "",
       },
 
@@ -236,15 +495,18 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
   const [validatingDuplicates, setValidatingDuplicates] = useState(false);
   const [saveErrorBanner, setSaveErrorBanner] = useState("");
 
-  // Column visibility for extra charges
-  const [visibleColumns, setVisibleColumns] = useState({
-    packing: false,
-    labor: false,
-    godown: false,
-    docket: true,
-    pickup: true,
-    delivery: true,
-    other: true,
+  // Column visibility for extra charges (auto-show if any existing docket has those charges)
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    const dList = form.dockets || [];
+    return {
+      packing: dList.some((d) => (Number(d.packingCharges) || 0) > 0),
+      labor: dList.some((d) => (Number(d.laborCharges) || 0) > 0),
+      godown: dList.some((d) => (Number(d.godownCharges) || 0) > 0),
+      docket: true,
+      pickup: true,
+      delivery: true,
+      other: true,
+    };
   });
 
   // UI view mode: 'editor' | 'split' | 'preview'
@@ -311,7 +573,7 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
     setValidatingDuplicates(true);
     try {
       const res = await billingService.validateDuplicates({
-        currentInvoiceId: initialInvoice.id || initialInvoice._id,
+        currentInvoiceId: initialInvoice._id || initialInvoice.id,
         currentInvoiceNumber: initialInvoice.invoiceNumber,
         invoiceNumber: targetInvNum,
         dockets: currentDockets,
@@ -381,11 +643,36 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
   }, [form.invoiceNumber, form.dockets]);
 
   // Recalculate row math helper
-  const recalculateRow = (row, taxMode, gstRate) => {
+  const recalculateRow = (row, taxMode, gstRate, editedField = null) => {
+    if (editedField === "totalInvoiceValue") {
+      return {
+        ...row,
+        totalInvoiceValue: Number(row.totalInvoiceValue) || 0,
+      };
+    }
+
     const wt = Number(row.weight) || 0;
     const rate = Number(row.rate) || 0;
-    const freight =
-      wt > 0 && rate > 0 ? Math.round(wt * rate) : Number(row.freight) || 0;
+    const basisLower = String(row.rateBasis || "").toLowerCase();
+    const isFixedBasis =
+      basisLower.includes("shipment") || basisLower.includes("flat");
+
+    let freight = Number(row.freight) || 0;
+    if (editedField === "freight") {
+      freight = Number(row.freight) || 0;
+    } else if (editedField === "weight" || editedField === "rate") {
+      if (isFixedBasis) {
+        freight = editedField === "rate" ? Math.round(rate) : freight;
+      } else if (wt > 0 && rate > 0) {
+        freight = Math.round(wt * rate);
+      }
+    } else if (
+      row.freight === undefined ||
+      row.freight === null ||
+      row.freight === ""
+    ) {
+      freight = wt > 0 && rate > 0 && !isFixedBasis ? Math.round(wt * rate) : 0;
+    }
 
     const docketChg = Number(row.docketCharges) || 0;
     const pickupChg = Number(row.pickupCharges) || 0;
@@ -399,13 +686,23 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
     const effectiveOther = otherChg > 0 ? otherChg : extraAggregated;
 
     const taxableAmount =
-      freight + docketChg + pickupChg + deliveryChg + effectiveOther;
+      editedField === "taxableAmount"
+        ? Number(row.taxableAmount) || 0
+        : freight + docketChg + pickupChg + deliveryChg + effectiveOther;
 
-    let cgst = 0;
-    let sgst = 0;
-    let igst = 0;
+    let cgst = Number(row.cgst) || 0;
+    let sgst = Number(row.sgst) || 0;
+    let igst = Number(row.igst) || 0;
 
-    if (taxMode === "charging_gst") {
+    if (taxMode !== "charging_gst") {
+      cgst = 0;
+      sgst = 0;
+      igst = 0;
+    } else if (
+      editedField !== "cgst" &&
+      editedField !== "sgst" &&
+      editedField !== "igst"
+    ) {
       const isInterState =
         row.origin &&
         row.destination &&
@@ -415,9 +712,12 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
 
       if (isInterState) {
         igst = Math.round(taxableAmount * (ratePct / 100));
+        cgst = 0;
+        sgst = 0;
       } else {
         cgst = Math.round(taxableAmount * (ratePct / 200));
         sgst = Math.round(taxableAmount * (ratePct / 200));
+        igst = 0;
       }
     }
 
@@ -527,7 +827,12 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
   const handleDocketChange = (index, field, value) => {
     const updated = [...form.dockets];
     const currentRow = { ...updated[index], [field]: value };
-    updated[index] = recalculateRow(currentRow, form.taxMode, form.gstRate);
+    updated[index] = recalculateRow(
+      currentRow,
+      form.taxMode,
+      form.gstRate,
+      field,
+    );
     setForm((prev) => ({ ...prev, dockets: updated }));
   };
 
@@ -766,13 +1071,21 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
       supplierDetails: form.supplierDetails,
       billToDetails: form.billToDetails,
       billTo: form.billToDetails,
+      consignorDetails: form.consignorDetails,
+      consigneeDetails: form.consigneeDetails,
+      consignor: form.consignorDetails,
+      consignee: form.consigneeDetails,
       companyName: form.billToDetails.companyName,
       companyAddress: form.billToDetails.address,
       companyGstin: form.billToDetails.gstin,
+      city: form.billToDetails.city,
+      state: form.billToDetails.state,
+      pinCode: form.billToDetails.pinCode,
       transportDetails: form.transportDetails,
       mode: form.transportDetails.mode,
       hsnCode: form.transportDetails.hsnCode,
       vehicleNo: form.transportDetails.vehicleNo,
+      grNo: form.transportDetails.grNo,
       dockets: form.dockets,
       totals: finalTotals,
       taxableAmount: finalTotals.totalTaxableAmount,
@@ -1324,6 +1637,40 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
                   placeholder="e.g. Special express delivery consignment for monthly contract"
                 />
               </div>
+
+              {/* Existing Payment Summary (Preserved across edits) */}
+              <div className="grid grid-cols-3 gap-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Paid Amount
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    {formatINR(initialInvoice.paidAmount || 0)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Outstanding Balance
+                  </span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(
+                      Math.max(
+                        0,
+                        (liveInvoice.grandTotal || 0) -
+                          (initialInvoice.paidAmount || 0),
+                      ),
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Payment Status
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    {form.status}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* SECTION B: SUPPLIER DETAILS */}
@@ -1545,6 +1892,36 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
                   Select from Existing Customers
                 </label>
                 <select
+                  value={
+                    companiesList.find(
+                      (c) =>
+                        (c.id || c.companyId || c._id) ===
+                          form.billToDetails.companyId ||
+                        (c.companyName &&
+                          form.billToDetails.companyName &&
+                          c.companyName.toLowerCase() ===
+                            form.billToDetails.companyName.toLowerCase()),
+                    )?.id ||
+                    companiesList.find(
+                      (c) =>
+                        (c.id || c.companyId || c._id) ===
+                          form.billToDetails.companyId ||
+                        (c.companyName &&
+                          form.billToDetails.companyName &&
+                          c.companyName.toLowerCase() ===
+                            form.billToDetails.companyName.toLowerCase()),
+                    )?.companyId ||
+                    companiesList.find(
+                      (c) =>
+                        (c.id || c.companyId || c._id) ===
+                          form.billToDetails.companyId ||
+                        (c.companyName &&
+                          form.billToDetails.companyName &&
+                          c.companyName.toLowerCase() ===
+                            form.billToDetails.companyName.toLowerCase()),
+                    )?._id ||
+                    ""
+                  }
                   onChange={(e) => {
                     const comp = companiesList.find(
                       (c) => (c.id || c.companyId || c._id) === e.target.value,
@@ -1731,6 +2108,145 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
                     }
                     className="w-full p-2 bg-slate-50 border border-slate-300 rounded text-slate-900"
                   />
+                </div>
+              </div>
+
+              {/* Shipment Consignor & Consignee Details */}
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-lg space-y-2">
+                  <div className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                    Consignor Details
+                  </div>
+                  <input
+                    type="text"
+                    value={form.consignorDetails.name}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        consignorDetails: {
+                          ...prev.consignorDetails,
+                          name: e.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded font-semibold text-slate-900"
+                    placeholder="Consignor Name"
+                  />
+                  <input
+                    type="text"
+                    value={form.consignorDetails.address}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        consignorDetails: {
+                          ...prev.consignorDetails,
+                          address: e.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-800"
+                    placeholder="Consignor Address"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={form.consignorDetails.city}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          consignorDetails: {
+                            ...prev.consignorDetails,
+                            city: e.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-800"
+                      placeholder="City"
+                    />
+                    <input
+                      type="text"
+                      value={form.consignorDetails.gstin}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          consignorDetails: {
+                            ...prev.consignorDetails,
+                            gstin: e.target.value.toUpperCase(),
+                          },
+                        }))
+                      }
+                      className="w-full p-1.5 bg-white border border-slate-300 rounded font-mono text-slate-800"
+                      placeholder="GSTIN"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-lg space-y-2">
+                  <div className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                    Consignee Details
+                  </div>
+                  <input
+                    type="text"
+                    value={form.consigneeDetails.name}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        consigneeDetails: {
+                          ...prev.consigneeDetails,
+                          name: e.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded font-semibold text-slate-900"
+                    placeholder="Consignee Name"
+                  />
+                  <input
+                    type="text"
+                    value={form.consigneeDetails.address}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        consigneeDetails: {
+                          ...prev.consigneeDetails,
+                          address: e.target.value,
+                        },
+                      }))
+                    }
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-800"
+                    placeholder="Consignee Address"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={form.consigneeDetails.city}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          consigneeDetails: {
+                            ...prev.consigneeDetails,
+                            city: e.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-800"
+                      placeholder="City"
+                    />
+                    <input
+                      type="text"
+                      value={form.consigneeDetails.gstin}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          consigneeDetails: {
+                            ...prev.consigneeDetails,
+                            gstin: e.target.value.toUpperCase(),
+                          },
+                        }))
+                      }
+                      className="w-full p-1.5 bg-white border border-slate-300 rounded font-mono text-slate-800"
+                      placeholder="GSTIN"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -3033,7 +3549,7 @@ export const InvoiceEditor = ({ initialInvoice, onSave, onCancel }) => {
             <p className="text-xs text-slate-600 leading-relaxed">
               You have made modifications to this invoice that have not yet been
               saved to MongoDB. Are you sure you want to discard your edits and
-              return to view mode?
+              return to invoice details?
             </p>
             <div className="flex justify-end gap-2 pt-2 text-xs">
               <button

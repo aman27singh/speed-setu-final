@@ -979,7 +979,9 @@ export const billingService = {
   },
 
   async getInvoice(id) {
-    if (!id || id === 'undefined') throw new Error('Invalid Invoice identifier.');
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      throw new Error('Invalid Invoice identifier.');
+    }
 
     try {
       const response = await apiRequest(`/invoices/${encodeURIComponent(id)}`);
@@ -1089,6 +1091,7 @@ export const billingService = {
           inv._id === formatted._id ||
           inv.id === formatted.id ||
           inv.invoiceNumber === id ||
+          inv._id === id ||
           inv.id === id
         );
         if (index !== -1) invoicesStore[index] = formatted;

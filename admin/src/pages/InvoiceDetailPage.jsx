@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  useNavigate,
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
 import { billingService } from "../services/billingService";
 import { apiRequest } from "../services/apiClient";
 import { formatDate, formatINR } from "../utils/formatters";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { LoadingState } from "../components/common/LoadingState";
+import { ErrorState } from "../components/common/ErrorState";
 import { BillingSnapshotCard } from "../components/billing/BillingSnapshotCard";
 import { InvoicePrintView } from "../components/billing/InvoicePrintView";
 import { InvoiceEditor } from "../components/billing/InvoiceEditor";
@@ -26,16 +32,17 @@ import {
 } from "lucide-react";
 
 export const InvoiceDetailPage = () => {
-  const { id } = useParams();
+  const { id: paramId, invoiceId } = useParams();
+  const id = paramId || invoiceId;
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("preview"); // 'preview' | 'snapshot' | 'history'
-  const [isEditing, setIsEditing] = useState(
-    searchParams.get("edit") === "true",
-  );
+  const [isEditing, setIsEditing] = useState(false);
 
   // Cancellation Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -52,8 +59,24 @@ export const InvoiceDetailPage = () => {
 
   const [toastMessage, setToastMessage] = useState("");
 
+  useEffect(() => {
+    if (location.state?.toastMessage) {
+      setToastMessage(location.state.toastMessage);
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+      const timer = setTimeout(() => setToastMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state, location.pathname, location.search, navigate]);
+
   const fetchInvoiceData = async () => {
+    if (!id || id === "undefined" || id === "null" || !String(id).trim()) {
+      setError("Invalid or missing invoice identifier.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    setError(null);
     try {
       const data = await billingService.getInvoice(id);
       setInvoice(data);
@@ -67,8 +90,7 @@ export const InvoiceDetailPage = () => {
         setPaymentAmount(String(bal > 0 ? bal : ""));
       }
     } catch (err) {
-      alert(err.message || "Failed to load invoice profile.");
-      navigate("/admin/billing");
+      setError(err.message || "Failed to load invoice profile.");
     } finally {
       setLoading(false);
     }
@@ -182,7 +204,34 @@ export const InvoiceDetailPage = () => {
     return <LoadingState message="Loading Freight Invoice Profile..." />;
   }
 
-  if (!invoice) return null;
+  if (error || !invoice) {
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto py-8">
+        <ErrorState
+          title="Unable to Load Invoice"
+          message={
+            error ||
+            "The requested invoice could not be found or the invoice ID is invalid."
+          }
+          onRetry={
+            id && id !== "undefined" && id !== "null"
+              ? fetchInvoiceData
+              : undefined
+          }
+        />
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/billing")}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Billing & Invoices</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -223,7 +272,7 @@ export const InvoiceDetailPage = () => {
           <button
             onClick={() =>
               navigate(
-                `/admin/billing/invoices/${encodeURIComponent(invoice.id || invoice.invoiceNumber)}/edit`,
+                `/admin/billing/invoices/${encodeURIComponent(invoice._id || invoice.id || invoice.invoiceNumber)}/edit`,
               )
             }
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg shadow-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200"

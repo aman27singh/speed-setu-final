@@ -98,7 +98,7 @@ export const BillingPage = () => {
       accessor: 'invoiceNumber',
       render: (row) => (
         <span
-          onClick={() => navigate(`/admin/billing/invoices/${row.id}`)}
+          onClick={() => navigate(`/admin/billing/invoices/${encodeURIComponent(row.id || row.invoiceNumber || row._id)}`)}
           className="font-bold text-setu-600 font-mono hover:underline cursor-pointer"
         >
           {row.invoiceNumber}
@@ -168,7 +168,7 @@ export const BillingPage = () => {
       render: (row) => (
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => navigate(`/admin/billing/invoices/${row.id}`)}
+            onClick={() => navigate(`/admin/billing/invoices/${encodeURIComponent(row.id || row.invoiceNumber || row._id)}`)}
             className="p-1.5 text-slate-500 hover:text-setu-600 hover:bg-slate-100 rounded transition-colors"
             title="View Invoice Profile"
           >
@@ -176,7 +176,7 @@ export const BillingPage = () => {
           </button>
 
           <button
-            onClick={() => navigate(`/admin/billing/invoices/${row.id}?edit=true`)}
+            onClick={() => navigate(`/admin/billing/invoices/${encodeURIComponent(row._id || row.id || row.invoiceNumber)}/edit`)}
             className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
             title="Edit Full Invoice"
           >
@@ -379,7 +379,7 @@ export const BillingPage = () => {
         <DataTable
           columns={invoiceColumns}
           data={invoices}
-          onRowClick={(row) => navigate(`/admin/billing/invoices/${row.id}`)}
+          onRowClick={(row) => navigate(`/admin/billing/invoices/${encodeURIComponent(row.id || row.invoiceNumber || row._id)}`)}
           emptyMessage="No invoices found"
           emptySubtext="Try adjusting your search criteria or generate a new invoice."
         />
