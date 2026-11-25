@@ -5,6 +5,7 @@ const Shipment = require('../models/Shipment');
 const Counter = require('../models/Counter');
 const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
 const { autoResolveShipmentParties } = require('../services/consignorConsigneeService');
+const { validateShipmentPricing } = require('../services/pricingValidationService');
 const { protect } = require('../middleware/auth');
 
 // GET /api/shipments — List all shipments
@@ -22,10 +23,29 @@ router.get('/', async (req, res) => {
       weight,
       date,
       startDate,
-      endDate
+      endDate,
+      pricingStatus
     } = req.query;
 
     const andConditions = [];
+
+    // Pricing Status Filter
+    if (pricingStatus && pricingStatus !== 'All') {
+      if (pricingStatus === 'Quotation' || pricingStatus === 'QUOTATION') {
+        andConditions.push({ 'pricingValidation.status': 'MATCHED', 'pricingValidation.source': 'QUOTATION' });
+      } else if (pricingStatus === 'RateCard' || pricingStatus === 'RATE_CARD') {
+        andConditions.push({ 'pricingValidation.status': 'MATCHED', 'pricingValidation.source': 'RATE_CARD' });
+      } else if (pricingStatus === 'NoQuotation' || pricingStatus === 'Missing' || pricingStatus === 'MISSING') {
+        andConditions.push({
+          $or: [
+            { 'pricingValidation.status': 'MISSING' },
+            { 'pricingValidation.source': 'NONE' },
+            { pricingValidation: null },
+            { pricingValidation: { $exists: false } }
+          ]
+        });
+      }
+    }
 
     // 1. Status Filter
     if (status && status !== 'All') {
@@ -507,6 +527,28 @@ router.get('/next-cn', async (req, res) => {
   }
 });
 
+// POST /api/shipments/validate-pricing — Pre-save validation of quotation & rate card coverage
+router.post('/validate-pricing', async (req, res) => {
+  try {
+    const { companyId, companyCode, companyName, origin, destination, freightMode, mode, date } = req.body;
+    const result = await validateShipmentPricing({
+      companyId,
+      companyCode,
+      companyName,
+      origin,
+      destination,
+      freightMode,
+      mode,
+      date
+    }, mongoose.connection);
+
+    res.json(result);
+  } catch (err) {
+    console.error('[Shipments Validate Pricing Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/shipments/:idOrCN — Get single shipment details
 router.get('/:idOrCN', async (req, res) => {
   try {
@@ -584,6 +626,110 @@ router.post('/', async (req, res) => {
     const finalOrigin = req.body.origin || consignor?.pickupDeliveryLocation || consignor?.city || 'Booking Branch Hub';
     const finalDestination = req.body.destination || consignee?.pickupDeliveryLocation || consignee?.city || '';
 
+    // Company-Specific Quotation & Rate Card Validation
+    const pricingResult = await validateShipmentPricing({
+      companyId: req.body.companyId,
+      companyCode: req.body.companyCode,
+      companyName: req.body.companyName,
+      origin: finalOrigin,
+      destination: finalDestination,
+      freightMode,
+      mode,
+      date: bookingDate
+    }, mongoose.connection);
+
+    const overrideConfirmed = Boolean(req.body.overrideConfirmed || req.body.pricingValidation?.overrideConfirmed);
+
+    if (pricingResult.status === 'MISSING' && !overrideConfirmed) {
+      return res.status(400).json({
+        error: 'Missing Pricing Coverage',
+        message: 'The selected company does not have an applicable quotation or rate card for this route and mode. Confirmation required to proceed.',
+        requiresConfirmation: true,
+        pricingValidation: pricingResult
+      });
+    }
+
+    let finalPricingValidation = {
+      ...pricingResult,
+      validatedAt: new Date()
+    };
+
+    if (pricingResult.status === 'MISSING') {
+      finalPricingValidation.overrideConfirmed = true;
+      finalPricingValidation.overrideConfirmedBy = req.body.overrideConfirmedBy || req.body.createdBy || 'Admin';
+      finalPricingValidation.overrideConfirmedAt = new Date();
+      finalPricingValidation.auditLog = [{
+        action: 'Shipment created without agreed pricing (Override Confirmed)',
+        previousStatus: 'NONE',
+        newStatus: 'MISSING',
+        previousSource: 'NONE',
+        newSource: 'NONE',
+        reason: 'User confirmed proceeding without quotation or rate card coverage',
+        modifiedBy: finalPricingValidation.overrideConfirmedBy,
+        modifiedAt: new Date()
+      }];
+    } else {
+      const rawActual = parseFloat(req.body.actualWeight) || 0;
+      const rawVolumetric = parseFloat(req.body.volumetricWeight) || 0;
+      const rawChargeable = parseFloat(req.body.chargeableWeight) || Math.max(rawActual, rawVolumetric, 1);
+      const minWeight = pricingResult.minimumChargeableWeight || 50;
+      const effectiveWeight = Math.max(rawChargeable, minWeight);
+      const baseFreightRate = pricingResult.appliedRate || 0;
+      const freightAmount = baseFreightRate * effectiveWeight;
+
+      const snapshot = pricingResult.pricingSnapshot || {};
+      const docketAmt = snapshot.docketCharges || 0;
+      const pickupAmt = (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (snapshot.pickupCharges || 0);
+      const deliveryAmt = (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (snapshot.deliveryCharges || 0);
+      const otherAmt = snapshot.otherCharges || 0;
+      const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
+      const gstRate = snapshot.gstPercentage !== undefined ? snapshot.gstPercentage : 18;
+      const gstAmount = Math.round(taxableAmount * (gstRate / 100));
+      const grandTotal = taxableAmount + gstAmount;
+
+      finalPricingValidation.agreementVersion = pricingResult.agreementVersion || pricingResult.quotationVersion || pricingResult.rateCardVersion || 1;
+      finalPricingValidation.pricingSnapshot = {
+        ...snapshot,
+        chargeableWeight: effectiveWeight,
+        baseFreightRate,
+        minimumWeight: minWeight,
+        docketCharges: docketAmt,
+        pickupCharges: pickupAmt,
+        deliveryCharges: deliveryAmt,
+        otherCharges: otherAmt,
+        calculatedCharges: {
+          freightAmount,
+          docketCharges: docketAmt,
+          pickupCharges: pickupAmt,
+          deliveryCharges: deliveryAmt,
+          otherCharges: otherAmt,
+          taxableAmount,
+          gstRate,
+          gstAmount,
+          grandTotal,
+          lineItems: [
+            { name: 'Freight Charges', rate: baseFreightRate, weight: effectiveWeight, amount: freightAmount },
+            ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
+            ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
+            ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])
+          ]
+        },
+        isImmutable: true,
+        capturedAt: new Date()
+      };
+
+      finalPricingValidation.auditLog = [{
+        action: `Shipment created with ${pricingResult.source} coverage (v${finalPricingValidation.agreementVersion})`,
+        previousStatus: 'NONE',
+        newStatus: 'MATCHED',
+        previousSource: 'NONE',
+        newSource: pricingResult.source,
+        reason: `Agreed pricing applied (${pricingResult.source === 'QUOTATION' ? pricingResult.quotationNumber : pricingResult.rateCardNumber} v${finalPricingValidation.agreementVersion})`,
+        modifiedBy: req.body.createdBy || 'Admin',
+        modifiedAt: new Date()
+      }];
+    }
+
     const maxSaveRetries = 3;
     let saved = null;
     let saveAttempt = 0;
@@ -618,6 +764,15 @@ router.post('/', async (req, res) => {
           consigneeId,
           consignorSnapshot,
           consigneeSnapshot,
+          pricingValidation: finalPricingValidation,
+          billingSnapshot: {
+            mode,
+            chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
+            ratePerKg: finalPricingValidation.appliedRate || 0,
+            quotationNumber: finalPricingValidation.quotationNumber || finalPricingValidation.rateCardNumber,
+            version: finalPricingValidation.agreementVersion || 1,
+            pricingSource: finalPricingValidation.source
+          },
           chargeableWeight: req.body.chargeableWeight || req.body.volumetricWeight || req.body.actualWeight || 0,
           volumetricWeight: req.body.volumetricWeight || req.body.chargeableWeight || 0,
           billingStatus: req.body.billingStatus || 'Not Ready',
@@ -1050,6 +1205,77 @@ router.put('/:idOrCN', async (req, res) => {
       if (combinedAwb) updatePayload.awbNumber = combinedAwb;
     }
 
+    // Section 7: Pricing Revalidation When Shipment Details Change
+    const originChanged = req.body.origin !== undefined && req.body.origin !== existing.origin;
+    const destChanged = req.body.destination !== undefined && req.body.destination !== existing.destination;
+    const compChanged = (req.body.companyId !== undefined && req.body.companyId !== existing.companyId) ||
+                        (req.body.companyName !== undefined && req.body.companyName !== existing.companyName);
+    const modeChanged = (req.body.mode !== undefined && req.body.mode !== existing.mode) ||
+                        (req.body.freightMode !== undefined && req.body.freightMode !== existing.freightMode);
+
+    if (originChanged || destChanged || compChanged || modeChanged) {
+      const targetOrigin = req.body.origin || existing.origin;
+      const targetDest = req.body.destination || existing.destination;
+      const targetCompId = req.body.companyId || existing.companyId;
+      const targetCompCode = req.body.companyCode || existing.companyCode;
+      const targetCompName = req.body.companyName || existing.companyName;
+      const targetMode = req.body.freightMode || req.body.mode || existing.freightMode || existing.mode;
+      const targetDate = updatePayload.bookingDate || existing.bookingDate;
+
+      const revalResult = await validateShipmentPricing({
+        companyId: targetCompId,
+        companyCode: targetCompCode,
+        companyName: targetCompName,
+        origin: targetOrigin,
+        destination: targetDest,
+        freightMode: targetMode,
+        mode: targetMode,
+        date: targetDate
+      }, mongoose.connection);
+
+      const overrideConfirmed = Boolean(req.body.overrideConfirmed || req.body.pricingValidation?.overrideConfirmed);
+
+      if (revalResult.status === 'MISSING' && !overrideConfirmed) {
+        return res.status(400).json({
+          error: 'Pricing Revalidation Warning',
+          message: 'The updated route or company details are not covered by any quotation or rate card. Confirmation required to proceed.',
+          requiresConfirmation: true,
+          pricingValidation: revalResult
+        });
+      }
+
+      const prevStatus = existing.pricingValidation?.status || 'MISSING';
+      const prevSource = existing.pricingValidation?.source || 'NONE';
+      const existingAudit = Array.isArray(existing.pricingValidation?.auditLog)
+        ? existing.pricingValidation.auditLog
+        : [];
+
+      const newAuditEntry = {
+        action: 'Shipment route/company details changed - Pricing revalidated',
+        previousStatus: prevStatus,
+        newStatus: revalResult.status,
+        previousSource: prevSource,
+        newSource: revalResult.source,
+        reason: `Route/company changed to ${targetOrigin} → ${targetDest} (${targetMode})`,
+        modifiedBy: req.body.modifiedBy || req.body.updatedBy || 'Admin',
+        modifiedAt: new Date()
+      };
+
+      updatePayload.pricingValidation = {
+        ...revalResult,
+        overrideConfirmed: revalResult.status === 'MISSING' ? true : false,
+        overrideConfirmedBy: revalResult.status === 'MISSING' ? (req.body.overrideConfirmedBy || req.body.modifiedBy || 'Admin') : null,
+        overrideConfirmedAt: revalResult.status === 'MISSING' ? new Date() : null,
+        auditLog: [...existingAudit, newAuditEntry],
+        validatedAt: new Date()
+      };
+    } else if (req.body.pricingValidation) {
+      updatePayload.pricingValidation = {
+        ...(existing.pricingValidation || {}),
+        ...req.body.pricingValidation
+      };
+    }
+
     // Track status history if CN changed or status changed
     const oldCN = existing.cnNumber;
     const cnChanged = oldCN && targetCN && oldCN.toLowerCase() !== targetCN.toLowerCase();
@@ -1082,6 +1308,172 @@ router.put('/:idOrCN', async (req, res) => {
     res.json(updated);
   } catch (err) {
     console.error('[Shipment Update Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/shipments/:idOrCN/pricing — Assign quotation, rate card, or revalidate pricing for a shipment
+router.patch('/:idOrCN/pricing', async (req, res) => {
+  try {
+    const param = req.params.idOrCN;
+    const isValidId = mongoose.isValidObjectId(param);
+
+    const shipment = await Shipment.findOne({
+      $or: [
+        { cnNumber: new RegExp(`^${escapeRegExp(param)}$`, 'i') },
+        ...(isValidId ? [{ _id: param }] : [])
+      ]
+    });
+
+    if (!shipment) return res.status(404).json({ error: 'Shipment not found' });
+
+    const { action, quotationId, rateCardId, reason, modifiedBy } = req.body;
+    const prevStatus = shipment.pricingValidation?.status || 'MISSING';
+    const prevSource = shipment.pricingValidation?.source || 'NONE';
+    const existingAudit = Array.isArray(shipment.pricingValidation?.auditLog) ? shipment.pricingValidation.auditLog : [];
+
+    let updatedValidation = null;
+
+    if (action === 'assign_quotation' && quotationId) {
+      const Quotation = require('../models/Quotation');
+      const { findMatchingRule } = require('../services/pricingValidationService');
+      const isObjectId = mongoose.Types.ObjectId.isValid(quotationId);
+      const quote = await Quotation.findOne(isObjectId ? { $or: [{ _id: quotationId }, { quotationNumber: quotationId }] } : { quotationNumber: quotationId });
+      if (!quote) return res.status(404).json({ error: 'Quotation not found' });
+
+      const rulesList = [...(Array.isArray(quote.rateRules) ? quote.rateRules : []), ...(Array.isArray(quote.routes) ? quote.routes : [])];
+      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, shipment.freightMode || shipment.mode);
+      const appliedRate = matchedRule ? (typeof matchedRule.freightRate === 'number' ? matchedRule.freightRate : (parseFloat(matchedRule.freightRate) || 0)) : (quote.rateRules?.[0]?.freightRate || 0);
+      const minWeight = matchedRule ? (typeof matchedRule.minimumChargeableWeight === 'number' ? matchedRule.minimumChargeableWeight : (parseFloat(matchedRule.minimumChargeableWeight) || 50)) : (quote.rateRules?.[0]?.minimumChargeableWeight || 50);
+
+      updatedValidation = {
+        status: 'MATCHED',
+        source: 'QUOTATION',
+        quotationId: quote._id.toString(),
+        quotationNumber: quote.quotationNumber,
+        quotationVersion: quote.version || 1,
+        rateCardId: null,
+        rateCardNumber: null,
+        rateCardVersion: null,
+        companyId: quote.companyId || shipment.companyId,
+        companyName: quote.companyName || shipment.companyName,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        freightMode: shipment.freightMode || shipment.mode,
+        appliedRate: appliedRate,
+        minimumChargeableWeight: minWeight,
+        appliedRuleSnapshot: matchedRule || quote.rateRules?.[0] || null,
+        validatedAt: new Date(),
+        overrideConfirmed: false,
+        overrideConfirmedBy: null,
+        overrideConfirmedAt: null,
+        auditLog: [
+          ...existingAudit,
+          {
+            action: 'Quotation assigned manually',
+            previousStatus: prevStatus,
+            newStatus: 'MATCHED',
+            previousSource: prevSource,
+            newSource: 'QUOTATION',
+            reason: reason || `Quotation ${quote.quotationNumber} assigned`,
+            modifiedBy: modifiedBy || 'Admin',
+            modifiedAt: new Date()
+          }
+        ]
+      };
+    } else if (action === 'assign_rate_card' && rateCardId) {
+      const RateCard = require('../models/RateCard');
+      const { findMatchingRule } = require('../services/pricingValidationService');
+      const isObjectId = mongoose.Types.ObjectId.isValid(rateCardId);
+      const rc = await RateCard.findOne(isObjectId ? { $or: [{ _id: rateCardId }, { rateCardNumber: rateCardId }] } : { rateCardNumber: rateCardId });
+      if (!rc) return res.status(404).json({ error: 'Rate card not found' });
+
+      const rulesList = [...(Array.isArray(rc.rateRules) ? rc.rateRules : []), ...(Array.isArray(rc.routes) ? rc.routes : [])];
+      const matchedRule = findMatchingRule(rulesList, shipment.origin, shipment.destination, shipment.freightMode || shipment.mode);
+      const appliedRate = matchedRule ? (typeof matchedRule.freightRate === 'number' ? matchedRule.freightRate : (parseFloat(matchedRule.freightRate) || 0)) : (rc.rateRules?.[0]?.freightRate || 0);
+      const minWeight = matchedRule ? (typeof matchedRule.minimumChargeableWeight === 'number' ? matchedRule.minimumChargeableWeight : (parseFloat(matchedRule.minimumChargeableWeight) || 50)) : (rc.rateRules?.[0]?.minimumChargeableWeight || 50);
+
+      updatedValidation = {
+        status: 'MATCHED',
+        source: 'RATE_CARD',
+        quotationId: null,
+        quotationNumber: null,
+        quotationVersion: null,
+        rateCardId: rc._id.toString(),
+        rateCardNumber: rc.rateCardNumber,
+        rateCardName: rc.name,
+        rateCardVersion: rc.version || 1,
+        companyId: shipment.companyId,
+        companyName: shipment.companyName,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        freightMode: shipment.freightMode || shipment.mode,
+        appliedRate: appliedRate,
+        minimumChargeableWeight: minWeight,
+        appliedRuleSnapshot: matchedRule || rc.rateRules?.[0] || null,
+        validatedAt: new Date(),
+        overrideConfirmed: false,
+        overrideConfirmedBy: null,
+        overrideConfirmedAt: null,
+        auditLog: [
+          ...existingAudit,
+          {
+            action: 'Rate card assigned manually',
+            previousStatus: prevStatus,
+            newStatus: 'MATCHED',
+            previousSource: prevSource,
+            newSource: 'RATE_CARD',
+            reason: reason || `Rate Card ${rc.rateCardNumber} assigned`,
+            modifiedBy: modifiedBy || 'Admin',
+            modifiedAt: new Date()
+          }
+        ]
+      };
+    } else {
+      // Default: Revalidate automatically
+      const reval = await validateShipmentPricing({
+        companyId: shipment.companyId,
+        companyCode: shipment.companyCode,
+        companyName: shipment.companyName,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        freightMode: shipment.freightMode || shipment.mode,
+        mode: shipment.mode,
+        date: shipment.bookingDate || shipment.cnDate
+      }, mongoose.connection);
+
+      updatedValidation = {
+        ...reval,
+        overrideConfirmed: reval.status === 'MISSING' ? (shipment.pricingValidation?.overrideConfirmed || false) : false,
+        overrideConfirmedBy: reval.status === 'MISSING' ? shipment.pricingValidation?.overrideConfirmedBy : null,
+        overrideConfirmedAt: reval.status === 'MISSING' ? shipment.pricingValidation?.overrideConfirmedAt : null,
+        auditLog: [
+          ...existingAudit,
+          {
+            action: 'Pricing revalidated via API',
+            previousStatus: prevStatus,
+            newStatus: reval.status,
+            previousSource: prevSource,
+            newSource: reval.source,
+            reason: reason || 'Triggered revalidation',
+            modifiedBy: modifiedBy || 'Admin',
+            modifiedAt: new Date()
+          }
+        ],
+        validatedAt: new Date()
+      };
+    }
+
+    shipment.pricingValidation = updatedValidation;
+    await shipment.save();
+
+    res.json({
+      success: true,
+      message: 'Pricing validation updated successfully',
+      pricingValidation: shipment.pricingValidation
+    });
+  } catch (err) {
+    console.error('[Shipments Pricing Update Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

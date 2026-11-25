@@ -74,6 +74,7 @@ export const QuotationFormPage = () => {
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [companies, setCompanies] = useState([]);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -90,8 +91,8 @@ export const QuotationFormPage = () => {
         const searchParams = new URLSearchParams(location.search);
         const queryCompanyId = searchParams.get('companyId');
 
-        if (id) {
-          const existing = await quotationService.getQuotation(id);
+        if (id && id !== 'undefined' && id !== 'null' && String(id).trim()) {
+          const existing = await quotationService.getQuotation(String(id).trim());
           if (isNewVersionMode) {
             // New Version Mode: copy data and bump version
             setFormData({
@@ -202,6 +203,7 @@ export const QuotationFormPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError(null);
     const validationErrors = validateQuotationForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -211,21 +213,31 @@ export const QuotationFormPage = () => {
 
     setSaving(true);
     try {
+      let savedRecord = null;
       if (isNewVersionMode) {
-        const createdVersion = await quotationService.createQuotationVersion(id, formData);
-        const targetId = createdVersion._id || createdVersion.id || createdVersion.quotationNumber;
-        navigate(`/admin/quotations/${targetId}`);
+        savedRecord = await quotationService.createQuotationVersion(id, formData);
       } else if (isEditMode) {
-        const updated = await quotationService.updateQuotation(id, formData);
-        const targetId = updated._id || updated.id || id;
-        navigate(`/admin/quotations/${targetId}`);
+        savedRecord = await quotationService.updateQuotation(id, formData);
       } else {
-        const created = await quotationService.createQuotation(formData);
-        const targetId = created._id || created.id || created.quotationNumber;
-        navigate(`/admin/quotations/${targetId}`);
+        savedRecord = await quotationService.createQuotation(formData);
       }
+
+      if (!savedRecord) {
+        throw new Error('Server returned an empty response. Quotation may not have been saved.');
+      }
+
+      const targetId = savedRecord.quotationNumber || savedRecord.id || savedRecord._id;
+      if (!targetId || targetId === 'undefined' || targetId === 'null') {
+        throw new Error('Saved quotation record is missing its ID or Quotation Number.');
+      }
+
+      // Explicitly navigate to the newly created/updated quotation's detail page
+      navigate(`/admin/quotations/${encodeURIComponent(targetId)}`);
     } catch (err) {
-      alert(err.message || 'Failed to save quotation.');
+      console.error('[Quotation Form Error] Save failed:', err);
+      const errMsg = err?.data?.message || err?.data?.error || err.message || 'Failed to save quotation.';
+      setSubmitError(errMsg);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
@@ -258,6 +270,17 @@ export const QuotationFormPage = () => {
           </button>
         }
       />
+
+      {/* API Submission Error Banner */}
+      {submitError && (
+        <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-rose-800 text-xs font-medium space-y-1">
+          <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Quotation Could Not Be Saved</span>
+          </div>
+          <p className="text-rose-700">{submitError}</p>
+        </div>
+      )}
 
       {/* Global Errors Banner */}
       {Object.keys(errors).length > 0 && (

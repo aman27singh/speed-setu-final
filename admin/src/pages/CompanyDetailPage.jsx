@@ -527,7 +527,7 @@ export const CompanyDetailPage = () => {
               </thead>
               <tbody>
                 {rateCards.map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/admin/quotations/${q.id}`)}>
+                  <tr key={q.id || q._id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/admin/quotations/${encodeURIComponent(q.quotationNumber || q.id)}`)}>
                     <td className="font-bold font-mono text-setu-600">{q.quotationNumber}</td>
                     <td><span className="font-semibold text-slate-700">v{q.version}</span></td>
                     <td className="font-mono text-xs">{formatDate(q.effectiveFrom)} - {q.effectiveUntil ? formatDate(q.effectiveUntil) : 'Ongoing'}</td>
@@ -537,7 +537,7 @@ export const CompanyDetailPage = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/quotations/${q.id}`);
+                          navigate(`/admin/quotations/${encodeURIComponent(q.quotationNumber || q.id)}`);
                         }}
                         className="text-xs font-bold text-setu-600 hover:underline"
                       >

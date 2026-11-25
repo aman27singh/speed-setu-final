@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { companyService } from '../services/companyService';
-import { formatINR } from '../utils/formatters';
+import { formatINR, compareCompanyCodes } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable } from '../components/common/DataTable';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -82,6 +82,11 @@ export const CompaniesPage = () => {
 
   const paymentTermsOptions = ['All', 'Due on Receipt', '7 Days', '15 Days', '30 Days', '45 Days', '60 Days'];
   const stateOptions = ['All', 'Karnataka', 'Haryana', 'Jharkhand', 'Delhi', 'Maharashtra', 'Gujarat', 'Uttar Pradesh'];
+
+  // Guarantee strict dynamic ascending numeric sort by Company Code
+  const sortedCompanies = useMemo(() => {
+    return [...companies].sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
+  }, [companies]);
 
   const columns = [
     {
@@ -291,7 +296,7 @@ export const CompaniesPage = () => {
             />
           </div>
           <span className="text-slate-500 font-medium shrink-0 text-[11px] sm:text-xs">
-            Showing <strong>{companies.length}</strong> Corporate Clients
+            Showing <strong>{sortedCompanies.length}</strong> Corporate Clients
           </span>
         </div>
       </div>
@@ -304,7 +309,7 @@ export const CompaniesPage = () => {
       ) : (
         <DataTable
           columns={columns}
-          data={companies}
+          data={sortedCompanies}
           onRowClick={(row) => navigate(`/admin/companies/${row.id}`)}
           emptyMessage="No companies found"
           emptySubtext="Try adjusting your search query, status, or state filters."

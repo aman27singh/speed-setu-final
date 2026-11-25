@@ -3,6 +3,37 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Company = require('../models/Company');
 
+// Natural numeric comparator for company codes (Ascending Order)
+function compareCompanyCodes(codeA, codeB) {
+  const strA = String(codeA || '').trim();
+  const strB = String(codeB || '').trim();
+  if (!strA && !strB) return 0;
+  if (!strA) return 1;
+  if (!strB) return -1;
+
+  const regex = /^([a-zA-Z_\-\s]*?)(\d+)(.*)$/;
+  const matchA = strA.match(regex);
+  const matchB = strB.match(regex);
+
+  if (matchA && matchB) {
+    const prefixA = matchA[1].toLowerCase().replace(/[^a-z0-9]/g, '');
+    const prefixB = matchB[1].toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (prefixA === prefixB) {
+      const numA = parseInt(matchA[2], 10);
+      const numB = parseInt(matchB[2], 10);
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      if (matchA[3] || matchB[3]) {
+        return matchA[3].localeCompare(matchB[3], undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+  }
+
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 // GET /api/companies — List all companies
 router.get('/', async (req, res) => {
   try {
@@ -22,7 +53,11 @@ router.get('/', async (req, res) => {
         { 'primaryContact.email': { $regex: q, $options: 'i' } }
       ];
     }
-    const companies = await Company.find(query).sort({ createdAt: -1 });
+    const companies = await Company.find(query)
+      .collation({ locale: 'en', numericOrdering: true })
+      .sort({ companyCode: 1 });
+    // Guarantee natural numeric ascending order in-memory
+    companies.sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
     res.json(companies);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -31,11 +31,20 @@ export const QuotationsPage = () => {
 
   // Filters
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [modeFilter, setModeFilter] = useState('All');
 
   const [toastMessage, setToastMessage] = useState('');
+
+  // Debounce search input to prevent rapid duplicate API requests while typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -43,7 +52,7 @@ export const QuotationsPage = () => {
     try {
       const [quotesData, compData] = await Promise.all([
         quotationService.getQuotations({
-          search,
+          search: debouncedSearch,
           companyId: companyFilter,
           status: statusFilter,
           mode: modeFilter,
@@ -62,7 +71,7 @@ export const QuotationsPage = () => {
 
   useEffect(() => {
     fetchData();
-  }, [search, companyFilter, statusFilter, modeFilter]);
+  }, [debouncedSearch, companyFilter, statusFilter, modeFilter]);
 
   const handleDuplicate = async (id, qNum) => {
     try {
@@ -92,7 +101,7 @@ export const QuotationsPage = () => {
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <span
-            onClick={() => navigate(`/admin/quotations/${row.id}`)}
+            onClick={() => navigate(`/admin/quotations/${encodeURIComponent(row.quotationNumber || row.id)}`)}
             className="font-bold text-setu-600 font-mono hover:underline cursor-pointer"
           >
             {row.quotationNumber}
@@ -174,7 +183,7 @@ export const QuotationsPage = () => {
       render: (row) => (
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => navigate(`/admin/quotations/${row.id}`)}
+            onClick={() => navigate(`/admin/quotations/${encodeURIComponent(row.quotationNumber || row.id)}`)}
             className="p-1.5 text-slate-500 hover:text-setu-600 hover:bg-slate-100 rounded transition-colors"
             title="View Quotation Profile"
           >
@@ -182,7 +191,7 @@ export const QuotationsPage = () => {
           </button>
 
           <button
-            onClick={() => navigate(`/admin/quotations/${row.id}/new-version`)}
+            onClick={() => navigate(`/admin/quotations/${encodeURIComponent(row.quotationNumber || row.id)}/new-version`)}
             className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded transition-colors"
             title="Create New Version (V+1)"
           >
@@ -190,7 +199,7 @@ export const QuotationsPage = () => {
           </button>
 
           <button
-            onClick={() => handleDuplicate(row.id, row.quotationNumber)}
+            onClick={() => handleDuplicate(row.quotationNumber || row.id, row.quotationNumber)}
             className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-slate-100 rounded transition-colors"
             title="Duplicate Quotation"
           >
@@ -304,7 +313,7 @@ export const QuotationsPage = () => {
         <DataTable
           columns={columns}
           data={quotations}
-          onRowClick={(row) => navigate(`/admin/quotations/${row.id}`)}
+          onRowClick={(row) => navigate(`/admin/quotations/${encodeURIComponent(row.quotationNumber || row.id)}`)}
           emptyMessage="No quotations found"
           emptySubtext="Try adjusting your company, status, or search filters."
         />

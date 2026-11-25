@@ -11,7 +11,23 @@ const QuotationSchema = new mongoose.Schema({
   validUntil: String,
   rateRules: Array,
   routes: Array,
-  additionalCharges: Object
+  additionalCharges: Object,
+  versionHistory: [{
+    version: { type: Number, required: true },
+    companyId: String,
+    companyName: String,
+    companyCode: String,
+    rateRules: Array,
+    routes: Array,
+    additionalCharges: mongoose.Schema.Types.Mixed,
+    taxConfiguration: mongoose.Schema.Types.Mixed,
+    validFrom: String,
+    validUntil: String,
+    status: String,
+    supersededAt: { type: Date, default: Date.now },
+    supersededBy: { type: String, default: 'Admin' },
+    changeSummary: String
+  }]
 }, { timestamps: true, strict: false });
 
 module.exports = mongoose.model('Quotation', QuotationSchema);

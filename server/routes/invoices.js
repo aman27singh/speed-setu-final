@@ -118,8 +118,94 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // -------------------------------------------------------------
+    // Section 6: Mandatory Pricing Validation Before Invoicing
+    // Every selected CN must have valid pricing coverage (Quotation or Rate Card).
+    // A shipment with pricingValidation.status = MISSING must not be billed.
+    // -------------------------------------------------------------
+    const Shipment = require('../models/Shipment');
+    const { validateShipmentPricing } = require('../services/pricingValidationService');
+
+    const unpricedShipments = [];
+    let shipmentsInInvoice = [];
+
+    if (associatedCNs.length > 0) {
+      shipmentsInInvoice = await Shipment.find({
+        cnNumber: { $in: associatedCNs.map(c => new RegExp(`^${String(c).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) }
+      });
+
+      for (const cn of associatedCNs) {
+        const found = shipmentsInInvoice.find(s => s.cnNumber?.toLowerCase() === String(cn).toLowerCase());
+        if (!found) {
+          unpricedShipments.push({
+            cnNumber: cn,
+            company: req.body.companyName || 'Unknown',
+            route: 'Unknown',
+            issue: 'Shipment record not found in MongoDB'
+          });
+          continue;
+        }
+
+        // Check if shipment has valid pricingValidation
+        let pricing = found.pricingValidation;
+
+        // If legacy shipment has no pricingValidation, run validateShipmentPricing on-the-fly
+        if (!pricing || !pricing.status) {
+          pricing = await validateShipmentPricing({
+            companyId: found.companyId,
+            companyCode: found.companyCode,
+            companyName: found.companyName,
+            origin: found.origin,
+            destination: found.destination,
+            freightMode: found.freightMode || found.mode,
+            mode: found.mode,
+            date: found.bookingDate || found.cnDate
+          }, mongoose.connection);
+        }
+
+        if (pricing.status === 'MISSING' || pricing.source === 'NONE') {
+          unpricedShipments.push({
+            cnNumber: found.cnNumber,
+            company: found.companyName || req.body.companyName || 'Unknown',
+            route: `${found.origin || '-'} → ${found.destination || '-'}`,
+            issue: 'No quotation / rate card'
+          });
+        }
+      }
+    }
+
+    if (unpricedShipments.length > 0) {
+      console.warn(`[Invoice Blocked] Invoice generation blocked due to ${unpricedShipments.length} unpriced shipment(s):`, unpricedShipments);
+      return res.status(400).json({
+        error: 'Pricing Validation Failed',
+        message: 'Cannot Generate Tax Invoice – Some selected shipments do not have an applicable quotation or rate card.',
+        unpricedShipments
+      });
+    }
+
+    let finalDockets = req.body.dockets || [];
+    if (Array.isArray(finalDockets) && finalDockets.length > 0 && shipmentsInInvoice) {
+      finalDockets = finalDockets.map(d => {
+        const matchingShipment = shipmentsInInvoice.find(s => s.cnNumber?.toLowerCase() === (d.docketNo || d.cnNumber)?.toLowerCase());
+        if (matchingShipment && matchingShipment.pricingValidation) {
+          const pv = matchingShipment.pricingValidation;
+          const version = pv.quotationVersion || pv.rateCardVersion || pv.agreementVersion || 1;
+          const agreementNum = pv.quotationNumber || pv.rateCardNumber || 'Agreed Rate';
+          return {
+            ...d,
+            rate: (d.rate !== undefined && d.rate > 0) ? d.rate : pv.appliedRate,
+            agreementNumber: agreementNum,
+            agreementVersion: version,
+            pricingSource: pv.source
+          };
+        }
+        return d;
+      });
+    }
+
     const newInvoice = new Invoice({
       ...req.body,
+      dockets: finalDockets,
       cns: associatedCNs,
       shipmentIds: associatedCNs,
       cnNumber: associatedCNs[0] || req.body.cnNumber,

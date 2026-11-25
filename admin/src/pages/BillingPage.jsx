@@ -43,8 +43,17 @@ export const BillingPage = () => {
   const [error, setError] = useState(null);
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [companyFilter, setCompanyFilter] = useState('All');
+
+  // Debounce search to prevent rapid duplicate requests while typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fetchBillingData = async () => {
     setLoading(true);
@@ -52,7 +61,7 @@ export const BillingPage = () => {
     try {
       const [metrics, invData, readyData, compData] = await Promise.all([
         billingService.getBillingDashboard(),
-        billingService.getInvoices({ search, status: statusFilter, companyId: companyFilter }),
+        billingService.getInvoices({ search: debouncedSearch, status: statusFilter, companyId: companyFilter }),
         billingService.getReadyForBillingShipments(),
         companyService.getCompanies()
       ]);
@@ -70,7 +79,7 @@ export const BillingPage = () => {
 
   useEffect(() => {
     fetchBillingData();
-  }, [search, statusFilter, companyFilter]);
+  }, [debouncedSearch, statusFilter, companyFilter]);
 
   const statusOptions = [
     { label: 'All Invoices', value: 'All' },

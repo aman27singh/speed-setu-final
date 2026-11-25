@@ -5,6 +5,7 @@ import { formatDate, formatINR } from '../utils/formatters';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
+import { ErrorState } from '../components/common/ErrorState';
 import {
   FileSpreadsheet,
   Building2,
@@ -31,23 +32,36 @@ export const QuotationDetailPage = () => {
 
   const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [expandedRuleIndex, setExpandedRuleIndex] = useState(0);
 
   const fetchQuotation = async () => {
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      console.warn('[Quotation Detail] Invalid quotation identifier in URL:', id);
+      setLoading(false);
+      navigate('/admin/quotations', { replace: true });
+      return;
+    }
+
     setLoading(true);
+    setError(null);
     try {
-      const data = await quotationService.getQuotation(id);
+      const data = await quotationService.getQuotation(String(id).trim());
       setQuotation(data);
     } catch (err) {
-      alert(err.message || 'Failed to load quotation details.');
-      navigate('/admin/quotations');
+      console.error('[Quotation Detail] Error fetching quotation:', err);
+      setError(err.message || 'Failed to load quotation details.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      navigate('/admin/quotations', { replace: true });
+      return;
+    }
     fetchQuotation();
   }, [id]);
 
@@ -55,7 +69,7 @@ export const QuotationDetailPage = () => {
     try {
       const duplicated = await quotationService.duplicateQuotation(id);
       setToastMessage(`Quotation ${quotation.quotationNumber} duplicated into draft ${duplicated.quotationNumber}!`);
-      setTimeout(() => navigate(`/admin/quotations/${duplicated.id}`), 1000);
+      setTimeout(() => navigate(`/admin/quotations/${encodeURIComponent(duplicated.quotationNumber || duplicated.id)}`), 1000);
     } catch (err) {
       alert(err.message || 'Failed to duplicate quotation.');
     }
@@ -76,6 +90,26 @@ export const QuotationDetailPage = () => {
 
   if (loading) {
     return <LoadingState message="Loading Rate Card Agreement profile..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 max-w-4xl mx-auto pt-6">
+        <ErrorState
+          title="Quotation Not Found"
+          message={error}
+          onRetry={fetchQuotation}
+        />
+        <div className="text-center">
+          <button
+            onClick={() => navigate('/admin/quotations')}
+            className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+          >
+            ← Back to Quotations List
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!quotation) return null;
@@ -123,7 +157,7 @@ export const QuotationDetailPage = () => {
         {/* Actions Bar */}
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
-            onClick={() => navigate(`/admin/quotations/${quotation.id}/new-version`)}
+            onClick={() => navigate(`/admin/quotations/${encodeURIComponent(quotation.quotationNumber || quotation.id)}/new-version`)}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-600 hover:text-white transition-colors flex-1 sm:flex-initial"
           >
             <GitBranch className="w-3.5 h-3.5" />
@@ -131,7 +165,7 @@ export const QuotationDetailPage = () => {
           </button>
 
           <button
-            onClick={() => navigate(`/admin/quotations/${quotation.id}/edit`)}
+            onClick={() => navigate(`/admin/quotations/${encodeURIComponent(quotation.quotationNumber || quotation.id)}/edit`)}
             className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors flex-1 sm:flex-initial"
           >
             <Edit className="w-3.5 h-3.5" />

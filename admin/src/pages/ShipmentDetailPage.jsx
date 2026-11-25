@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { shipmentService } from '../services/shipmentService';
 import { billingService } from '../services/billingService';
+import { pricingService } from '../services/pricingService';
+import { quotationService } from '../services/quotationService';
+import { getPricingBadgeInfo } from '../utils/pricingValidation';
 import { formatINR, formatDate } from '../utils/formatters';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PageHeader } from '../components/common/PageHeader';
@@ -39,7 +42,9 @@ import {
   Eye,
   Download,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck,
+  FileCheck
 } from 'lucide-react';
 
 export const ShipmentDetailPage = () => {
@@ -66,6 +71,17 @@ export const ShipmentDetailPage = () => {
   const [statusTransporterType, setStatusTransporterType] = useState('Market Driver');
   const [statusTransporter, setStatusTransporter] = useState('Market Driver');
   const [statusPickupCost, setStatusPickupCost] = useState('');
+
+  // Pricing Resolution States
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [pricingAction, setPricingAction] = useState('revalidate');
+  const [availableQuotations, setAvailableQuotations] = useState([]);
+  const [availableRateCards, setAvailableRateCards] = useState([]);
+  const [selectedQuoteId, setSelectedQuoteId] = useState('');
+  const [selectedRateCardId, setSelectedRateCardId] = useState('');
+  const [pricingResolutionReason, setPricingResolutionReason] = useState('');
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [loadingPricingOptions, setLoadingPricingOptions] = useState(false);
 
   const [toastMessage, setToastMessage] = useState('');
 
@@ -143,6 +159,48 @@ export const ShipmentDetailPage = () => {
       setTimeout(() => setToastMessage(''), 4000);
     } catch (err) {
       alert(err.message || 'Failed to update status.');
+    }
+  };
+
+  const handleOpenPricingModal = async () => {
+    setShowPricingModal(true);
+    setLoadingPricingOptions(true);
+    try {
+      const [quotes, rateCards] = await Promise.all([
+        quotationService.getQuotations({ companyId: shipment?.companyId || 'All', status: 'Active' }).catch(() => []),
+        pricingService.getRateCards({ status: 'Active' }).catch(() => [])
+      ]);
+      setAvailableQuotations(quotes || []);
+      setAvailableRateCards(rateCards || []);
+      if (quotes && quotes.length > 0) setSelectedQuoteId(quotes[0].id || quotes[0].quotationNumber);
+      if (rateCards && rateCards.length > 0) setSelectedRateCardId(rateCards[0].id || rateCards[0]._id || rateCards[0].rateCardNumber);
+    } catch (e) {
+      console.warn('Failed to load pricing options:', e.message);
+    } finally {
+      setLoadingPricingOptions(false);
+    }
+  };
+
+  const handleSavePricingResolution = async (e) => {
+    e.preventDefault();
+    setSavingPricing(true);
+    try {
+      await pricingService.assignPricing(shipment.cnNumber || shipment.id || shipment._id, {
+        action: pricingAction,
+        quotationId: pricingAction === 'assign_quotation' ? selectedQuoteId : undefined,
+        rateCardId: pricingAction === 'assign_rate_card' ? selectedRateCardId : undefined,
+        reason: pricingResolutionReason || 'Operational manual assignment',
+        modifiedBy: 'Admin User'
+      });
+      setToastMessage('Pricing agreement successfully updated and validated!');
+      setShowPricingModal(false);
+      setPricingResolutionReason('');
+      await fetchShipment();
+      setTimeout(() => setToastMessage(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Failed to update pricing agreement.');
+    } finally {
+      setSavingPricing(false);
     }
   };
 
@@ -229,6 +287,18 @@ export const ShipmentDetailPage = () => {
                 <StatusBadge status={shipment.status || 'Booked'} />
                 <StatusBadge status={shipment.podStatus || 'Pending'} />
                 {!isDriver && <StatusBadge status={shipment.billingStatus || 'Not Ready'} />}
+                {(() => {
+                  const pBadge = getPricingBadgeInfo(shipment);
+                  return (
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded font-bold border flex items-center gap-1 shrink-0 ${pBadge.badgeClass}`}
+                      title={pBadge.tooltip}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${pBadge.dotClass}`}></span>
+                      <span>{pBadge.text}</span>
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -430,6 +500,208 @@ export const ShipmentDetailPage = () => {
 
           {/* Commercial Specs & Operational Linehaul */}
           <div className="space-y-6">
+            {/* DEDICATED SECTION: PRICING & QUOTATION DETAILS */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-setu-600" />
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Pricing & Quotation Details
+                  </h3>
+                </div>
+                {!isDriver && (
+                  <button
+                    type="button"
+                    onClick={handleOpenPricingModal}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded hover:bg-setu-100 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Manage Pricing</span>
+                  </button>
+                )}
+              </div>
+
+              {(() => {
+                const pv = shipment.pricingValidation;
+                const status = pv?.status;
+                const source = pv?.source;
+
+                if (status === 'MATCHED' && source === 'QUOTATION') {
+                  return (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-bold text-emerald-900 text-xs block">
+                              ✓ Quotation Available — {pv.quotationNumber || 'Agreed Quote'}
+                            </span>
+                            <span className="text-[10px] text-emerald-700 font-mono">
+                              Pricing Source: Company Quotation (Version {pv.quotationVersion || 1})
+                            </span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Active Agreement
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Customer / Company</span>
+                          <span className="font-bold text-slate-900">{shipment.companyName || 'Customer'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Quotation Reference</span>
+                          <span
+                            onClick={() => {
+                              if (pv.quotationNumber && pv.quotationNumber !== 'QT-AGREEMENT') {
+                                navigate(`/admin/quotations/${encodeURIComponent(pv.quotationNumber)}`);
+                              }
+                            }}
+                            className={`font-bold font-mono text-emerald-700 ${pv.quotationNumber && pv.quotationNumber !== 'QT-AGREEMENT' ? 'cursor-pointer hover:underline' : ''}`}
+                          >
+                            {pv.quotationNumber || 'QT-AGREEMENT'} (v{pv.quotationVersion || 1})
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Pickup Location (Origin)</span>
+                          <span className="font-bold font-mono text-slate-800">{pv.origin || shipment.origin}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Drop Location (Destination)</span>
+                          <span className="font-bold font-mono text-slate-800">{pv.destination || shipment.destination}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Freight Mode</span>
+                          <span className="font-bold text-setu-600">{pv.freightMode || shipment.mode || 'Air'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Applied Base Freight Rate</span>
+                          <span className="font-bold font-mono text-slate-900">₹{pv.appliedRate || 0}/Kg</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Minimum Chargeable Weight</span>
+                          <span className="font-bold font-mono text-slate-900">{pv.minimumChargeableWeight || 50} Kg</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">GST Configuration</span>
+                          <span className="font-bold text-slate-900">Standard 18% Integrated IGST</span>
+                        </div>
+                      </div>
+
+                      {pv.validatedAt && (
+                        <div className="text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-100">
+                          Validated on: {formatDate(pv.validatedAt)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (status === 'MATCHED' && source === 'RATE_CARD') {
+                  return (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div>
+                            <span className="font-bold text-blue-950 text-xs block">
+                              ⚠ No Company Quotation – Charges Based on Rate Card
+                            </span>
+                            <span className="text-[10px] text-blue-700 font-mono">
+                              Pricing Source: Rate Card ({pv.rateCardNumber || pv.rateCardName || 'Standard'} v{pv.rateCardVersion || 1})
+                            </span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          Rate Card Fallback
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Rate Card Name / Number</span>
+                          <span className="font-bold font-mono text-blue-800">{pv.rateCardNumber || 'Standard Rate Card'} (v{pv.rateCardVersion || 1})</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Applied Route</span>
+                          <span className="font-bold font-mono text-slate-800">{pv.origin || shipment.origin} → {pv.destination || shipment.destination}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Freight Mode</span>
+                          <span className="font-bold text-setu-600">{pv.freightMode || shipment.mode || 'Air'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Applied Freight Rate</span>
+                          <span className="font-bold font-mono text-slate-900">₹{pv.appliedRate || 0}/Kg</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Minimum Chargeable Weight</span>
+                          <span className="font-bold font-mono text-slate-900">{pv.minimumChargeableWeight || 50} Kg</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Pricing Agreement Type</span>
+                          <span className="font-bold text-slate-900">Standard Logistics Rate Card</span>
+                        </div>
+                      </div>
+
+                      {pv.validatedAt && (
+                        <div className="text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-100">
+                          Validated on: {formatDate(pv.validatedAt)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // PRICING AGREEMENT MISSING
+                return (
+                  <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl space-y-3 text-xs text-rose-900">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-bold text-sm text-rose-950 block">
+                          Pricing Agreement Missing
+                        </span>
+                        <p className="text-xs text-rose-800 leading-relaxed">
+                          The selected company does not have an applicable quotation or rate card for this shipment's pickup and drop locations.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white/80 border border-rose-200 rounded-lg grid grid-cols-2 gap-2 text-xs font-mono">
+                      <div><span className="text-slate-500 font-sans text-[11px] block">Company:</span><strong className="text-slate-900 font-sans">{shipment.companyName || 'Not Set'}</strong></div>
+                      <div><span className="text-slate-500 font-sans text-[11px] block">Route:</span><strong className="text-slate-900">{shipment.origin} → {shipment.destination}</strong></div>
+                      <div><span className="text-slate-500 font-sans text-[11px] block">Freight Mode:</span><strong className="text-setu-600 font-sans">{shipment.mode || shipment.freightMode || 'Air'}</strong></div>
+                      <div><span className="text-slate-500 font-sans text-[11px] block">Booking Date:</span><strong className="text-slate-900 font-sans">{formatDate(shipment.cnDate || shipment.createdAt)}</strong></div>
+                      {pv?.overrideConfirmed && (
+                        <div className="col-span-2 text-rose-700 text-[11px] font-sans pt-1 border-t border-rose-100">
+                          * Saved with pricing override: Confirmed by <strong>{pv.overrideConfirmedBy || 'User'}</strong> on {formatDate(pv.overrideConfirmedAt)}. Tax invoice generation remains blocked.
+                        </div>
+                      )}
+                    </div>
+
+                    {!isDriver && (
+                      <div className="pt-1 flex items-center justify-between">
+                        <span className="text-[11px] text-rose-700 font-medium">
+                          Tax invoice generation blocked until pricing is established.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleOpenPricingModal}
+                          className="px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs inline-flex items-center gap-1.5 transition-colors"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Assign / Establish Pricing</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* Commercial Invoice Info */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
@@ -574,6 +846,26 @@ export const ShipmentDetailPage = () => {
                             View Invoice
                           </button>
                         </div>
+                      </div>
+                    ) : shipment.pricingValidation?.status === 'MISSING' || shipment.pricingValidation?.source === 'NONE' ? (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-2">
+                        <div className="flex items-center gap-1.5 text-rose-800 font-bold">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Billing Blocked: Missing agreed quotation or rate card coverage</span>
+                        </div>
+                        <p className="text-[11px] text-rose-700">
+                          This shipment cannot be billed or included in a tax invoice until valid pricing coverage is established for <strong>{shipment.origin} → {shipment.destination}</strong>.
+                        </p>
+                        {!isDriver && (
+                          <button
+                            type="button"
+                            onClick={handleOpenPricingModal}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded shadow-xs inline-flex items-center gap-1.5"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Resolve Pricing Issue</span>
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between text-slate-500">
@@ -1067,6 +1359,175 @@ export const ShipmentDetailPage = () => {
         shipment={shipment}
         autoPrint={autoPrintCN}
       />
+
+      {/* ASSIGN / REVALIDATE PRICING MODAL */}
+      <Modal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        title={`Manage Pricing Coverage — ${shipment.cnNumber}`}
+        footer={
+          <>
+            <button
+              onClick={() => setShowPricingModal(false)}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSavePricingResolution}
+              disabled={savingPricing}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded shadow-sm inline-flex items-center gap-1.5"
+            >
+              {savingPricing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              <span>Apply Pricing Resolution</span>
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSavePricingResolution} className="space-y-4 text-xs">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+            <div className="font-bold text-slate-800 text-xs">Shipment Route & Parameters</div>
+            <div className="text-[11px] text-slate-600 font-mono">
+              Customer: <strong>{shipment.companyName}</strong> | Route: <strong>{shipment.origin} → {shipment.destination}</strong> | Mode: <strong>{shipment.mode || shipment.freightMode || 'Air'}</strong>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Resolution Method <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label
+                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
+                  pricingAction === 'revalidate'
+                    ? 'bg-setu-50 border-setu-500 text-setu-900 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pricingAction"
+                  value="revalidate"
+                  checked={pricingAction === 'revalidate'}
+                  onChange={() => setPricingAction('revalidate')}
+                  className="sr-only"
+                />
+                <span className="text-xs">Auto Revalidate</span>
+                <span className="text-[10px] text-slate-500 font-normal">Check active quotations & rate cards</span>
+              </label>
+
+              <label
+                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
+                  pricingAction === 'assign_quotation'
+                    ? 'bg-setu-50 border-setu-500 text-setu-900 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pricingAction"
+                  value="assign_quotation"
+                  checked={pricingAction === 'assign_quotation'}
+                  onChange={() => setPricingAction('assign_quotation')}
+                  className="sr-only"
+                />
+                <span className="text-xs">Assign Quotation</span>
+                <span className="text-[10px] text-slate-500 font-normal">Link company quotation agreement</span>
+              </label>
+
+              <label
+                className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
+                  pricingAction === 'assign_rate_card'
+                    ? 'bg-setu-50 border-setu-500 text-setu-900 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="pricingAction"
+                  value="assign_rate_card"
+                  checked={pricingAction === 'assign_rate_card'}
+                  onChange={() => setPricingAction('assign_rate_card')}
+                  className="sr-only"
+                />
+                <span className="text-xs">Assign Rate Card</span>
+                <span className="text-[10px] text-slate-500 font-normal">Apply standard rate card</span>
+              </label>
+            </div>
+          </div>
+
+          {pricingAction === 'assign_quotation' && (
+            <div>
+              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Select Active Company Quotation
+              </label>
+              {loadingPricingOptions ? (
+                <div className="p-3 text-slate-500 text-xs">Loading available quotations...</div>
+              ) : availableQuotations.length === 0 ? (
+                <p className="text-amber-700 text-xs p-2.5 bg-amber-50 border border-amber-200 rounded">
+                  No active quotations found for this company in MongoDB.
+                </p>
+              ) : (
+                <select
+                  value={selectedQuoteId}
+                  onChange={(e) => setSelectedQuoteId(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded font-bold text-slate-900"
+                >
+                  {availableQuotations.map((q) => (
+                    <option key={q.id || q.quotationNumber} value={q.id || q.quotationNumber}>
+                      {q.quotationNumber} — {q.companyName} (v{q.version || 1})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {pricingAction === 'assign_rate_card' && (
+            <div>
+              <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Select Active Standard Rate Card
+              </label>
+              {loadingPricingOptions ? (
+                <div className="p-3 text-slate-500 text-xs">Loading available rate cards...</div>
+              ) : availableRateCards.length === 0 ? (
+                <p className="text-amber-700 text-xs p-2.5 bg-amber-50 border border-amber-200 rounded">
+                  No active standard rate cards found in MongoDB.
+                </p>
+              ) : (
+                <select
+                  value={selectedRateCardId}
+                  onChange={(e) => setSelectedRateCardId(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded font-bold text-slate-900"
+                >
+                  {availableRateCards.map((rc) => (
+                    <option key={rc.id || rc._id || rc.rateCardNumber} value={rc.id || rc._id || rc.rateCardNumber}>
+                      {rc.rateCardNumber} — {rc.name} (v{rc.version || 1})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Reason / Audit Notes <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={pricingResolutionReason}
+              onChange={(e) => setPricingResolutionReason(e.target.value)}
+              placeholder="e.g. Agreement signed by customer addendum, verified route waiver"
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-md font-medium"
+            />
+            <span className="text-[10px] text-slate-500">
+              This note will be recorded in the shipment's pricing validation audit trail.
+            </span>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

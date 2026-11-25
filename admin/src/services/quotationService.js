@@ -1,21 +1,35 @@
-import { apiRequest, simulateDelay } from './apiClient';
+import { apiRequest } from './apiClient';
 
 let quotationsStore = [];
+
+/**
+ * Format quotation document to ensure consistent identifiers across all views.
+ * Canonical `id` is always the quotationNumber (e.g. 'QT-2026-003') with `_id` also preserved.
+ */
+function formatQuotation(q) {
+  if (!q) return null;
+  const canonicalId = q.quotationNumber || q._id || q.id;
+  return {
+    ...q,
+    id: canonicalId,
+    _id: q._id || q.id,
+    quotationNumber: q.quotationNumber || canonicalId
+  };
+}
 
 export const quotationService = {
   async getQuotations({ search = '', companyId = 'All', status = 'All', mode = 'All' } = {}) {
     try {
       const queryParams = new URLSearchParams();
-      if (search) queryParams.append('search', search);
+      if (search && search.trim()) queryParams.append('search', search.trim());
       if (status && status !== 'All') queryParams.append('status', status);
-      if (companyId && companyId !== 'All') queryParams.append('companyId', companyId);
+      if (companyId && companyId !== 'All' && companyId !== 'undefined' && companyId !== 'null') {
+        queryParams.append('companyId', companyId.trim());
+      }
 
       const remoteData = await apiRequest(`/quotations?${queryParams.toString()}`);
       if (Array.isArray(remoteData)) {
-        quotationsStore = remoteData.map((q) => ({
-          ...q,
-          id: q.id || q.quotationNumber || q._id
-        }));
+        quotationsStore = remoteData.map(formatQuotation);
 
         return quotationsStore.filter((q) => {
           if (
@@ -28,64 +42,43 @@ export const quotationService = {
           return true;
         });
       }
+      return [];
     } catch (err) {
-      console.warn('[MongoDB Client] Quotations list fetch fallback:', err.message);
+      console.error('[Quotation Service] Quotations list fetch error:', err.message);
+      throw err;
     }
-
-    await simulateDelay(150);
-
-    return quotationsStore.filter((q) => {
-      if (
-        companyId !== 'All' &&
-        q.companyId !== companyId &&
-        q.companyCode !== companyId &&
-        (q.companyName || '').toLowerCase() !== companyId.toLowerCase()
-      ) return false;
-      if (status !== 'All' && q.status?.toLowerCase() !== status.toLowerCase()) return false;
-      if (search.trim()) {
-        const query = search.toLowerCase().trim();
-        const numMatch = (q.quotationNumber || '').toLowerCase().includes(query);
-        const compNameMatch = (q.companyName || '').toLowerCase().includes(query);
-        return numMatch || compNameMatch;
-      }
-      return true;
-    });
   },
 
   async getCompanyRateCards(companyId) {
-    if (!companyId) return [];
-    return this.getQuotations({ companyId });
+    if (!companyId || companyId === 'undefined' || companyId === 'null' || !String(companyId).trim()) {
+      return [];
+    }
+    return this.getQuotations({ companyId: String(companyId).trim() });
   },
 
   async getQuotation(id) {
-    if (!id || id === 'undefined') {
-      throw new Error('Invalid Quotation identifier.');
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      throw new Error('Valid quotation identifier is required.');
     }
+
+    const cleanId = String(id).trim();
 
     try {
-      const response = await apiRequest(`/quotations/${encodeURIComponent(id)}`);
+      const response = await apiRequest(`/quotations/${encodeURIComponent(cleanId)}`);
       if (response && (response.quotationNumber || response._id)) {
-        return {
-          ...response,
-          id: response.id || response.quotationNumber || response._id
-        };
+        const formatted = formatQuotation(response);
+        const idx = quotationsStore.findIndex(
+          (q) => q.quotationNumber === formatted.quotationNumber || q._id === formatted._id
+        );
+        if (idx !== -1) quotationsStore[idx] = formatted;
+        else quotationsStore.unshift(formatted);
+        return formatted;
       }
+      throw new Error(`Quotation '${cleanId}' record was invalid or empty.`);
     } catch (err) {
-      console.warn('[MongoDB Client] Single quotation fetch fallback:', err.message);
+      console.error(`[Quotation Service] Failed to retrieve quotation '${cleanId}':`, err.message);
+      throw err;
     }
-
-    await simulateDelay(120);
-    const target = id.toLowerCase();
-    const found = quotationsStore.find(
-      (q) =>
-        (q.id && q.id.toLowerCase() === target) ||
-        (q.quotationNumber && q.quotationNumber.toLowerCase() === target)
-    );
-
-    if (!found) {
-      throw new Error(`Quotation '${id}' not found.`);
-    }
-    return { ...found };
   },
 
   async createQuotation(quotationData) {
@@ -103,59 +96,45 @@ export const quotationService = {
       });
 
       if (response && (response.quotationNumber || response._id)) {
-        const formatted = {
-          ...response,
-          id: response._id || response.id || response.quotationNumber
-        };
+        const formatted = formatQuotation(response);
         quotationsStore = [formatted, ...quotationsStore];
         return formatted;
       }
+      throw new Error('Server response did not include a valid quotation record.');
     } catch (err) {
-      console.warn('[MongoDB Client] Create quotation fallback:', err.message);
+      console.error('[Quotation Service] Create quotation failed:', err.message);
+      throw err;
     }
-
-    await simulateDelay(250);
-    const nextIdNumber = quotationsStore.length + 1;
-    const quotationNumber = quotationData.quotationNumber && quotationData.quotationNumber !== 'Auto-generated on Save'
-      ? quotationData.quotationNumber
-      : `QT-2026-${String(nextIdNumber).padStart(3, '0')}`;
-    const version = quotationData.version || 1;
-    const id = quotationNumber;
-
-    const newQuotation = {
-      ...quotationData,
-      id,
-      quotationNumber,
-      version,
-      status: quotationData.status || 'Active',
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-    delete newQuotation._id;
-
-    quotationsStore = [newQuotation, ...quotationsStore];
-    return { ...newQuotation };
   },
 
   async createQuotationVersion(id, data) {
-    const existing = await this.getQuotation(id);
-    const newVersion = (existing.version || 1) + 1;
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      throw new Error('Valid quotation identifier is required to create a new version.');
+    }
 
-    const baseNumber = (existing.quotationNumber || id).replace(/-v\d+$/, '');
-    const newQuotationNumber = `${baseNumber}-v${newVersion}`;
+    const cleanId = String(id).trim();
+    const payload = { ...data };
+    delete payload._id;
+    delete payload.id;
 
-    const newQuotationData = {
-      ...existing,
-      ...data,
-      quotationNumber: newQuotationNumber,
-      version: newVersion,
-      status: 'Active',
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-    delete newQuotationData._id;
-    delete newQuotationData.id;
+    try {
+      const response = await apiRequest(`/quotations/${encodeURIComponent(cleanId)}/version`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
 
-    return this.createQuotation(newQuotationData);
+      if (response && (response.quotationNumber || response._id)) {
+        const formatted = formatQuotation(response);
+        const index = quotationsStore.findIndex((q) => q.quotationNumber === formatted.quotationNumber);
+        if (index !== -1) quotationsStore[index] = formatted;
+        else quotationsStore.unshift(formatted);
+        return formatted;
+      }
+      throw new Error('Server response did not include an updated quotation version record.');
+    } catch (err) {
+      console.error(`[Quotation Service] Create quotation version failed for '${cleanId}':`, err.message);
+      throw err;
+    }
   },
 
   async duplicateQuotation(id) {
@@ -163,51 +142,40 @@ export const quotationService = {
     const duplicatedData = {
       ...existing,
       quotationNumber: undefined,
+      version: 1,
       status: 'Draft',
       createdAt: new Date().toISOString().split('T')[0]
     };
+    delete duplicatedData._id;
+    delete duplicatedData.id;
     return this.createQuotation(duplicatedData);
   },
 
   async updateQuotation(id, updateData) {
+    if (!id || id === 'undefined' || id === 'null' || !String(id).trim()) {
+      throw new Error('Valid quotation identifier is required to update quotation.');
+    }
+
+    const cleanId = String(id).trim();
+
     try {
-      const response = await apiRequest(`/quotations/${encodeURIComponent(id)}`, {
+      const response = await apiRequest(`/quotations/${encodeURIComponent(cleanId)}`, {
         method: 'PUT',
         body: JSON.stringify(updateData)
       });
 
       if (response && (response.quotationNumber || response._id)) {
-        const formatted = {
-          ...response,
-          id: response.id || response.quotationNumber || response._id
-        };
+        const formatted = formatQuotation(response);
         const index = quotationsStore.findIndex((q) => q.quotationNumber === formatted.quotationNumber);
         if (index !== -1) quotationsStore[index] = formatted;
         else quotationsStore.unshift(formatted);
         return formatted;
       }
+      throw new Error('Server response did not include an updated quotation record.');
     } catch (err) {
-      console.warn('[MongoDB Client] Update quotation fallback:', err.message);
+      console.error(`[Quotation Service] Update quotation failed for '${cleanId}':`, err.message);
+      throw err;
     }
-
-    await simulateDelay(200);
-    const target = id.toLowerCase();
-    const index = quotationsStore.findIndex(
-      (q) => (q.id && q.id.toLowerCase() === target) || (q.quotationNumber && q.quotationNumber.toLowerCase() === target)
-    );
-
-    if (index === -1) {
-      throw new Error(`Quotation '${id}' not found for update.`);
-    }
-
-    const updatedQuotation = {
-      ...quotationsStore[index],
-      ...updateData,
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-
-    quotationsStore[index] = updatedQuotation;
-    return { ...updatedQuotation };
   },
 
   async deactivateQuotation(id) {

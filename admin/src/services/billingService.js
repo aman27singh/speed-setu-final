@@ -114,20 +114,19 @@ export const billingService = {
             return {
               ...s,
               chargeableWeight: calc.weight || s.chargeableWeight || Math.max(s.actualWeight || 0, s.volumetricWeight || 0, 1),
-              matchedQuotation: calc.matchedQuotation || (calc.hasValidRateCard ? 'Matched Rate Card' : 'Standard Rate Card'),
+              matchedQuotation: calc.matchedQuotation || (calc.hasValidRateCard ? 'Matched Rate Card' : 'Missing Quotation / Rate Card'),
               estimatedTotal: estTotal,
-              billingCalculation: calc
+              billingCalculation: calc,
+              isPricingMissing: !calc.hasValidRateCard || calc.isUnpriced
             };
           } catch (e) {
             const wt = s.chargeableWeight || Math.max(s.actualWeight || 0, s.volumetricWeight || 0, 1);
-            const modeLower = (s.mode || s.freightMode || '').toLowerCase();
-            const estRate = modeLower.includes('air') ? 45 : 12;
-            const fallbackEst = Math.round((wt * estRate + 100 + 500 + 500) * 1.18);
             return {
               ...s,
               chargeableWeight: wt,
-              matchedQuotation: 'Standard Rate Card',
-              estimatedTotal: fallbackEst
+              matchedQuotation: 'Missing Quotation / Rate Card',
+              estimatedTotal: 0,
+              isPricingMissing: true
             };
           }
         })
@@ -185,6 +184,207 @@ export const billingService = {
     }
 
     const rawShipmentWeight = shipment.chargeableWeight || Math.max(shipment.actualWeight || 0, shipment.volumetricWeight || 0, 1);
+
+    // If shipment was confirmed with missing pricing, block agreed rate calculation
+    if (shipment.pricingValidation?.status === 'MISSING' || shipment.pricingValidation?.source === 'NONE') {
+      const numberOfBoxes = shipment.packages || shipment.numberOfBoxes || shipment.noOfBoxes || shipment.boxes || 1;
+      return {
+        shipment,
+        cnNumber: shipment.cnNumber,
+        companyName: shipment.companyName,
+        numberOfBoxes,
+        noOfBoxes: numberOfBoxes,
+        boxes: numberOfBoxes,
+        noPack: numberOfBoxes,
+        rawShipmentWeight,
+        minChargeableWeight: 0,
+        weight: rawShipmentWeight,
+        ratePerKg: 0,
+        hasValidRateCard: false,
+        isUnpriced: true,
+        pricingStatus: 'MISSING',
+        error: `Pricing Agreement Missing: ${shipment.companyName || 'This company'} does not have an agreed quotation or rate card for route ${shipment.origin} → ${shipment.destination}.`,
+        warnings: [`This shipment has missing pricing coverage and cannot be billed until a valid agreement is established.`],
+        matchedQuotation: 'No Quotation / Rate Card',
+        quotationVersion: 0,
+        matchedRule: null,
+        lineItems: [],
+        taxableAmount: 0,
+        subTotal: 0,
+        gstRate: 18,
+        gstAmount: 0,
+        grandTotal: 0
+      };
+    }
+
+    // =========================================================================
+    // IMMUTABLE PRICING PROTECTION: USE SHIPMENT'S SAVED PRICING SNAPSHOT
+    // =========================================================================
+    // When a shipment was created with an agreed quotation or rate card,
+    // billing MUST retrieve the shipment's saved pricing snapshot.
+    // Never fetch the latest rate card or recalculate historical shipments.
+    // Rate card and quotation changes apply prospectively, never retroactively.
+    // =========================================================================
+    if (shipment.pricingValidation && shipment.pricingValidation.status === 'MATCHED') {
+      const pv = shipment.pricingValidation;
+      const snap = pv.pricingSnapshot || {};
+      const appliedRule = pv.appliedRuleSnapshot || {};
+
+      const ratePerKg = typeof pv.appliedRate === 'number' && pv.appliedRate > 0
+        ? pv.appliedRate
+        : (snap.baseFreightRate || appliedRule.freightRate || 0);
+
+      const minChargeableWeight = typeof pv.minimumChargeableWeight === 'number' && pv.minimumChargeableWeight > 0
+        ? pv.minimumChargeableWeight
+        : (snap.minimumWeight || appliedRule.minimumChargeableWeight || 50);
+
+      const quotationVersion = pv.quotationVersion || pv.rateCardVersion || pv.agreementVersion || snap.agreementVersion || appliedRule.version || 1;
+      const matchedQuotationNum = pv.quotationNumber || pv.rateCardNumber || snap.agreementNumber || appliedRule.rateCardNumber || appliedRule.quotationNumber || 'Agreed Rate';
+
+      const numberOfBoxes = shipment.packages || shipment.numberOfBoxes || shipment.noOfBoxes || shipment.boxes || 1;
+      const effectiveWeight = Math.max(rawShipmentWeight, minChargeableWeight);
+      const freightAmount = Math.round(ratePerKg * effectiveWeight);
+
+      // Determine additional charges from saved snapshot / shipment
+      let docketCharge = 0;
+      let pickupCharge = 0;
+      let deliveryCharge = 0;
+
+      if (snap.docketCharges !== undefined && snap.docketCharges > 0) {
+        docketCharge = snap.docketCharges;
+      } else if (appliedRule.additionalCharges && Array.isArray(appliedRule.additionalCharges)) {
+        const dItem = appliedRule.additionalCharges.find(c => (c.name || '').toLowerCase().includes('docket'));
+        if (dItem) docketCharge = typeof dItem.amount === 'number' ? dItem.amount : (parseFloat(dItem.amount) || 0);
+      }
+
+      if (typeof shipment.pickupCharges === 'number' && shipment.pickupCharges > 0) {
+        pickupCharge = shipment.pickupCharges;
+      } else if (snap.pickupCharges) {
+        pickupCharge = snap.pickupCharges;
+      }
+
+      if (typeof shipment.deliveryCharges === 'number' && shipment.deliveryCharges > 0) {
+        deliveryCharge = shipment.deliveryCharges;
+      } else if (snap.deliveryCharges) {
+        deliveryCharge = snap.deliveryCharges;
+      }
+
+      const packingCharge = shipment.packingCharges || 0;
+      const laborCharge = shipment.laborCharges || 0;
+
+      const gstRateVal = (shipment.isGstExempt || snap.gstPercentage === 0) ? 0 : (snap.gstPercentage || 18);
+
+      const lineItems = [
+        {
+          name: 'Freight Charges',
+          description: `Base Freight @ ₹${ratePerKg}/Kg (${pv.source === 'QUOTATION' ? 'Company Quotation' : 'Rate Card'} ${matchedQuotationNum} v${quotationVersion})`,
+          cnNumber: shipment.cnNumber,
+          weight: effectiveWeight,
+          rate: ratePerKg,
+          amount: freightAmount
+        }
+      ];
+
+      if (docketCharge > 0) {
+        lineItems.push({
+          name: 'Docket / Documentation Charge',
+          description: 'Standard CN Docket Documentation Fee',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: docketCharge,
+          amount: docketCharge
+        });
+      }
+
+      if (pickupCharge > 0) {
+        lineItems.push({
+          name: 'Pickup / First-Mile Charge',
+          description: 'Origin Pickup & Local Transportation Charge',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: pickupCharge,
+          amount: pickupCharge
+        });
+      }
+
+      if (deliveryCharge > 0) {
+        lineItems.push({
+          name: 'Delivery / Last-Mile Charge',
+          description: 'Destination Door Delivery Charge',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: deliveryCharge,
+          amount: deliveryCharge
+        });
+      }
+
+      if (packingCharge > 0) {
+        lineItems.push({
+          name: 'Packing / Material Charge',
+          description: 'Protective Packaging & Crating',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: packingCharge,
+          amount: packingCharge
+        });
+      }
+
+      if (laborCharge > 0) {
+        lineItems.push({
+          name: 'Labor / Handling Charge',
+          description: 'Cargo Loading & Unloading Labor',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: laborCharge,
+          amount: laborCharge
+        });
+      }
+
+      const taxableAmount = lineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const gstAmount = Math.round(taxableAmount * (gstRateVal / 100));
+      const grandTotal = taxableAmount + gstAmount;
+
+      return {
+        shipment,
+        cnNumber: shipment.cnNumber,
+        companyName: shipment.companyName,
+        numberOfBoxes,
+        noOfBoxes: numberOfBoxes,
+        boxes: numberOfBoxes,
+        noPack: numberOfBoxes,
+        rawShipmentWeight,
+        minChargeableWeight,
+        weight: effectiveWeight,
+        ratePerKg,
+        hasValidRateCard: true,
+        matchedQuotation: matchedQuotationNum,
+        quotationVersion,
+        pricingSource: pv.source,
+        pricingStatus: 'MATCHED',
+        isImmutableSnapshotUsed: true,
+        matchedRule: appliedRule,
+        pricingSnapshot: snap,
+        lineItems,
+        taxableAmount,
+        subTotal: taxableAmount,
+        gstRate: gstRateVal,
+        gstAmount,
+        grandTotal,
+        billingSnapshot: {
+          mode: pv.freightMode || shipment.mode || 'Air',
+          chargeableWeight: effectiveWeight,
+          ratePerKg,
+          quotationNumber: matchedQuotationNum,
+          version: quotationVersion,
+          pricingSource: pv.source
+        }
+      };
+    }
 
     let ratePerKg = 0;
     let isRateFoundFromCard = false;
@@ -407,11 +607,16 @@ export const billingService = {
         return !rMode || !sMode || rMode.includes(sMode) || sMode.includes(rMode);
       };
 
-      const matchingRule =
-        rulesList.find((r) => isRouteMatch(r) && isExactMode(r)) ||
-        rulesList.find((r) => isRouteMatch(r) && isLooseMode(r)) ||
-        rulesList.find((r) => isRouteMatch(r)) ||
-        rulesList[0];
+      // Exact route matching — Do NOT use partial or approximate route matching to silently apply agreed prices
+      let matchingRule = null;
+      if (shipment.pricingValidation?.status === 'MATCHED' && shipment.pricingValidation?.appliedRuleSnapshot) {
+        matchingRule = shipment.pricingValidation.appliedRuleSnapshot;
+      } else {
+        matchingRule =
+          rulesList.find((r) => isRouteMatch(r) && isExactMode(r)) ||
+          rulesList.find((r) => isRouteMatch(r) && isLooseMode(r)) ||
+          rulesList.find((r) => isRouteMatch(r));
+      }
 
       if (matchingRule) {
         matchedRuleInfo = matchingRule;

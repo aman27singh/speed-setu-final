@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
 import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
+import { getPricingBadgeInfo } from '../utils/pricingValidation';
 import { formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable } from '../components/common/DataTable';
@@ -519,6 +520,7 @@ export const ShipmentsPage = () => {
   const [routeFilter, setRouteFilter] = useState('All');
   const [packageFilter, setPackageFilter] = useState('All');
   const [weightFilter, setWeightFilter] = useState('All');
+  const [pricingFilter, setPricingFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState({
     mode: 'particular',
@@ -585,6 +587,7 @@ export const ShipmentsPage = () => {
     setRouteFilter('All');
     setPackageFilter('All');
     setWeightFilter('All');
+    setPricingFilter('All');
     setStatusFilter('All');
     setDateFilter({
       mode: 'particular',
@@ -941,7 +944,24 @@ export const ShipmentsPage = () => {
       list = list.filter((s) => matchWeight(s.actualWeight, s.chargeableWeight, weightFilter));
     }
 
-    // 6. Date Filter (AND)
+    // 6. Pricing Status Filter (AND)
+    if (pricingFilter && pricingFilter !== 'All') {
+      list = list.filter((s) => {
+        const pv = s.pricingValidation;
+        if (pricingFilter === 'Quotation') {
+          return pv?.status === 'MATCHED' && pv?.source === 'QUOTATION';
+        }
+        if (pricingFilter === 'RateCard') {
+          return pv?.status === 'MATCHED' && pv?.source === 'RATE_CARD';
+        }
+        if (pricingFilter === 'NoQuotation') {
+          return !pv || pv.status === 'MISSING' || pv.source === 'NONE';
+        }
+        return true;
+      });
+    }
+
+    // 7. Date Filter (AND)
     if (dateFilter.applied) {
       if (dateFilter.mode === 'particular' && dateFilter.date) {
         list = list.filter((s) => {
@@ -957,7 +977,7 @@ export const ShipmentsPage = () => {
     }
 
     return list;
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, pricingFilter, dateFilter]);
 
   // Step 2: Calculate All, Booked, and Delivered counts from baseFilteredShipments (BEFORE status filter is applied)
   const statusCounts = React.useMemo(() => {
@@ -1191,6 +1211,22 @@ export const ShipmentsPage = () => {
           {row.mode}
         </span>
       )
+    },
+    {
+      header: 'Pricing',
+      accessor: 'pricingValidation',
+      render: (row) => {
+        const badge = getPricingBadgeInfo(row);
+        return (
+          <span
+            title={badge.tooltip}
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-colors cursor-help whitespace-nowrap ${badge.badgeClass}`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badge.dotClass}`} />
+            <span>{badge.text}</span>
+          </span>
+        );
+      }
     },
     {
       header: 'Packages',
@@ -1527,6 +1563,26 @@ export const ShipmentsPage = () => {
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
+              {/* Pricing Agreement Status Filter */}
+              <div className="lg:flex-[1.1] lg:min-w-[125px] relative">
+                <select
+                  value={pricingFilter}
+                  onChange={(e) => setPricingFilter(e.target.value)}
+                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
+                    pricingFilter !== 'All'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Filter by Pricing Agreement Coverage"
+                >
+                  <option value="All">All Pricing Statuses</option>
+                  <option value="Quotation">Quotation Applied</option>
+                  <option value="RateCard">Rate Card Applied</option>
+                  <option value="NoQuotation">No Quotation</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
               {/* 6. Date Filter */}
               <div className="lg:flex-[1.1] lg:min-w-[115px]">
                 <DateFilterPopover
@@ -1636,7 +1692,7 @@ export const ShipmentsPage = () => {
           </div>
 
           {/* Active Filter Chips with Individual Dismiss (x) and Clear All */}
-          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || dateFilter.applied || search) && (
+          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || pricingFilter !== 'All' || dateFilter.applied || search) && (
             <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100/80 text-xs">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">Active Filters:</span>
               {companyFilter !== 'All' && (
@@ -1691,6 +1747,20 @@ export const ShipmentsPage = () => {
                     onClick={() => setWeightFilter('All')}
                     className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
                     title="Clear Weight filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {pricingFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                  <span>
+                    Pricing: {pricingFilter === 'Quotation' ? 'Quotation Applied' : pricingFilter === 'RateCard' ? 'Rate Card Applied' : 'No Quotation'}
+                  </span>
+                  <button
+                    onClick={() => setPricingFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Pricing filter"
                   >
                     <X className="w-3 h-3" />
                   </button>

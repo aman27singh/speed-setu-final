@@ -124,8 +124,20 @@ export const BillingReviewPage = () => {
   const finalGST = isGstExempt ? 0 : Math.round((finalTaxable * effectiveGstRate) / 100);
   const finalGrandTotal = finalTaxable + finalGST;
 
+  const pv = calculation?.shipment?.pricingValidation;
+  const isPricingMissing =
+    pv?.status === 'MISSING' ||
+    pv?.source === 'NONE' ||
+    calculation?.pricingStatus === 'MISSING' ||
+    (!pv && (!calculation?.lineItems || calculation.lineItems.length === 0));
+
   const handleGenerateInvoice = async () => {
     if (!calculation) return;
+
+    if (isPricingMissing) {
+      alert('Cannot Generate Tax Invoice: Shipment has missing quotation / rate card coverage. Tax invoice generation is blocked.');
+      return;
+    }
 
     setGenerating(true);
     try {
@@ -237,7 +249,12 @@ export const BillingReviewPage = () => {
       alert(`Invoice ${created.invoiceNumber} generated successfully!`);
       navigate(`/admin/billing/invoices/${created.id}`);
     } catch (err) {
-      alert(err.message || 'Failed to generate invoice.');
+      const unpriced = err.data?.unpricedShipments;
+      if (unpriced && unpriced.length > 0) {
+        alert(`Cannot Generate Tax Invoice – Pricing Validation Failed:\n\n${unpriced.map(u => `• CN ${u.cnNumber}: ${u.issue} (${u.route})`).join('\n')}`);
+      } else {
+        alert(err.data?.message || err.message || 'Failed to generate invoice.');
+      }
     } finally {
       setGenerating(false);
     }
@@ -301,6 +318,32 @@ export const BillingReviewPage = () => {
           <span><strong>CN-Based On-Demand Billing Engine:</strong> Invoices are generated per Consignment Note / Selected CNs on demand without any 15-day date-cycle restrictions.</span>
         </div>
       </div>
+
+      {/* PRICING MISSING BLOCKING BANNER */}
+      {isPricingMissing && (
+        <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-xl space-y-2.5 text-xs text-rose-900 font-medium">
+          <div className="flex items-center gap-2 font-bold text-rose-950 text-sm">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>Cannot Generate Tax Invoice – Pricing Agreement Missing</span>
+          </div>
+          <p className="text-xs text-rose-800 leading-relaxed">
+            Consignment Note <strong>{selectedCN}</strong> ({calculation.shipment?.origin || calculation.origin} → {calculation.shipment?.destination || calculation.destination}) does not have an active company quotation or rate card coverage for this route. Tax invoice generation is strictly prohibited until valid pricing coverage is established.
+          </p>
+          <div className="pt-1 flex items-center justify-between">
+            <span className="text-[11px] text-rose-700">
+              Please establish pricing in the shipment profile before generating an invoice.
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate(`/admin/shipments/${selectedCN}`)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded shadow-xs transition-colors"
+            >
+              <span>Open Shipment & Resolve Pricing</span>
+              <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* SHIPMENT SELECTOR STRIP */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
@@ -533,12 +576,17 @@ export const BillingReviewPage = () => {
 
         <button
           type="button"
-          disabled={generating}
+          disabled={generating || isPricingMissing}
           onClick={handleGenerateInvoice}
-          className="inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-setu-600 hover:bg-setu-700 rounded-md shadow-md transition-colors disabled:opacity-50"
+          title={isPricingMissing ? 'Invoice generation blocked: Missing quotation or rate card coverage' : 'Generate GST Invoice'}
+          className={`inline-flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white rounded-md shadow-md transition-colors ${
+            generating || isPricingMissing
+              ? 'bg-slate-400 cursor-not-allowed opacity-60'
+              : 'bg-setu-600 hover:bg-setu-700'
+          }`}
         >
           <CheckCircle2 className="w-4 h-4" />
-          <span>{generating ? 'Generating Invoice...' : 'Generate GST Invoice'}</span>
+          <span>{generating ? 'Generating Invoice...' : isPricingMissing ? 'Invoice Blocked (No Pricing)' : 'Generate GST Invoice'}</span>
         </button>
       </div>
     </div>

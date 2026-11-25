@@ -1,6 +1,7 @@
 import { apiRequest, simulateDelay } from './apiClient';
 import { shipmentService } from './shipmentService';
 import { billingService } from './billingService';
+import { compareCompanyCodes } from '../utils/formatters';
 
 let companiesStore = [];
 
@@ -74,12 +75,17 @@ export const companyService = {
           };
         });
 
-        return companiesStore.filter((c) => {
+        // Always sort ascending by company code
+        companiesStore.sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
+
+        const filtered = companiesStore.filter((c) => {
           if (status !== 'All' && c.status?.toLowerCase() !== status.toLowerCase()) return false;
           if (state !== 'All' && c.billing?.state?.toLowerCase() !== state.toLowerCase()) return false;
           if (paymentTerms !== 'All' && c.billing?.paymentTerms !== paymentTerms) return false;
           return true;
         });
+
+        return filtered.sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
       }
     } catch (err) {
       console.warn('[MongoDB Client] Companies list fetch fallback:', err.message);
@@ -105,7 +111,7 @@ export const companyService = {
       }
 
       return true;
-    });
+    }).sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
   },
 
   /**

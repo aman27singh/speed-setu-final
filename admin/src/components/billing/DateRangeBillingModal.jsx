@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { shipmentService } from '../../services/shipmentService';
 import { companyService } from '../../services/companyService';
 import { billingService } from '../../services/billingService';
+import { getPricingBadgeInfo } from '../../utils/pricingValidation';
 import { formatINR, formatDate } from '../../utils/formatters';
 import {
   Calendar,
@@ -15,7 +16,9 @@ import {
   ArrowRight,
   ShieldCheck,
   Package,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 
 export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
@@ -35,6 +38,10 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
   const [isGstExempt, setIsGstExempt] = useState(false);
   const [is3PL, setIs3PL] = useState(false);
   const [hsnCode, setHsnCode] = useState('996531');
+
+  // Blocking pricing validation modal states
+  const [showValidationBlockedModal, setShowValidationBlockedModal] = useState(false);
+  const [unpricedValidationList, setUnpricedValidationList] = useState([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -188,9 +195,21 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
             s.bookingDate
           );
 
+          const pv = s.pricingValidation;
+          const isPricingCovered = pv ? (pv.status === 'MATCHED') : (freightAmt > 0 && calc.matchedQuotation && calc.matchedQuotation !== 'None');
+          const pricingStatus = pv ? pv.status : (isPricingCovered ? 'MATCHED' : 'MISSING');
+          const pricingSource = pv ? pv.source : (calc.matchedQuotation?.startsWith('RC') ? 'RATE_CARD' : (isPricingCovered ? 'QUOTATION' : 'NONE'));
+          const pricingSnapshot = pv || {
+            status: pricingStatus,
+            source: pricingSource,
+            appliedRate: rate,
+            quotationNumber: calc.matchedQuotation
+          };
+
           evaluatedDockets.push({
             id: s.id || s.cnNumber,
             shipment: s,
+            pricingValidation: pricingSnapshot,
             cnNumber: s.cnNumber,
             cnDate: s.cnDate || s.bookingDate || '-',
             deliveryDate: deliveryDateVal,
@@ -288,6 +307,35 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
   const handleGenerateConsolidatedInvoice = async () => {
     if (selectedCNsList.length === 0) {
       alert('Please select at least one Consignment Note to generate an invoice.');
+      return;
+    }
+
+    // MANDATORY PRICING VALIDATION: Check each selected CN
+    const unpricedItems = selectedCNsList.filter((item) => {
+      const pv = item.pricingValidation || item.shipment?.pricingValidation;
+      if (pv && pv.status === 'MISSING') return true;
+      if (pv && pv.status === 'MATCHED') return false;
+      if (!item.freightAmount || item.freightAmount <= 0) return true;
+      return false;
+    });
+
+    if (unpricedItems.length > 0) {
+      const targetComp = availableCompanies.find(
+        (c) =>
+          c.id === selectedCompanyId ||
+          c.companyId === selectedCompanyId ||
+          c.companyCode === selectedCompanyId ||
+          c.companyName === selectedCompanyId
+      ) || {};
+
+      const errList = unpricedItems.map((item) => ({
+        cnNumber: item.cnNumber,
+        company: item.shipment?.companyName || targetComp.companyName || 'Customer',
+        route: `${item.origin} → ${item.destination}`,
+        issue: 'No quotation / rate card'
+      }));
+      setUnpricedValidationList(errList);
+      setShowValidationBlockedModal(true);
       return;
     }
 
@@ -416,7 +464,13 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
       onClose();
       navigate(`/admin/billing/invoices/${created.id}`);
     } catch (err) {
-      alert(err.message || 'Failed to generate consolidated tax invoice.');
+      const backendUnpriced = err.data?.unpricedShipments;
+      if (backendUnpriced && backendUnpriced.length > 0) {
+        setUnpricedValidationList(backendUnpriced);
+        setShowValidationBlockedModal(true);
+      } else {
+        alert(err.data?.message || err.message || 'Failed to generate consolidated tax invoice.');
+      }
     } finally {
       setGenerating(false);
     }
@@ -599,6 +653,7 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                         <th className="p-2 text-center">Packs</th>
                         <th className="p-2 text-right">Weight</th>
                         <th className="p-2 text-right">Rate</th>
+                        <th className="p-2 text-center">Pricing</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -626,6 +681,20 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
                             <td className="p-2 text-center font-mono">{cn.noPack || 1}</td>
                             <td className="p-2 text-right font-mono font-bold">{cn.chargeableWeight > 0 ? `${cn.chargeableWeight} Kg` : '-'}</td>
                             <td className="p-2 text-right font-mono">₹{cn.rate || 65}</td>
+                            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              {(() => {
+                                const badge = getPricingBadgeInfo({ pricingValidation: cn.pricingValidation || cn.shipment?.pricingValidation });
+                                return (
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badge.badgeClass}`}
+                                    title={badge.tooltip}
+                                  >
+                                    <span className={`w-1 h-1 rounded-full ${badge.dotClass}`}></span>
+                                    <span>{badge.shortText}</span>
+                                  </span>
+                                );
+                              })()}
+                            </td>
                           </tr>
                         );
                       })}
@@ -717,6 +786,83 @@ export const DateRangeBillingModal = ({ isOpen, onClose, companies = [] }) => {
         </div>
 
       </div>
+
+      {/* CANNOT GENERATE TAX INVOICE – PRICING VALIDATION FAILED MODAL */}
+      {showValidationBlockedModal && (
+        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-rose-300 rounded-xl shadow-2xl max-w-2xl w-full flex flex-col text-xs overflow-hidden">
+            <div className="p-4 bg-rose-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <div>
+                  <h3 className="text-sm font-bold">Cannot Generate Tax Invoice – Pricing Validation Failed</h3>
+                  <p className="text-[11px] text-rose-100">Some selected shipments do not have an applicable quotation or rate card.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowValidationBlockedModal(false)}
+                className="text-rose-200 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Speed Setu strict billing rules prevent generating tax invoices for shipments without approved pricing agreements. The following selected shipments must have valid pricing established before proceeding:
+              </p>
+
+              <div className="border border-rose-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-rose-50 text-rose-900 font-bold uppercase text-[10px]">
+                    <tr>
+                      <th className="p-2.5">CN Number</th>
+                      <th className="p-2.5">Company</th>
+                      <th className="p-2.5">Route</th>
+                      <th className="p-2.5">Issue</th>
+                      <th className="p-2.5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rose-100 font-medium">
+                    {unpricedValidationList.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-rose-50/50">
+                        <td className="p-2.5 font-bold font-mono text-slate-900">{item.cnNumber}</td>
+                        <td className="p-2.5 text-slate-700">{item.company}</td>
+                        <td className="p-2.5 text-slate-800 font-mono">{item.route}</td>
+                        <td className="p-2.5 text-rose-700">{item.issue}</td>
+                        <td className="p-2.5 text-center">
+                          <a
+                            href={`/admin/shipments/${item.cnNumber}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-setu-700 bg-setu-50 border border-setu-200 rounded hover:bg-setu-100"
+                          >
+                            <span>Open</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
+                <strong>How to resolve:</strong> Open each affected shipment, navigate to <em>Pricing & Quotation Details</em>, and click <em>Manage Pricing</em> to assign an agreed quotation or rate card. Alternatively, deselect these shipments from the billing list.
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setShowValidationBlockedModal(false)}
+                className="px-4 py-2 font-bold text-xs text-white bg-slate-800 hover:bg-slate-900 rounded-md transition-colors"
+              >
+                Close & Review Selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

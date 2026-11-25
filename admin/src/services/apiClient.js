@@ -66,93 +66,142 @@ export const setStoredToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 export const removeStoredToken = () => localStorage.removeItem(TOKEN_KEY);
 
 /**
- * Generic API request wrapper for MongoDB Atlas REST Endpoints
+ * Normalize API endpoint path to prevent duplicate /api prefixes and ensure leading slash
+ */
+function normalizeEndpoint(endpoint) {
+  if (!endpoint) return '';
+  let clean = String(endpoint).trim();
+  // Strip duplicate /api if caller supplied it
+  if (clean.startsWith('/api/')) {
+    clean = clean.substring(4);
+  } else if (clean === '/api') {
+    clean = '';
+  }
+  if (!clean.startsWith('/')) {
+    clean = `/${clean}`;
+  }
+  return clean;
+}
+
+// In-flight request tracker for collapsing concurrent identical GET/HEAD requests
+const inFlightRequests = new Map();
+
+/**
+ * Generic API request wrapper for MongoDB Atlas REST Endpoints.
+ * Includes in-flight deduplication for concurrent GET requests, clean error logging, and security boundaries.
  */
 export async function apiRequest(endpoint, options = {}) {
-  const token = getStoredToken();
-  const correlationId = `frontend_req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const method = (options.method || 'GET').toUpperCase();
+  const cleanEndpoint = normalizeEndpoint(endpoint);
+  const targetUrl = `${BASE_URL}${cleanEndpoint}`;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'X-Correlation-Id': correlationId,
-    'X-Request-Id': correlationId,
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+  // In-flight deduplication for concurrent idempotent read requests
+  const isDeduplicable = (method === 'GET' || method === 'HEAD') && !options.skipDedupe;
+  const dedupeKey = isDeduplicable ? `${method}:${targetUrl}` : null;
 
-  const config = {
-    ...options,
-    headers,
-  };
-
-  const targetUrl = `${BASE_URL}${endpoint}`;
-  console.log(`📡 [API Client ${correlationId}] -> ${options.method || 'GET'} ${targetUrl}`);
-
-  try {
-    const response = await fetch(targetUrl, config);
-
-    if (response.status === 401) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.message || 'Invalid credentials. Please check username/email and password.';
-      
-      if (endpoint === '/auth/login') {
-        throw new Error(errorMessage);
-      }
-
-      removeStoredToken();
-      window.location.href = '/admin/login';
-      throw new Error('Unauthorized. Please log in again.');
-    }
-
-    if (response.status === 403) {
-      const errorData = await response.json().catch(() => ({}));
-      if (errorData.safetyGuardBlocked) {
-        const errorMsg = `🚨 [DATABASE SAFETY GUARD BLOCKED]: ${errorData.message}`;
-        console.error(errorMsg);
-        alert(errorMsg);
-        throw new Error(errorMsg);
-      }
-    }
-
-    if (response.status === 503) {
-      const errorData = await response.json().catch(() => ({}));
-      window.dispatchEvent(new CustomEvent('db-connection-error', {
-        detail: { message: errorData.message || 'MongoDB Atlas Connection Error' }
-      }));
-      throw new Error(errorData.message || 'Database Connection Error: Failed to connect to MongoDB Atlas Cloud');
-    }
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (errorData.dbError) {
-        window.dispatchEvent(new CustomEvent('db-connection-error', {
-          detail: { message: errorData.message }
-        }));
-      }
-      const err = new Error(errorData.detail || errorData.message || `HTTP error ${response.status}`);
-      err.status = response.status;
-      err.data = errorData;
-      err.invoiceNumberError = errorData.invoiceNumberError;
-      err.conflictingInvoice = errorData.conflictingInvoice;
-      err.docketErrors = errorData.docketErrors;
-      err.detail = errorData.detail;
-      throw err;
-    }
-
-    window.dispatchEvent(new CustomEvent('db-connection-recovered'));
-    return await response.json();
-  } catch (error) {
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        window.dispatchEvent(new CustomEvent('db-connection-error', {
-          detail: { message: 'Local Development Server (http://localhost:5050) is offline. Please start server via "npm run dev".' }
-        }));
-      }
-    }
-    console.warn(`[API Client] Backend call failed for ${endpoint}:`, error.message);
-    throw error;
+  if (dedupeKey && inFlightRequests.has(dedupeKey)) {
+    console.log(`⚡ [API Client Dedupe] Reusing in-flight request: ${method} ${targetUrl}`);
+    return inFlightRequests.get(dedupeKey);
   }
+
+  const executeRequest = async () => {
+    const token = getStoredToken();
+    const correlationId = `frontend_req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Correlation-Id': correlationId,
+      'X-Request-Id': correlationId,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
+
+    const config = {
+      ...options,
+      method,
+      headers,
+    };
+
+    console.log(`📡 [API Client ${correlationId}] -> ${method} ${targetUrl}`);
+
+    try {
+      const response = await fetch(targetUrl, config);
+
+      if (response.status === 401) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || 'Invalid credentials. Please check username/email and password.';
+        
+        if (cleanEndpoint === '/auth/login') {
+          throw new Error(errorMessage);
+        }
+
+        removeStoredToken();
+        window.location.href = '/admin/login';
+        throw new Error('Unauthorized. Please log in again.');
+      }
+
+      if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.safetyGuardBlocked) {
+          const errorMsg = `🚨 [DATABASE SAFETY GUARD BLOCKED]: ${errorData.message}`;
+          console.error(errorMsg);
+          alert(errorMsg);
+          throw new Error(errorMsg);
+        }
+      }
+
+      if (response.status === 503) {
+        const errorData = await response.json().catch(() => ({}));
+        window.dispatchEvent(new CustomEvent('db-connection-error', {
+          detail: { message: errorData.message || 'MongoDB Atlas Connection Error' }
+        }));
+        throw new Error(errorData.message || 'Database Connection Error: Failed to connect to MongoDB Atlas Cloud');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.dbError) {
+          window.dispatchEvent(new CustomEvent('db-connection-error', {
+            detail: { message: errorData.message }
+          }));
+        }
+        const errMessage = errorData.detail || errorData.message || errorData.error || `HTTP error ${response.status} on ${method} ${cleanEndpoint}`;
+        console.error(`🚨 [API Error ${correlationId}] ${method} ${targetUrl} -> Status ${response.status}: ${errMessage}`);
+        const err = new Error(errMessage);
+        err.status = response.status;
+        err.data = errorData;
+        err.invoiceNumberError = errorData.invoiceNumberError;
+        err.conflictingInvoice = errorData.conflictingInvoice;
+        err.docketErrors = errorData.docketErrors;
+        err.detail = errorData.detail;
+        throw err;
+      }
+
+      window.dispatchEvent(new CustomEvent('db-connection-recovered'));
+      return await response.json();
+    } catch (error) {
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          window.dispatchEvent(new CustomEvent('db-connection-error', {
+            detail: { message: 'Local Development Server (http://localhost:5050) is offline. Please start server via "npm run dev".' }
+          }));
+        }
+      }
+      console.warn(`[API Client] Backend call failed for ${cleanEndpoint}:`, error.message);
+      throw error;
+    } finally {
+      if (dedupeKey) {
+        inFlightRequests.delete(dedupeKey);
+      }
+    }
+  };
+
+  const reqPromise = executeRequest();
+  if (dedupeKey) {
+    inFlightRequests.set(dedupeKey, reqPromise);
+  }
+  return reqPromise;
 }
 
 /**

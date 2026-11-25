@@ -112,6 +112,7 @@ app.use('/api', (req, res, next) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/quotations', require('./routes/quotations'));
+app.use('/api/rate-cards', require('./routes/rateCards'));
 app.use('/api/shipments', require('./routes/shipments'));
 app.use('/api/trips', require('./routes/trips'));
 app.use('/api/invoices', require('./routes/invoices'));

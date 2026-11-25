@@ -4,6 +4,7 @@ import { shipmentService } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
 import { consignorConsigneeService } from '../services/consignorConsigneeService';
 import { validateShipmentForm } from '../utils/shipmentValidation';
+import { pricingService } from '../services/pricingService';
 import { PageHeader } from '../components/common/PageHeader';
 import { LoadingState } from '../components/common/LoadingState';
 import { Modal } from '../components/common/Modal';
@@ -19,6 +20,7 @@ import {
   Save,
   ArrowLeft,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Calendar,
   CreditCard,
@@ -222,6 +224,65 @@ export const ShipmentFormPage = () => {
   const [createdShipment, setCreatedShipment] = useState(null);
   const [showCNModal, setShowCNModal] = useState(false);
 
+  // Pricing & Quotation Coverage Validation
+  const [pricingValidation, setPricingValidation] = useState(null);
+  const [validatingPricing, setValidatingPricing] = useState(false);
+  const [showUnpricedConfirmModal, setShowUnpricedConfirmModal] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(null);
+
+  const checkPricingCoverage = async (overrideForm = null) => {
+    const data = overrideForm || formData;
+    if (!data.companyId && !data.companyName) {
+      setPricingValidation(null);
+      return null;
+    }
+    const currentOrigin = data.origin || data.consignor?.city || '';
+    const currentDest = data.destination || data.consignee?.city || '';
+
+    setValidatingPricing(true);
+    try {
+      const res = await pricingService.validatePricing({
+        companyId: data.companyId,
+        companyCode: data.companyCode,
+        companyName: data.companyName,
+        origin: currentOrigin,
+        destination: currentDest,
+        freightMode: data.freightMode || data.mode,
+        mode: data.mode || data.freightMode,
+        date: data.cnDate || data.bookingDate
+      });
+      setPricingValidation(res);
+      return res;
+    } catch (e) {
+      console.warn('Pricing validation check failed:', e.message);
+      return null;
+    } finally {
+      setValidatingPricing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!formData.companyId && !formData.companyName) {
+      setPricingValidation(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkPricingCoverage();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    formData.companyId,
+    formData.companyName,
+    formData.origin,
+    formData.destination,
+    formData.consignor?.city,
+    formData.consignee?.city,
+    formData.mode,
+    formData.freightMode,
+    formData.cnDate,
+    formData.bookingDate
+  ]);
+
   const handleAddCommercialInvoice = () => {
     setFormData((prev) => ({
       ...prev,
@@ -385,6 +446,7 @@ export const ShipmentFormPage = () => {
           });
           if (existing.consignor?.name) setConsignorSelectMode(existing.consignor.name);
           if (existing.consignee?.name) setConsigneeSelectMode(existing.consignee.name);
+          if (existing.pricingValidation) setPricingValidation(existing.pricingValidation);
         } else {
           setFormData((prev) => ({
             ...prev,
@@ -615,7 +677,129 @@ export const ShipmentFormPage = () => {
     }));
   };
 
-  const handleSubmit = async (e, createAnother = false) => {
+  const renderPricingCoverageBanner = () => {
+    if (!formData.companyId && !formData.companyName) {
+      return (
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+          <span>Select a Client Company to validate quotation and rate card coverage for this shipment.</span>
+        </div>
+      );
+    }
+
+    if (validatingPricing) {
+      return (
+        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-800 text-xs flex items-center gap-2 animate-pulse">
+          <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+          <span>Checking Company Quotation & Rate Card coverage for route...</span>
+        </div>
+      );
+    }
+
+    if (!pricingValidation) return null;
+
+    if (pricingValidation.status === 'PENDING_ROUTE') {
+      return (
+        <div className="p-3.5 bg-blue-50/90 border border-blue-200 rounded-xl text-blue-950 text-xs space-y-1 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-blue-900 text-sm">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>✓ Active Quotation Found – {pricingValidation.quotationNumber}</span>
+              <span className="px-2 py-0.5 text-[10px] font-mono bg-blue-100 text-blue-800 rounded font-semibold border border-blue-200">
+                v{pricingValidation.quotationVersion || 1}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
+              {pricingValidation.totalRoutesCovered || 0} Routes Covered
+            </span>
+          </div>
+          <p className="text-[11px] text-blue-800 leading-normal">
+            Company quotation agreement is active on file. Select or enter <strong>Pickup Location (Origin)</strong> and <strong>Drop Location (Destination)</strong> below to validate agreed route pricing.
+          </p>
+        </div>
+      );
+    }
+
+    if (pricingValidation.status === 'MATCHED' && pricingValidation.source === 'QUOTATION') {
+      return (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-950 text-xs space-y-1 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>✓ Quotation Available</span>
+              <span className="px-2 py-0.5 text-[10px] font-mono bg-emerald-100 text-emerald-800 rounded font-semibold border border-emerald-200">
+                {pricingValidation.quotationNumber} | Version {pricingValidation.quotationVersion || 1}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
+              Pricing Source: Company Quotation
+            </span>
+          </div>
+          <div className="text-[11px] text-emerald-800 flex flex-wrap gap-x-4 gap-y-1 pt-1 font-mono">
+            <span>Route: <strong>{pricingValidation.origin} → {pricingValidation.destination}</strong></span>
+            <span>Mode: <strong>{pricingValidation.freightMode}</strong></span>
+            <span>Agreed Rate: <strong>₹{pricingValidation.appliedRate}/Kg</strong></span>
+            <span>Min Chargeable Wt: <strong>{pricingValidation.minimumChargeableWeight || 50} Kg</strong></span>
+          </div>
+        </div>
+      );
+    }
+
+    if (pricingValidation.status === 'MATCHED' && pricingValidation.source === 'RATE_CARD') {
+      return (
+        <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-xl text-blue-950 text-xs space-y-1 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-blue-900 text-sm">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>✓ Rate Card Applied</span>
+              <span className="px-2 py-0.5 text-[10px] font-mono bg-blue-100 text-blue-800 rounded font-semibold border border-blue-200">
+                Rate Card Version: Version {pricingValidation.rateCardVersion || 1}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
+              {pricingValidation.rateCardNumber || pricingValidation.rateCardName || 'Standard Rate Card'}
+            </span>
+          </div>
+          <p className="text-[11px] text-blue-800 leading-normal">
+            No company-specific quotation covers this route. Freight charges will be calculated using the applicable rate card agreement.
+          </p>
+          <div className="text-[11px] text-blue-900 flex flex-wrap gap-x-4 gap-y-1 pt-1 font-mono">
+            <span>Route: <strong>{pricingValidation.origin} → {pricingValidation.destination}</strong></span>
+            <span>Mode: <strong>{pricingValidation.freightMode}</strong></span>
+            <span>Rate Card Freight: <strong>₹{pricingValidation.appliedRate}/Kg</strong></span>
+            <span>Min Chargeable Wt: <strong>{pricingValidation.minimumChargeableWeight || 50} Kg</strong></span>
+          </div>
+        </div>
+      );
+    }
+
+    if (pricingValidation.status === 'MISSING') {
+      return (
+        <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl text-rose-950 text-xs space-y-1.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>⚠ No Quotation / Rate Card Found</span>
+            </div>
+            <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-200 uppercase tracking-wide">
+              Pricing Uncovered
+            </span>
+          </div>
+          <p className="text-[11px] text-rose-800 leading-normal">
+            The selected company's quotation does not cover route <strong>{formData.origin || formData.consignor?.city || 'Origin'} → {formData.destination || formData.consignee?.city || 'Destination'}</strong> ({formData.freightMode || formData.mode || 'Mode'}), and no applicable rate card was found.
+          </p>
+          <div className="p-2 bg-rose-100/70 rounded-lg text-rose-900 font-medium text-[11px] flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span>Confirmation is required to save without agreed pricing. <strong>This shipment will be blocked from tax invoices until pricing is established.</strong></span>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (e, createAnother = false, confirmedOverride = false) => {
     if (e) e.preventDefault();
     setCnDuplicateError(null);
     setAwbDuplicateError(null);
@@ -624,6 +808,18 @@ export const ShipmentFormPage = () => {
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Pre-save pricing validation check (Section 2 Scenario C)
+    let currentPricing = pricingValidation;
+    if ((!currentPricing || currentPricing.status === 'PENDING_ROUTE') && formData.companyId) {
+      currentPricing = await checkPricingCoverage();
+    }
+
+    if (currentPricing && currentPricing.status === 'MISSING' && !confirmedOverride) {
+      setShowUnpricedConfirmModal(true);
+      setPendingSubmit({ createAnother });
       return;
     }
 
@@ -691,6 +887,14 @@ export const ShipmentFormPage = () => {
         companyId: finalCompId,
         companyName: finalCompName,
         companyCode: finalCompCode,
+        pricingValidation: currentPricing ? {
+          ...currentPricing,
+          overrideConfirmed: confirmedOverride || Boolean(currentPricing.overrideConfirmed),
+          overrideConfirmedBy: (confirmedOverride || currentPricing.overrideConfirmed) ? (user?.name || user?.username || 'Admin') : null,
+          overrideConfirmedAt: (confirmedOverride || currentPricing.overrideConfirmed) ? new Date() : null
+        } : undefined,
+        overrideConfirmed: confirmedOverride || Boolean(currentPricing?.overrideConfirmed),
+        overrideConfirmedBy: (confirmedOverride || currentPricing?.overrideConfirmed) ? (user?.name || user?.username || 'Admin') : null,
         consignor: {
           ...formData.consignor,
           name: formData.consignor?.name || '',
@@ -891,6 +1095,8 @@ export const ShipmentFormPage = () => {
                 {formData.companyName ? `Currently billing to: ${formData.companyName}` : 'Select which registered corporate client will be billed for this shipment'}
               </p>
             </div>
+
+            {renderPricingCoverageBanner()}
           </div>
 
           {/* STEP 2: CONSIGNOR & CONSIGNEE DETAILS */}
@@ -1620,6 +1826,8 @@ export const ShipmentFormPage = () => {
               />
             </div>
           </div>
+
+          {renderPricingCoverageBanner()}
         </div>
 
         {/* SECTION B & C: CONSIGNOR & CONSIGNEE CARDS */}
@@ -2385,6 +2593,72 @@ export const ShipmentFormPage = () => {
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-left text-xs space-y-1">
             <span className="font-bold block">Pickup Document Ready</span>
             <p>You can generate and print the official Speed Setu Consignment Note (Pickup Document) immediately using the button below or print it anytime later from the shipment details page.</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SCENARIO C: NO QUOTATION / RATE CARD CONFIRMATION MODAL */}
+      <Modal
+        isOpen={showUnpricedConfirmModal}
+        onClose={() => {
+          setShowUnpricedConfirmModal(false);
+          setPendingSubmit(null);
+        }}
+        title="Warning: No Quotation / Rate Card Found"
+        maxWidth="max-w-lg"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              The selected company's quotation does not cover this pickup and drop location, and no applicable rate card was found. Do you want to proceed with creating this shipment without agreed pricing?
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 font-mono text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Company:</span>
+              <strong className="text-slate-800">{formData.companyName || 'Not specified'}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Pickup Location:</span>
+              <strong className="text-slate-800">{formData.origin || formData.consignor?.city || 'Origin'}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Drop Location:</span>
+              <strong className="text-slate-800">{formData.destination || formData.consignee?.city || 'Destination'}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Freight Mode:</span>
+              <strong className="text-slate-800">{formData.freightMode || formData.mode || 'Road'}</strong>
+            </div>
+          </div>
+
+          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-[11px] font-medium">
+            ⚠️ <strong>Billing Restriction:</strong> This shipment will be marked as requiring pricing approval. <strong>Tax invoices cannot be generated for this shipment</strong> until valid quotation or rate card coverage is established.
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnpricedConfirmModal(false);
+                setPendingSubmit(null);
+              }}
+              className="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnpricedConfirmModal(false);
+                handleSubmit(null, pendingSubmit?.createAnother || false, true);
+              }}
+              className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              Proceed Without Quotation
+            </button>
           </div>
         </div>
       </Modal>
