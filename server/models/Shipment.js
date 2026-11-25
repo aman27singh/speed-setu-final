@@ -148,7 +148,12 @@ const ShipmentSchema = new mongoose.Schema({
   invoiceId: String,
   tripId: String,
   podDocumentId: String,
-  podDocumentUrl: String
+  podDocumentUrl: String,
+
+  // Immutable Consignment Note (CN) Template Version & Snapshot captured at CN generation time
+  cnTemplateVersion: { type: Number, default: null },
+  cnTemplateId: { type: String, default: null },
+  cnTemplateSnapshot: { type: mongoose.Schema.Types.Mixed, default: null }
 }, { timestamps: true, strict: false });
 
 module.exports = mongoose.model('Shipment', ShipmentSchema);

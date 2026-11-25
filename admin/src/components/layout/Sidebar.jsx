@@ -16,6 +16,7 @@ import {
   DollarSign,
   BarChart3,
   Settings,
+  FileEdit,
   ShieldAlert,
   UserCheck,
   Plus,
@@ -84,7 +85,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
         groupLabel: 'Analytics & Management',
         items: [
           { name: 'Reports', path: '/admin/reports', icon: BarChart3 },
-          { name: 'Settings', path: '/admin/settings', icon: Settings }
+          { name: 'CN Template Editor', path: '/admin/settings/cn-template-editor', icon: FileEdit },
+          { name: 'Settings', path: '/admin/settings', icon: Settings, end: true }
         ]
       }
     ];
@@ -158,6 +160,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                     <NavLink
                       key={item.path}
                       to={item.path}
+                      end={Boolean(item.end)}
                       onClick={onClose}
                       className={({ isActive }) =>
                         clsx(

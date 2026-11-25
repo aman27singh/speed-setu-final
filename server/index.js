@@ -126,11 +126,13 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/consignor-consignee', require('./routes/consignorConsignee'));
 app.use('/api/parties', require('./routes/consignorConsignee'));
+app.use('/api/cn-templates', require('./routes/cnTemplates'));
 
-// Reverse Proxy Fallback for shipments, consignor-consignee, and parties
+// Reverse Proxy Fallback for shipments, consignor-consignee, parties, and cn-templates
 app.use('/shipments', require('./routes/shipments'));
 app.use('/consignor-consignee', require('./routes/consignorConsignee'));
 app.use('/parties', require('./routes/consignorConsignee'));
+app.use('/cn-templates', require('./routes/cnTemplates'));
 
 // Sales Register Report (Mounted with and without /api prefix for reverse proxy compatibility)
 const { salesRegisterRouter } = require('./routes/salesRegister.route');

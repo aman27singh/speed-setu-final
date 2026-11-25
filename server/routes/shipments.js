@@ -8,6 +8,8 @@ const { autoResolveShipmentParties } = require('../services/consignorConsigneeSe
 const { validateShipmentPricing } = require('../services/pricingValidationService');
 const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreightMode } = require('../services/freightCalculationService');
 const { protect } = require('../middleware/auth');
+const CnTemplate = require('../models/CnTemplate');
+const { DEFAULT_CN_TEMPLATE_CONFIG } = require('../config/defaultCnTemplate');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -766,6 +768,23 @@ router.post('/', async (req, res) => {
     let saved = null;
     let saveAttempt = 0;
 
+    // Resolve active CN template snapshot so historical CNs remain immutable if template changes later
+    let resolvedCnTemplateVersion = 1;
+    let resolvedCnTemplateId = null;
+    let resolvedCnTemplateSnapshot = JSON.parse(JSON.stringify(DEFAULT_CN_TEMPLATE_CONFIG));
+    try {
+      const activeTpl = await CnTemplate.findOne({ templateKey: 'default', isActive: true })
+        .sort({ version: -1 })
+        .lean();
+      if (activeTpl && activeTpl.config) {
+        resolvedCnTemplateVersion = activeTpl.version || 1;
+        resolvedCnTemplateId = String(activeTpl._id);
+        resolvedCnTemplateSnapshot = JSON.parse(JSON.stringify(activeTpl.config));
+      }
+    } catch (tplErr) {
+      console.warn('[Shipment Create] Could not load active CN template, using default:', tplErr.message);
+    }
+
     while (saveAttempt < maxSaveRetries) {
       saveAttempt++;
       try {
@@ -816,6 +835,9 @@ router.post('/', async (req, res) => {
           podStatus: req.body.podStatus || 'Pending',
           statusHistory: initialHistory,
           documents: req.body.documents || [],
+          cnTemplateVersion: resolvedCnTemplateVersion,
+          cnTemplateId: resolvedCnTemplateId,
+          cnTemplateSnapshot: resolvedCnTemplateSnapshot,
           correlationId: req.correlationId || null,
           createdInDb: mongoose.connection.name
         });
@@ -1196,6 +1218,9 @@ router.put('/:idOrCN', async (req, res) => {
     delete updatePayload.__v;
     delete updatePayload.createdAt;
     delete updatePayload.updatedAt;
+    delete updatePayload.cnTemplateVersion;
+    delete updatePayload.cnTemplateId;
+    delete updatePayload.cnTemplateSnapshot;
 
     updatePayload.cnNumber = targetCN;
     updatePayload.cnDate = req.body.cnDate || req.body.bookingDate || existing.cnDate || existing.bookingDate;

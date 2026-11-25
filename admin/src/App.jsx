@@ -53,6 +53,7 @@ import { CustomerProfitabilityPage } from "./pages/CustomerProfitabilityPage";
 import { RouteAnalysisPage } from "./pages/RouteAnalysisPage";
 import { MonthlyMISPage } from "./pages/MonthlyMISPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { CNTemplateEditorPage } from "./pages/CNTemplateEditorPage";
 import { ConsignorConsigneePage } from "./pages/ConsignorConsigneePage";
 import { LoadingState } from "./components/common/LoadingState";
 import { ServerWarmingScreen } from "./components/common/ServerWarmingScreen";
@@ -517,12 +518,20 @@ export const AppRoutes = () => {
           }
         />
 
-        {/* System Settings & User Management Module (Super Admin Only) */}
+        {/* System Settings & User Management Module */}
         <Route
           path="settings"
           element={
             <ProtectedRoute allowedRoles={["Super Admin"]}>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="settings/cn-template-editor"
+          element={
+            <ProtectedRoute allowedRoles={["Super Admin", "Admin"]}>
+              <CNTemplateEditorPage />
             </ProtectedRoute>
           }
         />
