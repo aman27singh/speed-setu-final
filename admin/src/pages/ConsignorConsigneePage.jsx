@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { consignorConsigneeService } from '../services/consignorConsigneeService';
+import { compareCompanyCodes } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable } from '../components/common/DataTable';
 import { LoadingState } from '../components/common/LoadingState';
@@ -259,6 +260,11 @@ export const ConsignorConsigneePage = () => {
     }
   };
 
+  // Sort parties dynamically by Company Code ascending (lowest to highest: CC101 -> CC102 -> ... -> CC111)
+  const sortedParties = useMemo(() => {
+    return [...parties].sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
+  }, [parties]);
+
   // Table Columns Definition
   const columns = [
     {
@@ -494,7 +500,7 @@ export const ConsignorConsigneePage = () => {
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           <DataTable
             columns={columns}
-            data={parties}
+            data={sortedParties}
             emptyMessage={
               searchTerm
                 ? `No companies found matching "${searchTerm}". Try a different search term or add a new company.`

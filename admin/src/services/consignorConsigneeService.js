@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import { compareCompanyCodes } from '../utils/formatters';
 
 /**
  * Speed Setu - Centralized Consignor & Consignee Master API Client
@@ -34,7 +35,17 @@ export const consignorConsigneeService = {
     if (all) params.append('all', 'true');
     if (autocomplete) params.append('autocomplete', 'true');
 
-    return apiRequest(`/consignor-consignee?${params.toString()}`);
+    const res = await apiRequest(`/consignor-consignee?${params.toString()}`);
+    if (Array.isArray(res)) {
+      return [...res].sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
+    }
+    if (res && Array.isArray(res.items)) {
+      return {
+        ...res,
+        items: [...res.items].sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode))
+      };
+    }
+    return res;
   },
 
   /**

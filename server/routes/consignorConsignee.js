@@ -5,6 +5,37 @@ const ConsignorConsignee = require('../models/ConsignorConsignee');
 const Shipment = require('../models/Shipment');
 const { getNextPartyCode, previewNextPartyCode, normalizeAddress, findExistingParty } = require('../services/consignorConsigneeService');
 
+// Natural numeric comparator for company codes (Ascending Order: lowest to highest)
+function compareCompanyCodes(codeA, codeB) {
+  const strA = String(codeA || '').trim();
+  const strB = String(codeB || '').trim();
+  if (!strA && !strB) return 0;
+  if (!strA) return 1;
+  if (!strB) return -1;
+
+  const regex = /^([a-zA-Z_\-\s]*?)(\d+)(.*)$/;
+  const matchA = strA.match(regex);
+  const matchB = strB.match(regex);
+
+  if (matchA && matchB) {
+    const prefixA = matchA[1].toLowerCase().replace(/[^a-z0-9]/g, '');
+    const prefixB = matchB[1].toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (prefixA === prefixB) {
+      const numA = parseInt(matchA[2], 10);
+      const numB = parseInt(matchB[2], 10);
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      if (matchA[3] || matchB[3]) {
+        return matchA[3].localeCompare(matchB[3], undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+  }
+
+  return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 /**
  * Speed Setu - Consignors & Consignees Shared Company Master API
  * 
@@ -133,8 +164,11 @@ router.get('/', async (req, res) => {
         filter.isActive = true;
       }
       const items = await ConsignorConsignee.find(filter)
-        .sort({ companyName: 1 })
+        .collation({ locale: 'en', numericOrdering: true })
+        .sort({ companyCode: 1 })
         .lean();
+
+      items.sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
 
       return res.json(items.map(p => ({
         ...p,
@@ -149,12 +183,15 @@ router.get('/', async (req, res) => {
 
     const [items, totalCount] = await Promise.all([
       ConsignorConsignee.find(filter)
-        .sort({ createdAt: -1 })
+        .collation({ locale: 'en', numericOrdering: true })
+        .sort({ companyCode: 1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
       ConsignorConsignee.countDocuments(filter)
     ]);
+
+    items.sort((a, b) => compareCompanyCodes(a.companyCode, b.companyCode));
 
     res.json({
       items: items.map(p => ({ ...p, id: p._id.toString() })),
