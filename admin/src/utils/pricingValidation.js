@@ -200,6 +200,7 @@ export function normalizeLocation(loc) {
 
   if (str === 'BANGALORE' || str === 'BENGALURU') return 'BANGALORE';
   if (str === 'GURGAON' || str === 'GURUGRAM' || str === 'GURGOAN') return 'GURGAON';
+  if (str === 'NARSAPURA' || str === 'NARSARPURA') return 'NARSAPURA';
   if (str === 'BOMBAY' || str === 'MUMBAI') return 'MUMBAI';
   if (str === 'CALCUTTA' || str === 'KOLKATA') return 'KOLKATA';
   if (str === 'MADRAS' || str === 'CHENNAI') return 'CHENNAI';
@@ -430,7 +431,21 @@ export function matchShipmentToCompanyQuotations(shipment, companyQuotations = [
       rateBasis: pricingSnapshot.rateBasis,
       appliedRate: pricingSnapshot.baseFreightRate,
       minimumChargeableWeight: pricingSnapshot.minimumWeight,
+      appliedRuleSnapshot: {
+        quotationNumber: quote.quotationNumber,
+        version: quote.version || 1,
+        origin: effectiveRule.origin || origin,
+        destination: effectiveRule.destination || destination,
+        mode: effectiveRule.mode || targetMode,
+        rateBasis: pricingSnapshot.rateBasis,
+        freightRate: pricingSnapshot.baseFreightRate,
+        minimumChargeableWeight: pricingSnapshot.minimumWeight,
+        additionalCharges: effectiveRule.additionalCharges || quote.additionalCharges || [],
+        taxConfiguration: pricingSnapshot.taxConfiguration
+      },
       pricingSnapshot,
+      validatedAt: new Date().toISOString(),
+      overrideConfirmed: false,
       isAutoFetchedPreview: true,
       isCovered: true,
       message: `Quotation Matched – ${quote.quotationNumber} (v${quote.version || 1})`

@@ -552,6 +552,256 @@ router.post('/validate-pricing', async (req, res) => {
   }
 });
 
+// POST /api/shipments/bulk-apply-quotation — Persist auto-fetched company quotation matches onto unpriced CNs
+router.post('/bulk-apply-quotation', async (req, res) => {
+  try {
+    const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+    const modifiedBy = String(req.body?.modifiedBy || 'Admin').trim() || 'Admin';
+
+    if (updates.length === 0) {
+      return res.json({ success: true, updatedCount: 0, skippedCount: 0, results: [] });
+    }
+
+    const Quotation = require('../models/Quotation');
+    const {
+      findMatchingRule,
+      buildPricingSnapshot
+    } = require('../services/pricingValidationService');
+
+    const objectIds = [];
+    const cnNumbers = [];
+    const quoteObjectIds = [];
+    const quoteNumbers = [];
+
+    for (const u of updates) {
+      if (u?.shipmentId && mongoose.isValidObjectId(u.shipmentId)) {
+        objectIds.push(new mongoose.Types.ObjectId(u.shipmentId));
+      }
+      if (u?.cnNumber) {
+        cnNumbers.push(String(u.cnNumber).trim());
+      }
+      if (u?.quotationId && mongoose.isValidObjectId(u.quotationId)) {
+        quoteObjectIds.push(new mongoose.Types.ObjectId(u.quotationId));
+      }
+      if (u?.quotationNumber) {
+        quoteNumbers.push(String(u.quotationNumber).trim());
+      }
+    }
+
+    const shipQueryOr = [];
+    if (objectIds.length > 0) shipQueryOr.push({ _id: { $in: objectIds } });
+    if (cnNumbers.length > 0) shipQueryOr.push({ cnNumber: { $in: cnNumbers } });
+    if (shipQueryOr.length === 0) {
+      return res.status(400).json({ error: 'Valid shipment identifiers are required.' });
+    }
+
+    const quoteQueryOr = [];
+    if (quoteObjectIds.length > 0) quoteQueryOr.push({ _id: { $in: quoteObjectIds } });
+    if (quoteNumbers.length > 0) quoteQueryOr.push({ quotationNumber: { $in: quoteNumbers } });
+
+    const [shipmentsList, quotesList] = await Promise.all([
+      Shipment.find({ $or: shipQueryOr }),
+      quoteQueryOr.length > 0 ? Quotation.find({ $or: quoteQueryOr }).lean() : Promise.resolve([])
+    ]);
+
+    const shipById = new Map();
+    const shipByCn = new Map();
+    for (const s of shipmentsList) {
+      shipById.set(s._id.toString(), s);
+      if (s.cnNumber) shipByCn.set(String(s.cnNumber).trim().toLowerCase(), s);
+    }
+
+    const quoteById = new Map();
+    const quoteByNum = new Map();
+    for (const q of quotesList) {
+      quoteById.set(q._id.toString(), q);
+      if (q.quotationNumber) quoteByNum.set(String(q.quotationNumber).trim().toLowerCase(), q);
+    }
+
+    const bulkOps = [];
+    const results = [];
+    let skippedCount = 0;
+
+    for (const item of updates) {
+      const sDoc =
+        (item?.shipmentId && shipById.get(String(item.shipmentId))) ||
+        (item?.cnNumber && shipByCn.get(String(item.cnNumber).trim().toLowerCase()));
+
+      if (!sDoc) {
+        skippedCount += 1;
+        continue;
+      }
+
+      // Data-safety guard: do not overwrite already-matched/manual quotation or rate-card pricing
+      const existingPv = sDoc.pricingValidation;
+      if (existingPv && existingPv.status === 'MATCHED' && existingPv.source && existingPv.source !== 'NONE') {
+        skippedCount += 1;
+        continue;
+      }
+
+      const quoteDoc =
+        (item?.quotationId && quoteById.get(String(item.quotationId))) ||
+        (item?.quotationNumber && quoteByNum.get(String(item.quotationNumber).trim().toLowerCase()));
+
+      if (quoteDoc && String(quoteDoc.status || '').trim().toLowerCase() !== 'active') {
+        skippedCount += 1;
+        continue;
+      }
+
+      const targetMode = resolveShipmentFreightMode(sDoc) || sDoc.freightMode || sDoc.mode || 'Road';
+      const targetDate = sDoc.bookingDate || sDoc.cnDate || new Date().toISOString().split('T')[0];
+      const weight = Number(sDoc.chargeableWeight) || Number(sDoc.actualWeight) || 0;
+      const packages = parseInt(sDoc.packages, 10) || 1;
+      const clientPv = item?.pricingValidation;
+
+      let nextValidation = null;
+
+      if (quoteDoc) {
+        const rulesList = [
+          ...(Array.isArray(quoteDoc.rateRules) ? quoteDoc.rateRules : []),
+          ...(Array.isArray(quoteDoc.routes) ? quoteDoc.routes : [])
+        ];
+        const matchedRule = findMatchingRule(rulesList, sDoc.origin, sDoc.destination, targetMode);
+        if (matchedRule) {
+          let effectiveRule = matchedRule;
+          if (Array.isArray(matchedRule.weightSlabs) && matchedRule.weightSlabs.length > 0) {
+            const slab = matchedRule.weightSlabs.find((sl) => {
+              const minW = Number(sl.minWeight ?? 0);
+              const maxW = sl.maxWeight ? Number(sl.maxWeight) : Infinity;
+              return weight >= minW && weight <= maxW;
+            });
+            if (slab && (typeof slab.rate === 'number' || (typeof slab.rate === 'string' && slab.rate !== ''))) {
+              effectiveRule = { ...matchedRule, freightRate: parseFloat(slab.rate) || matchedRule.freightRate };
+            }
+          }
+
+          const pricingSnapshot = buildPricingSnapshot({
+            source: 'QUOTATION',
+            doc: quoteDoc,
+            matchedRule: effectiveRule,
+            origin: sDoc.origin,
+            destination: sDoc.destination,
+            mode: targetMode,
+            date: targetDate,
+            weight,
+            packages
+          });
+
+          const existingAudit = Array.isArray(existingPv?.auditLog) ? existingPv.auditLog : [];
+          nextValidation = {
+            status: 'MATCHED',
+            source: 'QUOTATION',
+            quotationId: quoteDoc._id.toString(),
+            quotationNumber: quoteDoc.quotationNumber,
+            quotationVersion: quoteDoc.version || 1,
+            agreementVersion: quoteDoc.version || 1,
+            rateCardId: null,
+            rateCardNumber: null,
+            rateCardVersion: null,
+            companyId: quoteDoc.companyId || sDoc.companyId,
+            companyCode: quoteDoc.companyCode || sDoc.companyCode,
+            companyName: quoteDoc.companyName || sDoc.companyName,
+            origin: sDoc.origin,
+            destination: sDoc.destination,
+            freightMode: targetMode,
+            rateBasis: pricingSnapshot.rateBasis,
+            appliedRate: pricingSnapshot.baseFreightRate,
+            minimumChargeableWeight: pricingSnapshot.minimumWeight,
+            appliedRuleSnapshot: {
+              quotationNumber: quoteDoc.quotationNumber,
+              version: quoteDoc.version || 1,
+              origin: effectiveRule.origin || sDoc.origin,
+              destination: effectiveRule.destination || sDoc.destination,
+              mode: effectiveRule.mode || targetMode,
+              rateBasis: pricingSnapshot.rateBasis,
+              freightRate: pricingSnapshot.baseFreightRate,
+              minimumChargeableWeight: pricingSnapshot.minimumWeight,
+              additionalCharges: effectiveRule.additionalCharges || quoteDoc.additionalCharges || [],
+              taxConfiguration: pricingSnapshot.taxConfiguration
+            },
+            pricingSnapshot,
+            validatedAt: new Date(),
+            overrideConfirmed: false,
+            overrideConfirmedBy: null,
+            overrideConfirmedAt: null,
+            auditLog: [
+              ...existingAudit,
+              {
+                action: 'Auto-fetched quotation applied',
+                previousStatus: existingPv?.status || 'MISSING',
+                newStatus: 'MATCHED',
+                previousSource: existingPv?.source || 'NONE',
+                newSource: 'QUOTATION',
+                reason: `Auto-fetched quotation ${quoteDoc.quotationNumber} (v${quoteDoc.version || 1}) applied`,
+                modifiedBy,
+                modifiedAt: new Date()
+              }
+            ]
+          };
+        }
+      }
+
+      if (!nextValidation && clientPv && clientPv.status === 'MATCHED' && clientPv.source === 'QUOTATION') {
+        const existingAudit = Array.isArray(existingPv?.auditLog) ? existingPv.auditLog : [];
+        nextValidation = {
+          ...clientPv,
+          isAutoFetchedPreview: false,
+          overrideConfirmed: false,
+          overrideConfirmedBy: null,
+          overrideConfirmedAt: null,
+          validatedAt: new Date(),
+          auditLog: [
+            ...existingAudit,
+            {
+              action: 'Auto-fetched quotation applied',
+              previousStatus: existingPv?.status || 'MISSING',
+              newStatus: 'MATCHED',
+              previousSource: existingPv?.source || 'NONE',
+              newSource: 'QUOTATION',
+              reason: `Auto-fetched quotation ${clientPv.quotationNumber || 'Agreed Rate'} applied`,
+              modifiedBy,
+              modifiedAt: new Date()
+            }
+          ]
+        };
+      }
+
+      if (!nextValidation) {
+        skippedCount += 1;
+        continue;
+      }
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: sDoc._id },
+          update: { $set: { pricingValidation: nextValidation } }
+        }
+      });
+
+      results.push({
+        shipmentId: sDoc._id.toString(),
+        cnNumber: sDoc.cnNumber,
+        pricingValidation: nextValidation
+      });
+    }
+
+    if (bulkOps.length > 0) {
+      await Shipment.bulkWrite(bulkOps);
+    }
+
+    console.log(`[Bulk Apply Quotation] Applied ${results.length} quotation(s), skipped ${skippedCount}`);
+    res.json({
+      success: true,
+      updatedCount: results.length,
+      skippedCount,
+      results
+    });
+  } catch (err) {
+    console.error('[Shipments Bulk Apply Quotation Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/shipments/:idOrCN — Get single shipment details
 router.get('/:idOrCN', async (req, res) => {
   try {

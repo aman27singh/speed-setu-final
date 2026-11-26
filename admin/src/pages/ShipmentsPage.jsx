@@ -6,6 +6,7 @@ import { useSearch } from '../context/SearchContext';
 import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
 import { quotationService } from '../services/quotationService';
+import { pricingService } from '../services/pricingService';
 import { getPricingBadgeInfo, getRateBasisMeta, matchShipmentToCompanyQuotations } from '../utils/pricingValidation';
 import { formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
@@ -529,8 +530,13 @@ export const ShipmentsPage = () => {
   const [companyQuotations, setCompanyQuotations] = useState([]);
   const [fetchingQuotations, setFetchingQuotations] = useState(false);
   const [quotationFetchError, setQuotationFetchError] = useState(null);
+  const [persistingQuotations, setPersistingQuotations] = useState(false);
+  const [quotationPersistError, setQuotationPersistError] = useState(null);
+  const [lastPersistedCount, setLastPersistedCount] = useState(0);
   const quotationFetchSeqRef = useRef(0);
   const lastQuotationFetchKeyRef = useRef('');
+  const persistedFetchKeyRef = useRef('');
+  const persistSeqRef = useRef(0);
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState({
     mode: 'particular',
@@ -592,7 +598,9 @@ export const ShipmentsPage = () => {
   // Reset all active filters to default
   const handleResetFilters = () => {
     quotationFetchSeqRef.current += 1;
+    persistSeqRef.current += 1;
     lastQuotationFetchKeyRef.current = '';
+    persistedFetchKeyRef.current = '';
     setSearch('');
     setSearchQuery('');
     setCompanyFilter('All');
@@ -600,6 +608,9 @@ export const ShipmentsPage = () => {
     setCompanyQuotations([]);
     setQuotationFetchError(null);
     setFetchingQuotations(false);
+    setPersistingQuotations(false);
+    setQuotationPersistError(null);
+    setLastPersistedCount(0);
     setRouteFilter('All');
     setPackageFilter('All');
     setWeightFilter('All');
@@ -819,20 +830,30 @@ export const ShipmentsPage = () => {
   useEffect(() => {
     if (!companyFilter || companyFilter === 'All') {
       quotationFetchSeqRef.current += 1;
+      persistSeqRef.current += 1;
       lastQuotationFetchKeyRef.current = '';
+      persistedFetchKeyRef.current = '';
       setAutoFetchQuotation(false);
       setCompanyQuotations([]);
       setQuotationFetchError(null);
       setFetchingQuotations(false);
+      setPersistingQuotations(false);
+      setQuotationPersistError(null);
+      setLastPersistedCount(0);
       return;
     }
 
     if (!autoFetchQuotation) {
       quotationFetchSeqRef.current += 1;
+      persistSeqRef.current += 1;
       lastQuotationFetchKeyRef.current = '';
+      persistedFetchKeyRef.current = '';
       setCompanyQuotations([]);
       setQuotationFetchError(null);
       setFetchingQuotations(false);
+      setPersistingQuotations(false);
+      setQuotationPersistError(null);
+      setLastPersistedCount(0);
       return;
     }
 
@@ -841,6 +862,9 @@ export const ShipmentsPage = () => {
     if (lastQuotationFetchKeyRef.current === fetchKey) return;
 
     lastQuotationFetchKeyRef.current = fetchKey;
+    persistedFetchKeyRef.current = '';
+    setQuotationPersistError(null);
+    setLastPersistedCount(0);
     const seqId = ++quotationFetchSeqRef.current;
     setCompanyQuotations([]);
     fetchCompanyQuotations(selectedCompanyMeta, seqId);
@@ -848,7 +872,7 @@ export const ShipmentsPage = () => {
 
   const isAutoFetchActive = Boolean(autoFetchQuotation && companyFilter && companyFilter !== 'All');
 
-  // Read-only in-memory matching of company quotations against the selected company's CNs
+  // In-memory matching of company quotations against the selected company's CNs
   const autoMatchedQuotationMap = React.useMemo(() => {
     const map = new Map();
     if (!isAutoFetchActive || fetchingQuotations || quotationFetchError) {
@@ -887,6 +911,113 @@ export const ShipmentsPage = () => {
     baseShipments,
     companyQuotations
   ]);
+
+  // Persist auto-fetched quotation matches onto unpriced CNs in MongoDB
+  // so applied quotations survive page refresh and show up in Shipment Details.
+  const persistMatchedQuotations = React.useCallback(async () => {
+    if (
+      !isAutoFetchActive ||
+      loading ||
+      fetchingQuotations ||
+      quotationFetchError ||
+      companyQuotations.length === 0 ||
+      baseShipments.length === 0
+    ) {
+      return;
+    }
+
+    const updates = [];
+    baseShipments.forEach((s) => {
+      const existingPv = s.pricingValidation;
+      const alreadyMatched =
+        existingPv &&
+        existingPv.status === 'MATCHED' &&
+        existingPv.source &&
+        existingPv.source !== 'NONE';
+      if (alreadyMatched) return;
+
+      const rowKey = s._id || s.id || s.cnNumber;
+      const matchRes = rowKey ? autoMatchedQuotationMap.get(rowKey) : null;
+      if (!matchRes?.matched || !matchRes.pricingValidation) return;
+
+      updates.push({
+        shipmentId: s._id || s.id || null,
+        cnNumber: s.cnNumber,
+        quotationId: matchRes.pricingValidation.quotationId,
+        quotationNumber: matchRes.pricingValidation.quotationNumber,
+        pricingValidation: {
+          ...matchRes.pricingValidation,
+          isAutoFetchedPreview: false
+        }
+      });
+    });
+
+    if (updates.length === 0) return;
+
+    const persistKey = `${lastQuotationFetchKeyRef.current}::count=${updates.length}`;
+    if (persistedFetchKeyRef.current === persistKey) return;
+
+    persistedFetchKeyRef.current = persistKey;
+    const seqId = ++persistSeqRef.current;
+    setPersistingQuotations(true);
+    setQuotationPersistError(null);
+
+    try {
+      const actor = user?.name || user?.username || 'Admin';
+      const res = await pricingService.applyAutoFetchedQuotationsBatch(updates, actor);
+      if (persistSeqRef.current !== seqId) return;
+
+      const resultList = Array.isArray(res?.results) ? res.results : [];
+      const pvById = new Map();
+      const pvByCn = new Map();
+
+      resultList.forEach((r) => {
+        if (r?.shipmentId && r.pricingValidation) {
+          pvById.set(String(r.shipmentId), r.pricingValidation);
+        }
+        if (r?.cnNumber && r.pricingValidation) {
+          pvByCn.set(String(r.cnNumber).trim().toLowerCase(), r.pricingValidation);
+        }
+      });
+
+      if (pvById.size > 0 || pvByCn.size > 0) {
+        const mergePersistedPricing = (list) =>
+          list.map((s) => {
+            const matchedPv =
+              (s._id && pvById.get(String(s._id))) ||
+              (s.id && pvById.get(String(s.id))) ||
+              (s.cnNumber && pvByCn.get(String(s.cnNumber).trim().toLowerCase()));
+            return matchedPv ? { ...s, pricingValidation: matchedPv } : s;
+          });
+
+        setBaseShipments(mergePersistedPricing);
+        setAllShipmentsMaster(mergePersistedPricing);
+      }
+
+      setLastPersistedCount(typeof res?.updatedCount === 'number' ? res.updatedCount : resultList.length);
+    } catch (err) {
+      if (persistSeqRef.current !== seqId) return;
+      persistedFetchKeyRef.current = '';
+      setQuotationPersistError(err?.message || 'Failed to save applied quotations to database.');
+    } finally {
+      if (persistSeqRef.current === seqId) {
+        setPersistingQuotations(false);
+      }
+    }
+  }, [
+    isAutoFetchActive,
+    loading,
+    fetchingQuotations,
+    quotationFetchError,
+    companyQuotations,
+    baseShipments,
+    autoMatchedQuotationMap,
+    user
+  ]);
+
+  useEffect(() => {
+    persistMatchedQuotations();
+  }, [persistMatchedQuotations]);
 
   // 2. Dynamic Origin – Destination Routes (Depends on selected Company)
   const availableRoutes = React.useMemo(() => {
@@ -1675,10 +1806,15 @@ export const ShipmentsPage = () => {
                   onChange={(e) => {
                     const nextVal = e.target.value;
                     quotationFetchSeqRef.current += 1;
+                    persistSeqRef.current += 1;
                     lastQuotationFetchKeyRef.current = '';
+                    persistedFetchKeyRef.current = '';
                     setCompanyQuotations([]);
                     setQuotationFetchError(null);
                     setFetchingQuotations(false);
+                    setPersistingQuotations(false);
+                    setQuotationPersistError(null);
+                    setLastPersistedCount(0);
                     if (nextVal === 'All') {
                       setAutoFetchQuotation(false);
                     }
@@ -1710,8 +1846,8 @@ export const ShipmentsPage = () => {
                   companyFilter === 'All'
                     ? 'Select a company to automatically fetch its quotations.'
                     : autoFetchQuotation
-                      ? 'Auto-Fetch Quotation is ON (read-only lookup). Click to disable.'
-                      : 'Automatically fetch and match quotations for the selected company'
+                      ? 'Auto-Fetch Quotation is ON (matching quotations are applied to unpriced CNs). Click to disable.'
+                      : 'Automatically fetch and apply quotations for the selected company'
                 }
               >
                 <button
@@ -1732,7 +1868,7 @@ export const ShipmentsPage = () => {
                   }`}
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    {fetchingQuotations ? (
+                    {fetchingQuotations || persistingQuotations ? (
                       <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
                     ) : (
                       <Sparkles
@@ -1988,7 +2124,11 @@ export const ShipmentsPage = () => {
               ) : autoMatchSummary ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-900">
                   <div className="flex items-center gap-2 font-medium">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    {persistingQuotations ? (
+                      <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    )}
                     <span>
                       <strong className="font-bold">{autoMatchSummary.matchedCount}</strong>{' '}
                       {autoMatchSummary.matchedCount === 1 ? 'quotation' : 'quotations'} matched out of{' '}
@@ -2001,9 +2141,32 @@ export const ShipmentsPage = () => {
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-emerald-700 font-medium">
-                    {autoMatchSummary.activeQuotationsCount} active company {autoMatchSummary.activeQuotationsCount === 1 ? 'quotation' : 'quotations'} • Read-only preview (CN pricing unchanged)
-                  </span>
+                  <div className="flex items-center gap-2 text-[11px] font-medium">
+                    {persistingQuotations ? (
+                      <span className="text-blue-700">Saving applied quotations to database...</span>
+                    ) : quotationPersistError ? (
+                      <span className="inline-flex items-center gap-1.5 text-rose-700">
+                        <span>Save failed: {quotationPersistError}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            persistedFetchKeyRef.current = '';
+                            persistMatchedQuotations();
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-rose-300 text-rose-700 hover:bg-rose-100 rounded cursor-pointer"
+                        >
+                          Retry Save
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700">
+                        {autoMatchSummary.activeQuotationsCount} active company {autoMatchSummary.activeQuotationsCount === 1 ? 'quotation' : 'quotations'} •{' '}
+                        {lastPersistedCount > 0
+                          ? `Saved ${lastPersistedCount} newly applied ${lastPersistedCount === 1 ? 'CN' : 'CNs'} to database`
+                          : 'Saved in database'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ) : null}
             </div>

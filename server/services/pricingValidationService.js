@@ -20,7 +20,8 @@ function normalizeLocation(loc) {
 
   // Standard city alias normalization
   if (str === 'BANGALORE' || str === 'BENGALURU') return 'BANGALORE';
-  if (str === 'GURGAON' || str === 'GURUGRAM') return 'GURGAON';
+  if (str === 'GURGAON' || str === 'GURUGRAM' || str === 'GURGOAN') return 'GURGAON';
+  if (str === 'NARSAPURA' || str === 'NARSARPURA') return 'NARSAPURA';
   if (str === 'BOMBAY' || str === 'MUMBAI') return 'MUMBAI';
   if (str === 'CALCUTTA' || str === 'KOLKATA') return 'KOLKATA';
   if (str === 'MADRAS' || str === 'CHENNAI') return 'CHENNAI';

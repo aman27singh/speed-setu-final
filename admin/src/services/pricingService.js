@@ -370,5 +370,68 @@ export const pricingService = {
       console.warn('[Pricing Service] Fetch rate cards error:', err.message);
       return [];
     }
+  },
+
+  /**
+   * Batch persist auto-fetched quotation matches onto unpriced CNs in MongoDB.
+   * Uses POST /shipments/bulk-apply-quotation first, falling back to per-shipment
+   * PATCH /shipments/:id/pricing if the bulk endpoint is unavailable (e.g. rolling deploy).
+   */
+  async applyAutoFetchedQuotationsBatch(updates = [], modifiedBy = 'Admin') {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return { success: true, updatedCount: 0, skippedCount: 0, results: [] };
+    }
+
+    try {
+      const response = await apiRequest('/shipments/bulk-apply-quotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates, modifiedBy })
+      });
+      return response;
+    } catch (err) {
+      const msg = String(err?.message || '');
+      const isRouteMissing = msg.includes('404') || msg.toLowerCase().includes('not found');
+      if (!isRouteMissing) {
+        throw err;
+      }
+
+      // Fallback during staggered deploy: apply in small parallel batches via PATCH /:id/pricing
+      const results = [];
+      let skippedCount = 0;
+      const chunkSize = 5;
+      for (let i = 0; i < updates.length; i += chunkSize) {
+        const chunk = updates.slice(i, i + chunkSize);
+        const settled = await Promise.allSettled(
+          chunk.map(async (item) => {
+            const targetId = item.cnNumber || item.shipmentId;
+            if (!targetId || !item.quotationId) return null;
+            const res = await this.assignPricing(targetId, {
+              action: 'assign_quotation',
+              quotationId: item.quotationId,
+              reason: `Auto-fetched quotation ${item.quotationNumber || item.quotationId} applied`,
+              modifiedBy
+            });
+            return {
+              shipmentId: item.shipmentId,
+              cnNumber: item.cnNumber,
+              pricingValidation: res?.pricingValidation || item.pricingValidation
+            };
+          })
+        );
+
+        settled.forEach((s) => {
+          if (s.status === 'fulfilled' && s.value) results.push(s.value);
+          else skippedCount += 1;
+        });
+      }
+
+      return {
+        success: true,
+        updatedCount: results.length,
+        skippedCount,
+        results
+      };
+    }
   }
 };
