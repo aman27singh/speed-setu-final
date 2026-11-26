@@ -18,7 +18,7 @@ function formatQuotation(q) {
 }
 
 export const quotationService = {
-  async getQuotations({ search = '', companyId = 'All', companyCode = '', companyName = '', status = 'All', mode = 'All' } = {}) {
+  async getQuotations({ search = '', companyId = 'All', companyMongoId = '', companyCode = '', companyName = '', status = 'All', mode = 'All' } = {}) {
     try {
       const queryParams = new URLSearchParams();
       if (search && search.trim()) queryParams.append('search', search.trim());
@@ -38,20 +38,23 @@ export const quotationService = {
         quotationsStore = remoteData.map(formatQuotation);
 
         const hasCompanyScope = companyId && companyId !== 'All';
-        const candidates = [companyId, companyCode, companyName]
+        const candidates = [companyId, companyMongoId, companyCode, companyName]
           .filter((v) => v && v !== 'All')
           .map((v) => String(v).trim().toLowerCase());
 
         return quotationsStore.filter((q) => {
           if (hasCompanyScope && candidates.length > 0) {
+            if (q.isRateCard === true) return false;
+            const qCompId = String(q.companyId || '').trim().toUpperCase();
+            const qCompCode = String(q.companyCode || '').trim().toUpperCase();
+            if (!qCompId || qCompId === 'ALL' || qCompCode === 'ALL') return false;
+
             const qFields = [q.companyId, q.companyCode, q.companyName]
               .filter(Boolean)
               .map((v) => String(v).trim().toLowerCase());
-            // Keep if any identifier matches (backend also resolves across Master Company _id/code/name)
-            const directMatch = qFields.some((f) => candidates.includes(f));
-            if (!directMatch && !companyCode && !companyName) return false;
+            if (!qFields.some((f) => candidates.includes(f))) return false;
           }
-          if (status !== 'All' && q.status?.toLowerCase() !== status.toLowerCase()) return false;
+          if (status !== 'All' && String(q.status || '').trim().toLowerCase() !== status.trim().toLowerCase()) return false;
           return true;
         });
       }
@@ -62,12 +65,13 @@ export const quotationService = {
     }
   },
 
-  async getCompanyActiveQuotations({ companyId, companyCode = '', companyName = '' } = {}) {
+  async getCompanyActiveQuotations({ companyId, companyMongoId = '', companyCode = '', companyName = '' } = {}) {
     if (!companyId || companyId === 'All' || companyId === 'undefined' || companyId === 'null') {
       return [];
     }
     return this.getQuotations({
       companyId: String(companyId).trim(),
+      companyMongoId: companyMongoId ? String(companyMongoId).trim() : '',
       companyCode: companyCode ? String(companyCode).trim() : '',
       companyName: companyName ? String(companyName).trim() : '',
       status: 'Active'

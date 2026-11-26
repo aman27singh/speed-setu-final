@@ -199,7 +199,7 @@ export function normalizeLocation(loc) {
     .toUpperCase();
 
   if (str === 'BANGALORE' || str === 'BENGALURU') return 'BANGALORE';
-  if (str === 'GURGAON' || str === 'GURUGRAM') return 'GURGAON';
+  if (str === 'GURGAON' || str === 'GURUGRAM' || str === 'GURGOAN') return 'GURGAON';
   if (str === 'BOMBAY' || str === 'MUMBAI') return 'MUMBAI';
   if (str === 'CALCUTTA' || str === 'KOLKATA') return 'KOLKATA';
   if (str === 'MADRAS' || str === 'CHENNAI') return 'CHENNAI';
@@ -344,8 +344,10 @@ export function matchShipmentToCompanyQuotations(shipment, companyQuotations = [
   const weight = Number(shipment.chargeableWeight) || Number(shipment.actualWeight) || 0;
   const packages = parseInt(shipment.packages, 10) || 1;
 
-  // Strict active status + date validity + version/recency priority (matching pricingValidationService.js)
-  const eligibleQuotations = companyQuotations
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Filter strictly to active company quotations (never inactive/draft/cancelled, never generic/rate-card)
+  const activeCompanyQuotations = companyQuotations
     .filter((q) => {
       if (!q) return false;
       if (String(q.status || '').trim().toLowerCase() !== 'active') return false;
@@ -353,13 +355,23 @@ export function matchShipmentToCompanyQuotations(shipment, companyQuotations = [
       const qCompId = String(q.companyId || '').trim().toUpperCase();
       const qCompCode = String(q.companyCode || '').trim().toUpperCase();
       if (qCompId === 'ALL' || qCompCode === 'ALL') return false;
-      return isAgreementDateValid(q, shipmentDate);
+      return true;
     })
     .sort((a, b) => {
       const vDiff = (Number(b.version) || 1) - (Number(a.version) || 1);
       if (vDiff !== 0) return vDiff;
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
+
+  // Tier 1: Quotations whose validity window strictly covers the shipment's booking date.
+  // Tier 2: Ongoing/current active quotations (valid as of today & not expired) when older CNs precede effectiveFrom.
+  const strictDateQuotations = activeCompanyQuotations.filter((q) => isAgreementDateValid(q, shipmentDate));
+  const currentValidQuotations = activeCompanyQuotations.filter((q) => {
+    if (isAgreementDateValid(q, shipmentDate)) return false;
+    // Never use an already-expired agreement or a future-dated agreement
+    return isAgreementDateValid(q, todayStr);
+  });
+  const eligibleQuotations = [...strictDateQuotations, ...currentValidQuotations];
 
   if (!origin.trim() || !destination.trim()) {
     return { matched: false, quotation: null, rule: null, pricingValidation: null };

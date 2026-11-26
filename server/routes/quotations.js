@@ -138,8 +138,8 @@ router.get('/', async (req, res) => {
       }
       for (const nameVal of nameValues) {
         if (!nameVal) continue;
-        const esc = nameVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        companyOr.push({ companyName: new RegExp(`^${esc}$`, 'i') });
+        const esc = nameVal.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        companyOr.push({ companyName: new RegExp(`^\\s*${esc}\\s*$`, 'i') });
       }
 
       if (companyOr.length > 0) {

@@ -765,20 +765,24 @@ export const ShipmentsPage = () => {
     );
     const fromMaster = companies.find(
       (c) =>
-        String(c._id || '').toLowerCase() === filterLower ||
-        String(c.id || '').toLowerCase() === filterLower ||
-        String(c.code || '').toLowerCase() === filterLower ||
-        String(c.companyName || c.name || '').toLowerCase() === filterLower ||
+        String(c._id || '').trim().toLowerCase() === filterLower ||
+        String(c.id || '').trim().toLowerCase() === filterLower ||
+        String(c.companyId || '').trim().toLowerCase() === filterLower ||
+        String(c.companyCode || c.code || '').trim().toLowerCase() === filterLower ||
+        String(c.companyName || c.name || '').trim().toLowerCase() === filterLower ||
         (fromAvailable?.name &&
-          String(c.companyName || c.name || '').toLowerCase() === String(fromAvailable.name).toLowerCase()) ||
+          String(c.companyName || c.name || '').trim().toLowerCase() === String(fromAvailable.name).trim().toLowerCase()) ||
         (fromAvailable?.code &&
-          String(c.code || '').toLowerCase() === String(fromAvailable.code).toLowerCase())
+          String(c.companyCode || c.code || '').trim().toLowerCase() === String(fromAvailable.code).trim().toLowerCase())
     );
 
     return {
-      companyId: String(fromMaster?._id || fromMaster?.id || fromAvailable?.id || filterStr),
-      companyCode: String(fromMaster?.code || fromAvailable?.code || ''),
-      companyName: String(fromMaster?.companyName || fromMaster?.name || fromAvailable?.name || '')
+      companyId: String(
+        fromMaster?.companyId || fromMaster?.id || fromAvailable?.id || fromMaster?._id || filterStr
+      ).trim(),
+      companyMongoId: fromMaster?._id ? String(fromMaster._id).trim() : '',
+      companyCode: String(fromMaster?.companyCode || fromMaster?.code || fromAvailable?.code || '').trim(),
+      companyName: String(fromMaster?.companyName || fromMaster?.name || fromAvailable?.name || '').trim()
     };
   }, [companyFilter, availableCompanies, companies]);
 
@@ -851,17 +855,18 @@ export const ShipmentsPage = () => {
       return map;
     }
 
-    const cLower = String(companyFilter).toLowerCase();
-    const idLower = String(selectedCompanyMeta?.companyId || '').toLowerCase();
-    const codeLower = String(selectedCompanyMeta?.companyCode || '').toLowerCase();
-    const nameLower = String(selectedCompanyMeta?.companyName || '').toLowerCase();
+    const cLower = String(companyFilter).trim().toLowerCase();
+    const idLower = String(selectedCompanyMeta?.companyId || '').trim().toLowerCase();
+    const mongoLower = String(selectedCompanyMeta?.companyMongoId || '').trim().toLowerCase();
+    const codeLower = String(selectedCompanyMeta?.companyCode || '').trim().toLowerCase();
+    const nameLower = String(selectedCompanyMeta?.companyName || '').trim().toLowerCase();
 
     baseShipments.forEach((s) => {
-      const sId = String(s.companyId || '').toLowerCase();
-      const sCode = String(s.companyCode || '').toLowerCase();
-      const sName = String(s.companyName || '').toLowerCase();
+      const sId = String(s.companyId || '').trim().toLowerCase();
+      const sCode = String(s.companyCode || '').trim().toLowerCase();
+      const sName = String(s.companyName || '').trim().toLowerCase();
       const belongsToCompany =
-        (sId && (sId === cLower || sId === idLower || sId === codeLower)) ||
+        (sId && (sId === cLower || sId === idLower || (mongoLower && sId === mongoLower) || sId === codeLower)) ||
         (sCode && (sCode === cLower || sCode === codeLower || sCode === idLower)) ||
         (sName && (sName === cLower || sName === nameLower));
 
