@@ -18,26 +18,39 @@ function formatQuotation(q) {
 }
 
 export const quotationService = {
-  async getQuotations({ search = '', companyId = 'All', status = 'All', mode = 'All' } = {}) {
+  async getQuotations({ search = '', companyId = 'All', companyCode = '', companyName = '', status = 'All', mode = 'All' } = {}) {
     try {
       const queryParams = new URLSearchParams();
       if (search && search.trim()) queryParams.append('search', search.trim());
       if (status && status !== 'All') queryParams.append('status', status);
       if (companyId && companyId !== 'All' && companyId !== 'undefined' && companyId !== 'null') {
-        queryParams.append('companyId', companyId.trim());
+        queryParams.append('companyId', String(companyId).trim());
+      }
+      if (companyCode && companyCode !== 'All' && companyCode !== 'undefined' && companyCode !== 'null') {
+        queryParams.append('companyCode', String(companyCode).trim());
+      }
+      if (companyName && companyName !== 'All' && companyName !== 'undefined' && companyName !== 'null') {
+        queryParams.append('companyName', String(companyName).trim());
       }
 
       const remoteData = await apiRequest(`/quotations?${queryParams.toString()}`);
       if (Array.isArray(remoteData)) {
         quotationsStore = remoteData.map(formatQuotation);
 
+        const hasCompanyScope = companyId && companyId !== 'All';
+        const candidates = [companyId, companyCode, companyName]
+          .filter((v) => v && v !== 'All')
+          .map((v) => String(v).trim().toLowerCase());
+
         return quotationsStore.filter((q) => {
-          if (
-            companyId !== 'All' &&
-            q.companyId !== companyId &&
-            q.companyCode !== companyId &&
-            (q.companyName || '').toLowerCase() !== companyId.toLowerCase()
-          ) return false;
+          if (hasCompanyScope && candidates.length > 0) {
+            const qFields = [q.companyId, q.companyCode, q.companyName]
+              .filter(Boolean)
+              .map((v) => String(v).trim().toLowerCase());
+            // Keep if any identifier matches (backend also resolves across Master Company _id/code/name)
+            const directMatch = qFields.some((f) => candidates.includes(f));
+            if (!directMatch && !companyCode && !companyName) return false;
+          }
           if (status !== 'All' && q.status?.toLowerCase() !== status.toLowerCase()) return false;
           return true;
         });
@@ -47,6 +60,18 @@ export const quotationService = {
       console.error('[Quotation Service] Quotations list fetch error:', err.message);
       throw err;
     }
+  },
+
+  async getCompanyActiveQuotations({ companyId, companyCode = '', companyName = '' } = {}) {
+    if (!companyId || companyId === 'All' || companyId === 'undefined' || companyId === 'null') {
+      return [];
+    }
+    return this.getQuotations({
+      companyId: String(companyId).trim(),
+      companyCode: companyCode ? String(companyCode).trim() : '',
+      companyName: companyName ? String(companyName).trim() : '',
+      status: 'Active'
+    });
   },
 
   async getCompanyRateCards(companyId) {

@@ -278,6 +278,164 @@ export function findMatchingRuleInList(rulesList, origin, destination, mode) {
 }
 
 /**
+ * Evaluate whether a rate rule satisfies optional pickup/delivery, packaging, and weight conditions.
+ */
+function ruleSatisfiesShipmentConditions(rule, shipment) {
+  if (!rule || !shipment) return true;
+
+  // 1. Optional Pickup / Delivery location constraints on rule (if explicitly configured)
+  const rulePickup = normalizeLocation(rule.pickupLocation || rule.pickupPoint || '');
+  const shipPickup = normalizeLocation(
+    shipment.consignor?.pickupDeliveryLocation || shipment.consignor?.city || shipment.origin || ''
+  );
+  if (rulePickup && shipPickup && rulePickup !== shipPickup) {
+    return false;
+  }
+
+  const ruleDelivery = normalizeLocation(rule.deliveryLocation || rule.deliveryPoint || '');
+  const shipDelivery = normalizeLocation(
+    shipment.consignee?.pickupDeliveryLocation || shipment.consignee?.city || shipment.destination || ''
+  );
+  if (ruleDelivery && shipDelivery && ruleDelivery !== shipDelivery) {
+    return false;
+  }
+
+  // 2. Optional Packaging / Box count conditions (if explicitly configured on rule)
+  const pkgCount = parseInt(shipment.packages, 10) || 0;
+  if (typeof rule.minPackages === 'number' && rule.minPackages > 0 && pkgCount < rule.minPackages) {
+    return false;
+  }
+  if (typeof rule.maxPackages === 'number' && rule.maxPackages > 0 && pkgCount > rule.maxPackages) {
+    return false;
+  }
+  const shipPackaging = shipment.packagingType || shipment.packageType || '';
+  if (rule.packagingType && shipPackaging) {
+    if (String(rule.packagingType).trim().toLowerCase() !== String(shipPackaging).trim().toLowerCase()) {
+      return false;
+    }
+  }
+
+  // 3. Optional Weight range conditions (if maxWeight explicitly caps the rule, or weightSlabs must cover weight)
+  const rawWeight = Number(shipment.chargeableWeight) || Number(shipment.actualWeight) || 0;
+  if (typeof rule.maxWeight === 'number' && rule.maxWeight > 0 && rawWeight > rule.maxWeight) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Match a single Consignment Note (CN) against a company's fetched quotations
+ * using the existing quotation matching, validity, status, and priority rules.
+ * Pure read-only lookup: never mutates the shipment or saved pricing.
+ */
+export function matchShipmentToCompanyQuotations(shipment, companyQuotations = []) {
+  if (!shipment || !Array.isArray(companyQuotations) || companyQuotations.length === 0) {
+    return { matched: false, quotation: null, rule: null, pricingValidation: null };
+  }
+
+  const origin = shipment.origin || shipment.consignor?.city || '';
+  const destination = shipment.destination || shipment.consignee?.city || '';
+  const targetMode = resolveShipmentFreightMode(shipment) || 'Road';
+  const shipmentDate =
+    shipment.bookingDate ||
+    shipment.cnDate ||
+    (shipment.createdAt ? String(shipment.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]);
+  const weight = Number(shipment.chargeableWeight) || Number(shipment.actualWeight) || 0;
+  const packages = parseInt(shipment.packages, 10) || 1;
+
+  // Strict active status + date validity + version/recency priority (matching pricingValidationService.js)
+  const eligibleQuotations = companyQuotations
+    .filter((q) => {
+      if (!q) return false;
+      if (String(q.status || '').trim().toLowerCase() !== 'active') return false;
+      if (q.isRateCard === true) return false;
+      const qCompId = String(q.companyId || '').trim().toUpperCase();
+      const qCompCode = String(q.companyCode || '').trim().toUpperCase();
+      if (qCompId === 'ALL' || qCompCode === 'ALL') return false;
+      return isAgreementDateValid(q, shipmentDate);
+    })
+    .sort((a, b) => {
+      const vDiff = (Number(b.version) || 1) - (Number(a.version) || 1);
+      if (vDiff !== 0) return vDiff;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+
+  if (!origin.trim() || !destination.trim()) {
+    return { matched: false, quotation: null, rule: null, pricingValidation: null };
+  }
+
+  for (const quote of eligibleQuotations) {
+    const rulesList = [
+      ...(Array.isArray(quote.rateRules) ? quote.rateRules : []),
+      ...(Array.isArray(quote.routes) ? quote.routes : [])
+    ].filter((r) => ruleSatisfiesShipmentConditions(r, shipment));
+
+    const matchedRule = findMatchingRuleInList(rulesList, origin, destination, targetMode);
+    if (!matchedRule) continue;
+
+    // Resolve slab rate if weightSlabs are configured on the matched rule
+    let effectiveRule = matchedRule;
+    if (Array.isArray(matchedRule.weightSlabs) && matchedRule.weightSlabs.length > 0) {
+      const slab = matchedRule.weightSlabs.find((s) => {
+        const minW = Number(s.minWeight ?? 0);
+        const maxW = s.maxWeight ? Number(s.maxWeight) : Infinity;
+        return weight >= minW && weight <= maxW;
+      });
+      if (slab && (typeof slab.rate === 'number' || (typeof slab.rate === 'string' && slab.rate !== ''))) {
+        effectiveRule = { ...matchedRule, freightRate: parseFloat(slab.rate) || matchedRule.freightRate };
+      }
+    }
+
+    const pricingSnapshot = buildClientPricingSnapshot({
+      source: 'QUOTATION',
+      doc: quote,
+      matchedRule: effectiveRule,
+      origin,
+      destination,
+      mode: targetMode,
+      date: shipmentDate,
+      weight,
+      packages
+    });
+
+    const previewPricingValidation = {
+      status: 'MATCHED',
+      source: 'QUOTATION',
+      quotationId: quote._id ? String(quote._id) : quote.id,
+      quotationNumber: quote.quotationNumber,
+      quotationVersion: quote.version || 1,
+      agreementVersion: quote.version || 1,
+      rateCardId: null,
+      rateCardNumber: null,
+      rateCardVersion: null,
+      companyId: quote.companyId || shipment.companyId,
+      companyCode: quote.companyCode || shipment.companyCode,
+      companyName: quote.companyName || shipment.companyName,
+      origin,
+      destination,
+      freightMode: targetMode,
+      rateBasis: pricingSnapshot.rateBasis,
+      appliedRate: pricingSnapshot.baseFreightRate,
+      minimumChargeableWeight: pricingSnapshot.minimumWeight,
+      pricingSnapshot,
+      isAutoFetchedPreview: true,
+      isCovered: true,
+      message: `Quotation Matched – ${quote.quotationNumber} (v${quote.version || 1})`
+    };
+
+    return {
+      matched: true,
+      quotation: quote,
+      rule: effectiveRule,
+      pricingValidation: previewPricingValidation
+    };
+  }
+
+  return { matched: false, quotation: null, rule: null, pricingValidation: null };
+}
+
+/**
  * Build complete pricing snapshot matching backend pricingValidationService.js structure
  */
 export function buildClientPricingSnapshot({ source, doc, matchedRule, origin, destination, mode, date, weight = 0, packages = 1 }) {

@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
 import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
-import { getPricingBadgeInfo } from '../utils/pricingValidation';
+import { quotationService } from '../services/quotationService';
+import { getPricingBadgeInfo, getRateBasisMeta, matchShipmentToCompanyQuotations } from '../utils/pricingValidation';
 import { formatDate } from '../utils/formatters';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable } from '../components/common/DataTable';
@@ -35,7 +36,10 @@ import {
   Check,
   Calendar,
   Search,
-  RotateCcw
+  RotateCcw,
+  Sparkles,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 /**
@@ -521,6 +525,12 @@ export const ShipmentsPage = () => {
   const [packageFilter, setPackageFilter] = useState('All');
   const [weightFilter, setWeightFilter] = useState('All');
   const [pricingFilter, setPricingFilter] = useState('All');
+  const [autoFetchQuotation, setAutoFetchQuotation] = useState(false);
+  const [companyQuotations, setCompanyQuotations] = useState([]);
+  const [fetchingQuotations, setFetchingQuotations] = useState(false);
+  const [quotationFetchError, setQuotationFetchError] = useState(null);
+  const quotationFetchSeqRef = useRef(0);
+  const lastQuotationFetchKeyRef = useRef('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState({
     mode: 'particular',
@@ -581,9 +591,15 @@ export const ShipmentsPage = () => {
 
   // Reset all active filters to default
   const handleResetFilters = () => {
+    quotationFetchSeqRef.current += 1;
+    lastQuotationFetchKeyRef.current = '';
     setSearch('');
     setSearchQuery('');
     setCompanyFilter('All');
+    setAutoFetchQuotation(false);
+    setCompanyQuotations([]);
+    setQuotationFetchError(null);
+    setFetchingQuotations(false);
     setRouteFilter('All');
     setPackageFilter('All');
     setWeightFilter('All');
@@ -735,6 +751,137 @@ export const ShipmentsPage = () => {
         count: c.count
       }));
   }, [backendOptions, allShipmentsMaster, baseShipments]);
+
+  // Resolve exact identifiers for the currently selected company
+  const selectedCompanyMeta = React.useMemo(() => {
+    if (!companyFilter || companyFilter === 'All') return null;
+    const filterStr = String(companyFilter).trim();
+    const filterLower = filterStr.toLowerCase();
+    const fromAvailable = availableCompanies.find(
+      (c) =>
+        String(c.id || '').toLowerCase() === filterLower ||
+        String(c.code || '').toLowerCase() === filterLower ||
+        String(c.name || '').toLowerCase() === filterLower
+    );
+    const fromMaster = companies.find(
+      (c) =>
+        String(c._id || '').toLowerCase() === filterLower ||
+        String(c.id || '').toLowerCase() === filterLower ||
+        String(c.code || '').toLowerCase() === filterLower ||
+        String(c.companyName || c.name || '').toLowerCase() === filterLower ||
+        (fromAvailable?.name &&
+          String(c.companyName || c.name || '').toLowerCase() === String(fromAvailable.name).toLowerCase()) ||
+        (fromAvailable?.code &&
+          String(c.code || '').toLowerCase() === String(fromAvailable.code).toLowerCase())
+    );
+
+    return {
+      companyId: String(fromMaster?._id || fromMaster?.id || fromAvailable?.id || filterStr),
+      companyCode: String(fromMaster?.code || fromAvailable?.code || ''),
+      companyName: String(fromMaster?.companyName || fromMaster?.name || fromAvailable?.name || '')
+    };
+  }, [companyFilter, availableCompanies, companies]);
+
+  const fetchCompanyQuotations = React.useCallback(async (meta, seqId) => {
+    if (!meta) return;
+    setFetchingQuotations(true);
+    setQuotationFetchError(null);
+    try {
+      const list = await quotationService.getCompanyActiveQuotations(meta);
+      if (quotationFetchSeqRef.current !== seqId) return;
+      setCompanyQuotations(Array.isArray(list) ? list : []);
+    } catch (err) {
+      if (quotationFetchSeqRef.current !== seqId) return;
+      setCompanyQuotations([]);
+      setQuotationFetchError(err?.message || 'Failed to fetch quotations for the selected company.');
+    } finally {
+      if (quotationFetchSeqRef.current === seqId) {
+        setFetchingQuotations(false);
+      }
+    }
+  }, []);
+
+  const handleRetryQuotationFetch = () => {
+    if (!selectedCompanyMeta || !companyFilter || companyFilter === 'All' || !autoFetchQuotation) return;
+    const seqId = ++quotationFetchSeqRef.current;
+    lastQuotationFetchKeyRef.current = `${companyFilter}::${selectedCompanyMeta.companyId}::${selectedCompanyMeta.companyCode}::${selectedCompanyMeta.companyName}`;
+    fetchCompanyQuotations(selectedCompanyMeta, seqId);
+  };
+
+  // Auto-Fetch Quotation lifecycle:
+  // - Company cleared -> disable toggle & clear results
+  // - Toggle OFF -> clear temporary results without fetching
+  // - Company selected + Toggle ON -> clear previous results & fetch only that company's active quotations
+  useEffect(() => {
+    if (!companyFilter || companyFilter === 'All') {
+      quotationFetchSeqRef.current += 1;
+      lastQuotationFetchKeyRef.current = '';
+      setAutoFetchQuotation(false);
+      setCompanyQuotations([]);
+      setQuotationFetchError(null);
+      setFetchingQuotations(false);
+      return;
+    }
+
+    if (!autoFetchQuotation) {
+      quotationFetchSeqRef.current += 1;
+      lastQuotationFetchKeyRef.current = '';
+      setCompanyQuotations([]);
+      setQuotationFetchError(null);
+      setFetchingQuotations(false);
+      return;
+    }
+
+    if (!selectedCompanyMeta) return;
+    const fetchKey = `${companyFilter}::${selectedCompanyMeta.companyId}::${selectedCompanyMeta.companyCode}::${selectedCompanyMeta.companyName}`;
+    if (lastQuotationFetchKeyRef.current === fetchKey) return;
+
+    lastQuotationFetchKeyRef.current = fetchKey;
+    const seqId = ++quotationFetchSeqRef.current;
+    setCompanyQuotations([]);
+    fetchCompanyQuotations(selectedCompanyMeta, seqId);
+  }, [companyFilter, autoFetchQuotation, selectedCompanyMeta, fetchCompanyQuotations]);
+
+  const isAutoFetchActive = Boolean(autoFetchQuotation && companyFilter && companyFilter !== 'All');
+
+  // Read-only in-memory matching of company quotations against the selected company's CNs
+  const autoMatchedQuotationMap = React.useMemo(() => {
+    const map = new Map();
+    if (!isAutoFetchActive || fetchingQuotations || quotationFetchError) {
+      return map;
+    }
+
+    const cLower = String(companyFilter).toLowerCase();
+    const idLower = String(selectedCompanyMeta?.companyId || '').toLowerCase();
+    const codeLower = String(selectedCompanyMeta?.companyCode || '').toLowerCase();
+    const nameLower = String(selectedCompanyMeta?.companyName || '').toLowerCase();
+
+    baseShipments.forEach((s) => {
+      const sId = String(s.companyId || '').toLowerCase();
+      const sCode = String(s.companyCode || '').toLowerCase();
+      const sName = String(s.companyName || '').toLowerCase();
+      const belongsToCompany =
+        (sId && (sId === cLower || sId === idLower || sId === codeLower)) ||
+        (sCode && (sCode === cLower || sCode === codeLower || sCode === idLower)) ||
+        (sName && (sName === cLower || sName === nameLower));
+
+      if (!belongsToCompany) return;
+      const rowKey = s._id || s.id || s.cnNumber;
+      if (!rowKey) return;
+
+      map.set(rowKey, matchShipmentToCompanyQuotations(s, companyQuotations));
+    });
+
+    return map;
+  }, [
+    isAutoFetchActive,
+    fetchingQuotations,
+    quotationFetchError,
+    companyFilter,
+    selectedCompanyMeta,
+    baseShipments,
+    companyQuotations
+  ]);
 
   // 2. Dynamic Origin – Destination Routes (Depends on selected Company)
   const availableRoutes = React.useMemo(() => {
@@ -947,7 +1094,9 @@ export const ShipmentsPage = () => {
     // 6. Pricing Status Filter (AND)
     if (pricingFilter && pricingFilter !== 'All') {
       list = list.filter((s) => {
-        const pv = s.pricingValidation;
+        const rowKey = s._id || s.id || s.cnNumber;
+        const autoMatch = isAutoFetchActive ? autoMatchedQuotationMap.get(rowKey) : null;
+        const pv = autoMatch?.matched ? autoMatch.pricingValidation : s.pricingValidation;
         if (pricingFilter === 'Quotation') {
           return pv?.status === 'MATCHED' && pv?.source === 'QUOTATION';
         }
@@ -977,7 +1126,7 @@ export const ShipmentsPage = () => {
     }
 
     return list;
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, pricingFilter, dateFilter]);
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, pricingFilter, dateFilter, isAutoFetchActive, autoMatchedQuotationMap]);
 
   // Step 2: Calculate All, Booked, and Delivered counts from baseFilteredShipments (BEFORE status filter is applied)
   const statusCounts = React.useMemo(() => {
@@ -1013,6 +1162,25 @@ export const ShipmentsPage = () => {
 
     return sortShipments(filtered);
   }, [baseFilteredShipments, statusFilter]);
+
+  const autoMatchSummary = React.useMemo(() => {
+    if (!isAutoFetchActive || fetchingQuotations || quotationFetchError) {
+      return null;
+    }
+    let matchedCount = 0;
+    shipments.forEach((s) => {
+      const rowKey = s._id || s.id || s.cnNumber;
+      const res = autoMatchedQuotationMap.get(rowKey);
+      if (res?.matched) {
+        matchedCount += 1;
+      }
+    });
+    return {
+      matchedCount,
+      totalCount: shipments.length,
+      activeQuotationsCount: companyQuotations.length
+    };
+  }, [isAutoFetchActive, fetchingQuotations, quotationFetchError, shipments, autoMatchedQuotationMap, companyQuotations]);
 
   // Optional background fetch if query is not found locally, without blocking the UI
   useEffect(() => {
@@ -1216,6 +1384,34 @@ export const ShipmentsPage = () => {
       header: 'Pricing',
       accessor: 'pricingValidation',
       render: (row) => {
+        const rowKey = row._id || row.id || row.cnNumber;
+        const autoMatch = isAutoFetchActive && !fetchingQuotations && !quotationFetchError
+          ? autoMatchedQuotationMap.get(rowKey)
+          : null;
+
+        if (autoMatch?.matched && autoMatch.pricingValidation) {
+          const pv = autoMatch.pricingValidation;
+          const basisRaw = pv.rateBasis || pv.pricingSnapshot?.rateBasis || pv.appliedRuleSnapshot?.rateBasis || 'Per KG';
+          const { unit } = getRateBasisMeta(basisRaw);
+          const rateText = `₹${(pv.appliedRate || 0).toLocaleString('en-IN')}/${unit}`;
+          const savedNote = row.pricingValidation?.status === 'MATCHED'
+            ? ` (Saved CN pricing preserved: ${row.pricingValidation.quotationNumber || row.pricingValidation.rateCardNumber || row.pricingValidation.source})`
+            : ' (Read-only preview — existing CN pricing unchanged)';
+          const tooltipText = `Auto-Fetched Quotation: ${pv.quotationNumber} (v${pv.quotationVersion || 1}) • ${rateText}${savedNote}`;
+
+          return (
+            <div className="flex flex-col items-start gap-0.5" title={tooltipText}>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 transition-colors cursor-help whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-500" />
+                <span>{pv.quotationNumber || 'Quotation Applied'}</span>
+              </span>
+              <span className="text-[10px] font-medium text-emerald-700/90 pl-1 whitespace-nowrap">
+                Quotation Applied • {rateText}
+              </span>
+            </div>
+          );
+        }
+
         const badge = getPricingBadgeInfo(row);
         return (
           <span
@@ -1471,7 +1667,18 @@ export const ShipmentsPage = () => {
               <div className="lg:flex-1 lg:min-w-[120px] relative">
                 <select
                   value={companyFilter}
-                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    quotationFetchSeqRef.current += 1;
+                    lastQuotationFetchKeyRef.current = '';
+                    setCompanyQuotations([]);
+                    setQuotationFetchError(null);
+                    setFetchingQuotations(false);
+                    if (nextVal === 'All') {
+                      setAutoFetchQuotation(false);
+                    }
+                    setCompanyFilter(nextVal);
+                  }}
                   className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
                     companyFilter !== 'All'
                       ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
@@ -1489,6 +1696,64 @@ export const ShipmentsPage = () => {
                   ))}
                 </select>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* 2b. Auto-Fetch Quotation Toggle */}
+              <div
+                className="shrink-0 flex items-center"
+                title={
+                  companyFilter === 'All'
+                    ? 'Select a company to automatically fetch its quotations.'
+                    : autoFetchQuotation
+                      ? 'Auto-Fetch Quotation is ON (read-only lookup). Click to disable.'
+                      : 'Automatically fetch and match quotations for the selected company'
+                }
+              >
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoFetchQuotation}
+                  disabled={companyFilter === 'All'}
+                  onClick={() => {
+                    if (companyFilter === 'All') return;
+                    setAutoFetchQuotation((prev) => !prev);
+                  }}
+                  className={`w-full lg:w-auto h-9 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center justify-between lg:justify-start gap-2 transition-all whitespace-nowrap ${
+                    companyFilter === 'All'
+                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                      : autoFetchQuotation
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-500/20 cursor-pointer hover:bg-emerald-100/70'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {fetchingQuotations ? (
+                      <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                    ) : (
+                      <Sparkles
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          companyFilter === 'All'
+                            ? 'text-slate-400'
+                            : autoFetchQuotation
+                              ? 'text-emerald-600'
+                              : 'text-slate-400'
+                        }`}
+                      />
+                    )}
+                    <span>Auto-Fetch Quotation</span>
+                  </span>
+                  <span
+                    className={`w-7 h-4 rounded-full p-0.5 transition-colors inline-flex items-center shrink-0 ${
+                      companyFilter === 'All'
+                        ? 'bg-slate-200'
+                        : autoFetchQuotation
+                          ? 'bg-emerald-500 justify-end'
+                          : 'bg-slate-300 justify-start'
+                    }`}
+                  >
+                    <span className="w-3 h-3 rounded-full bg-white shadow-2xs block" />
+                  </span>
+                </button>
               </div>
 
               {/* 3. Origin – Destination (Route) Filter */}
@@ -1690,6 +1955,54 @@ export const ShipmentsPage = () => {
               </span>
             </div>
           </div>
+
+          {/* Auto-Fetch Quotation Status Banner (Loading / Match Count / Error) */}
+          {isAutoFetchActive && (
+            <div className="pt-2 border-t border-slate-100/80 text-xs" data-testid="auto-fetch-status-banner">
+              {fetchingQuotations ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50/80 border border-blue-200 text-blue-800 font-medium">
+                  <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin shrink-0" />
+                  <span>
+                    Fetching active quotations for <strong className="font-semibold">{selectedCompanyMeta?.companyName || companyFilter}</strong>...
+                  </span>
+                </div>
+              ) : quotationFetchError ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
+                  <div className="flex items-center gap-2 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Failed to fetch quotations: {quotationFetchError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRetryQuotationFetch}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-rose-300 text-rose-700 hover:bg-rose-100 rounded-md transition-colors cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : autoMatchSummary ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-900">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      <strong className="font-bold">{autoMatchSummary.matchedCount}</strong>{' '}
+                      {autoMatchSummary.matchedCount === 1 ? 'quotation' : 'quotations'} matched out of{' '}
+                      <strong className="font-bold">{autoMatchSummary.totalCount}</strong>{' '}
+                      {autoMatchSummary.totalCount === 1 ? 'CN' : 'CNs'}.
+                    </span>
+                    {autoMatchSummary.activeQuotationsCount === 0 && (
+                      <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                        No active quotations found for this company
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-emerald-700 font-medium">
+                    {autoMatchSummary.activeQuotationsCount} active company {autoMatchSummary.activeQuotationsCount === 1 ? 'quotation' : 'quotations'} • Read-only preview (CN pricing unchanged)
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           {/* Active Filter Chips with Individual Dismiss (x) and Clear All */}
           {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || pricingFilter !== 'All' || dateFilter.applied || search) && (
@@ -1952,6 +2265,34 @@ export const ShipmentsPage = () => {
                         isUpdating={updatingStatusId === (row._id || row.id || row.cnNumber)}
                       />
                       <StatusBadge status={row.podStatus} />
+                      {(() => {
+                        const rowKey = row._id || row.id || row.cnNumber;
+                        const autoMatch = isAutoFetchActive && !fetchingQuotations && !quotationFetchError
+                          ? autoMatchedQuotationMap.get(rowKey)
+                          : null;
+                        if (autoMatch?.matched && autoMatch.pricingValidation) {
+                          const pv = autoMatch.pricingValidation;
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200"
+                              title={pv.message || `Quotation Applied: ${pv.quotationNumber}`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              <span>{pv.quotationNumber || 'Quotation Applied'}</span>
+                            </span>
+                          );
+                        }
+                        const badge = getPricingBadgeInfo(row);
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.badgeClass}`}
+                            title={badge.tooltip}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badge.dotClass}`} />
+                            <span>{badge.text}</span>
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>

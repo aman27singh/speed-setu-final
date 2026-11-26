@@ -54,43 +54,119 @@ async function findQuotationByIdOrNumber(param) {
   return byNumber;
 }
 
-// GET /api/quotations — List all quotations (with flexible company matching)
+// GET /api/quotations — List quotations (strictly scoped to resolved company when companyId/companyCode/companyName is provided)
 router.get('/', async (req, res) => {
   const correlationId = req.correlationId || 'req_quotes_list';
   try {
-    const { search, status, companyId } = req.query;
-    let query = {};
-    if (status && status !== 'All') query.status = status;
+    const { search, status, companyId, companyCode, companyName } = req.query;
+    const andConditions = [];
 
-    if (companyId && companyId !== 'All') {
-      const escapedComp = companyId.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const compRegex = new RegExp(`^${escapedComp}$`, 'i');
-      const compContainsRegex = new RegExp(escapedComp, 'i');
-      query.$or = [
-        { companyId: companyId.trim() },
-        { companyId: compRegex },
-        { companyCode: compRegex },
-        { companyName: compContainsRegex }
-      ];
+    if (status && status !== 'All') {
+      const escapedStatus = status.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      andConditions.push({ status: new RegExp(`^${escapedStatus}$`, 'i') });
+    }
+
+    const rawCompanyFilter = (companyId && companyId !== 'All' ? companyId : '').trim();
+    const rawCompanyCode = (companyCode && companyCode !== 'All' ? companyCode : '').trim();
+    const rawCompanyName = (companyName && companyName !== 'All' ? companyName : '').trim();
+
+    if (rawCompanyFilter || rawCompanyCode || rawCompanyName) {
+      // Resolve master Company record so all identifiers (_id, companyId, companyCode, companyName) of ONLY this company are matched
+      const compLookupOr = [];
+      if (rawCompanyFilter) {
+        const esc = rawCompanyFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (mongoose.isValidObjectId(rawCompanyFilter)) {
+          compLookupOr.push({ _id: rawCompanyFilter });
+        }
+        compLookupOr.push(
+          { companyId: rawCompanyFilter },
+          { companyId: new RegExp(`^${esc}$`, 'i') },
+          { companyCode: new RegExp(`^${esc}$`, 'i') },
+          { companyName: new RegExp(`^${esc}$`, 'i') }
+        );
+      }
+      if (rawCompanyCode) {
+        const escCode = rawCompanyCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        compLookupOr.push({ companyCode: new RegExp(`^${escCode}$`, 'i') }, { companyId: new RegExp(`^${escCode}$`, 'i') });
+      }
+      if (rawCompanyName) {
+        const escName = rawCompanyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        compLookupOr.push({ companyName: new RegExp(`^${escName}$`, 'i') });
+      }
+
+      let resolvedCompany = null;
+      if (compLookupOr.length > 0) {
+        resolvedCompany = await Company.findOne({ $or: compLookupOr }).lean().catch(() => null);
+      }
+
+      const idValues = new Set();
+      const codeValues = new Set();
+      const nameValues = new Set();
+
+      if (rawCompanyFilter) idValues.add(rawCompanyFilter);
+      if (rawCompanyCode) codeValues.add(rawCompanyCode);
+      if (rawCompanyName) nameValues.add(rawCompanyName);
+
+      if (resolvedCompany) {
+        if (resolvedCompany._id) idValues.add(resolvedCompany._id.toString());
+        if (resolvedCompany.id) idValues.add(String(resolvedCompany.id).trim());
+        if (resolvedCompany.companyId) idValues.add(String(resolvedCompany.companyId).trim());
+        if (resolvedCompany.companyCode) {
+          codeValues.add(String(resolvedCompany.companyCode).trim());
+          idValues.add(String(resolvedCompany.companyCode).trim());
+        }
+        if (resolvedCompany.companyName) nameValues.add(String(resolvedCompany.companyName).trim());
+      }
+
+      const companyOr = [];
+      for (const idVal of idValues) {
+        if (!idVal) continue;
+        const esc = idVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        companyOr.push({ companyId: idVal });
+        companyOr.push({ companyId: new RegExp(`^${esc}$`, 'i') });
+        if (mongoose.isValidObjectId(idVal)) {
+          companyOr.push({ companyId: new mongoose.Types.ObjectId(idVal) });
+        }
+        companyOr.push({ companyCode: new RegExp(`^${esc}$`, 'i') });
+        companyOr.push({ companyName: new RegExp(`^${esc}$`, 'i') });
+      }
+      for (const codeVal of codeValues) {
+        if (!codeVal) continue;
+        const esc = codeVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        companyOr.push({ companyCode: new RegExp(`^${esc}$`, 'i') });
+        companyOr.push({ companyId: new RegExp(`^${esc}$`, 'i') });
+      }
+      for (const nameVal of nameValues) {
+        if (!nameVal) continue;
+        const esc = nameVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        companyOr.push({ companyName: new RegExp(`^${esc}$`, 'i') });
+      }
+
+      if (companyOr.length > 0) {
+        andConditions.push({ $or: companyOr });
+      }
+      // Strictly exclude generic/rate-card entries when filtering by a specific company
+      andConditions.push({
+        isRateCard: { $ne: true },
+        companyId: { $nin: [null, '', 'ALL', 'all'] },
+        companyCode: { $nin: ['ALL', 'all'] }
+      });
     }
 
     if (search) {
       const q = search.trim();
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchConditions = [
-        { quotationNumber: { $regex: escaped, $options: 'i' } },
-        { companyName: { $regex: escaped, $options: 'i' } },
-        { companyCode: { $regex: escaped, $options: 'i' } }
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
-        delete query.$or;
-      } else {
-        query.$or = searchConditions;
-      }
+      andConditions.push({
+        $or: [
+          { quotationNumber: { $regex: escaped, $options: 'i' } },
+          { companyName: { $regex: escaped, $options: 'i' } },
+          { companyCode: { $regex: escaped, $options: 'i' } }
+        ]
+      });
     }
 
-    const list = await Quotation.find(query).sort({ createdAt: -1 });
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
+    const list = await Quotation.find(query).sort({ version: -1, createdAt: -1 });
     console.log(`✓ [${correlationId}] GET /api/quotations -> 200 OK (${list.length} records)`);
     res.json(list);
   } catch (err) {
