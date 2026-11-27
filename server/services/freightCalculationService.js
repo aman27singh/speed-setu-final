@@ -288,13 +288,19 @@ function calculateShipmentBilling(shipment) {
       if (dItem) docketCharge = typeof dItem.amount === 'number' ? dItem.amount : (parseFloat(dItem.amount) || 0);
     }
 
-    if (typeof shipment.pickupCharges === 'number' && shipment.pickupCharges > 0) {
+    const chargesOverridden = Boolean(snap.shipmentChargesOverride || shipment.shipmentChargesOverride);
+
+    if (chargesOverridden) {
+      pickupCharge = Number(shipment.pickupCharges) || 0;
+    } else if (typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
       pickupCharge = shipment.pickupCharges;
     } else if (snap.pickupCharges) {
       pickupCharge = snap.pickupCharges;
     }
 
-    if (typeof shipment.deliveryCharges === 'number' && shipment.deliveryCharges > 0) {
+    if (chargesOverridden) {
+      deliveryCharge = Number(shipment.deliveryCharges) || 0;
+    } else if (typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
       deliveryCharge = shipment.deliveryCharges;
     } else if (snap.deliveryCharges) {
       deliveryCharge = snap.deliveryCharges;
@@ -304,6 +310,9 @@ function calculateShipmentBilling(shipment) {
       appliedRule.additionalCharges.forEach((chg) => {
         const nameLower = (chg.name || chg.chargeName || '').toLowerCase();
         const val = typeof chg.amount === 'number' ? chg.amount : (parseFloat(chg.amount || 0) || 0);
+        const skipPacking = chargesOverridden || (Number(shipment.packingCharges) || 0) > 0;
+        const skipLabor = chargesOverridden || (Number(shipment.laborCharges) || 0) > 0;
+        const skipGodown = chargesOverridden || (Number(shipment.godownCharges) || 0) > 0;
         if (
           val > 0 &&
           !nameLower.includes('docket') &&
@@ -314,7 +323,10 @@ function calculateShipmentBilling(shipment) {
           !nameLower.includes('first mile') &&
           !nameLower.includes('delivery') &&
           !nameLower.includes('door delivery') &&
-          !nameLower.includes('last mile')
+          !nameLower.includes('last mile') &&
+          !(skipPacking && nameLower.includes('packing')) &&
+          !(skipLabor && (nameLower.includes('labor') || nameLower.includes('labour') || nameLower.includes('loading'))) &&
+          !(skipGodown && (nameLower.includes('godown') || nameLower.includes('storage') || nameLower.includes('demurrage')))
         ) {
           extraCharges.push({ name: chg.name || chg.chargeName, amount: val });
         }
@@ -325,9 +337,13 @@ function calculateShipmentBilling(shipment) {
     const laborCharge = Number(shipment.laborCharges) || 0;
 
     const taxConfig = snap.taxConfiguration || appliedRule.taxConfiguration || {};
-    const gstRateVal = (shipment.isGstExempt || taxConfig.applicable === false || snap.gstPercentage === 0)
+    const gstRateVal = shipment.isGstExempt
       ? 0
-      : (snap.gstPercentage ?? taxConfig.gstRate ?? shipment.gstRate ?? 18);
+      : (chargesOverridden && typeof shipment.gstRate === 'number' && !isNaN(shipment.gstRate))
+        ? shipment.gstRate
+        : (taxConfig.applicable === false || snap.gstPercentage === 0)
+          ? 0
+          : (snap.gstPercentage ?? taxConfig.gstRate ?? shipment.gstRate ?? 18);
 
     const lineItems = [{
       name: 'Freight Charges',
@@ -493,11 +509,93 @@ function calculateShipmentBilling(shipment) {
   return null;
 }
 
+/**
+ * Recompute pricingValidation.pricingSnapshot & calculatedCharges using the shipment's own saved
+ * charges, weight, packages, and GST overrides so explicit shipment edits always take priority
+ * over quotation / rate-card charge defaults.
+ */
+function syncPricingValidationWithShipment(shipmentData, pricingValidation) {
+  if (!pricingValidation || pricingValidation.status !== 'MATCHED') {
+    return pricingValidation;
+  }
+  const existingSnap = pricingValidation.pricingSnapshot || {};
+  const chargesOverridden = Boolean(
+    shipmentData?.shipmentChargesOverride ||
+    existingSnap.shipmentChargesOverride ||
+    (typeof shipmentData?.pickupCharges === 'number' && shipmentData.pickupCharges > 0) ||
+    (typeof shipmentData?.deliveryCharges === 'number' && shipmentData.deliveryCharges > 0) ||
+    (Number(shipmentData?.packingCharges) || 0) > 0 ||
+    (Number(shipmentData?.laborCharges) || 0) > 0 ||
+    (Number(shipmentData?.godownCharges) || 0) > 0
+  );
+
+  const nextPv = {
+    ...pricingValidation,
+    pricingSnapshot: {
+      ...existingSnap,
+      shipmentChargesOverride: chargesOverridden
+    }
+  };
+
+  const calc = calculateShipmentBilling({
+    ...(shipmentData || {}),
+    pricingValidation: nextPv
+  });
+
+  if (!calc || calc.isUnpriced) {
+    return nextPv;
+  }
+
+  const findItemAmt = (pred) => (calc.lineItems || []).find(pred)?.amount || 0;
+  const docketAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('docket'));
+  const pickupAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('pickup'));
+  const deliveryAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('delivery'));
+  const packingAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('packing'));
+  const laborAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('labor'));
+  const godownAmt = findItemAmt((i) => (i.name || '').toLowerCase().includes('godown'));
+  const knownTotal = calc.freightAmount + docketAmt + pickupAmt + deliveryAmt + packingAmt + laborAmt + godownAmt;
+  const otherAmt = Math.max(0, calc.taxableAmount - knownTotal);
+
+  return {
+    ...nextPv,
+    agreementVersion: calc.quotationVersion || nextPv.agreementVersion || 1,
+    rateBasis: calc.rateBasis || nextPv.rateBasis,
+    rateBasisNormalized: calc.rateBasisNormalized || nextPv.rateBasisNormalized,
+    rateUnit: calc.rateUnit || nextPv.rateUnit,
+    pricingSnapshot: {
+      ...nextPv.pricingSnapshot,
+      chargeableWeight: calc.weight,
+      pickupCharges: pickupAmt,
+      deliveryCharges: deliveryAmt,
+      packingCharges: packingAmt,
+      laborCharges: laborAmt,
+      godownCharges: godownAmt,
+      gstPercentage: calc.gstRate,
+      calculatedCharges: {
+        freightAmount: calc.freightAmount,
+        docketCharges: docketAmt,
+        pickupCharges: pickupAmt,
+        deliveryCharges: deliveryAmt,
+        packingCharges: packingAmt,
+        laborCharges: laborAmt,
+        godownCharges: godownAmt,
+        otherCharges: otherAmt,
+        taxableAmount: calc.taxableAmount,
+        gstRate: calc.gstRate,
+        gstAmount: calc.gstAmount,
+        grandTotal: calc.grandTotal,
+        lineItems: calc.lineItems
+      }
+    }
+  };
+}
+
 module.exports = {
   normalizeRateBasis,
   getRateBasisMeta,
   calculateFreightAmount,
   resolveShipmentFreightMode,
   formatFreightDescription,
-  calculateShipmentBilling
+  calculateShipmentBilling,
+  syncPricingValidationWithShipment
 };

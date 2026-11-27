@@ -668,13 +668,19 @@ export const shipmentService = {
   /**
    * Validate CN and AWB Number uniqueness
    */
-  async validateDuplicates({ currentShipmentId, currentCnNumber, cnNumber, awbNumber, commercialInvoices }) {
+  async validateDuplicates({ currentShipmentId, currentCnNumber, cnNumber, commercialInvoices }) {
     try {
       const response = await apiRequest('/shipments/validate-duplicates', {
         method: 'POST',
-        body: JSON.stringify({ currentShipmentId, currentCnNumber, cnNumber, awbNumber, commercialInvoices })
+        body: JSON.stringify({ currentShipmentId, currentCnNumber, cnNumber, commercialInvoices })
       });
-      return response;
+      const cnErr = response?.cnNumberError || null;
+      const commErrs = Array.isArray(response?.commercialInvoiceErrors) ? response.commercialInvoiceErrors : [];
+      return {
+        ...response,
+        awbNumberError: null,
+        isValid: !cnErr && commErrs.length === 0
+      };
     } catch (err) {
       console.warn('[ShipmentService] validateDuplicates API fallback:', err.message);
       const normCN = (cnNumber || '').trim().toLowerCase();

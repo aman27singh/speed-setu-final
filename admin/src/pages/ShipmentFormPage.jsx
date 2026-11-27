@@ -230,34 +230,60 @@ export const ShipmentFormPage = () => {
   const [showUnpricedConfirmModal, setShowUnpricedConfirmModal] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState(null);
   const lastAppliedPricingKeyRef = useRef(null);
+  const lastLaneKeyRef = useRef('');
+  const manualEditedFieldsRef = useRef(new Set());
+
+  const computeLaneKey = (data) => {
+    const comp = String(data?.companyId || data?.companyName || '').trim().toLowerCase();
+    const orig = String(data?.origin || data?.consignor?.pickupDeliveryLocation || data?.consignor?.city || '').trim().toUpperCase();
+    const dest = String(data?.destination || data?.consignee?.pickupDeliveryLocation || data?.consignee?.city || '').trim().toUpperCase();
+    const m = String(data?.freightMode || data?.mode || '').trim().toLowerCase();
+    return `${comp}|${orig}|${dest}|${m}`;
+  };
 
   const extractChargeAmounts = (res) => {
     const snap = res?.pricingSnapshot || {};
     const rule = res?.appliedRuleSnapshot || {};
-    const additionalList = Array.isArray(snap.additionalCharges)
-      ? snap.additionalCharges
-      : (Array.isArray(rule.additionalCharges) ? rule.additionalCharges : []);
+    const additionalList =
+      (Array.isArray(snap.additionalCharges) && snap.additionalCharges.length > 0)
+        ? snap.additionalCharges
+        : (Array.isArray(rule.additionalCharges) ? rule.additionalCharges : []);
 
-    let docketAmt = typeof snap.docketCharges === 'number' ? snap.docketCharges : 0;
-    let pickupAmt = typeof snap.pickupCharges === 'number' ? snap.pickupCharges : 0;
-    let deliveryAmt = typeof snap.deliveryCharges === 'number' ? snap.deliveryCharges : 0;
-    let otherAmt = typeof snap.otherCharges === 'number' ? snap.otherCharges : 0;
+    let parsedDocket = 0;
+    let parsedPickup = 0;
+    let parsedDelivery = 0;
+    let parsedPacking = 0;
+    let parsedLabor = 0;
+    let parsedGodown = 0;
+    let parsedOther = 0;
 
-    if (docketAmt === 0 && pickupAmt === 0 && deliveryAmt === 0 && additionalList.length > 0) {
-      for (const chg of additionalList) {
-        const name = (chg.name || chg.chargeName || chg.type || '').toLowerCase();
-        const val = typeof chg.amount === 'number' ? chg.amount : (parseFloat(chg.amount || chg.rate || chg.value) || 0);
-        if (name.includes('docket') || name.includes('lr') || name.includes('bilty') || name.includes('cn charge')) {
-          docketAmt += val;
-        } else if (name.includes('pickup') || name.includes('first mile')) {
-          pickupAmt += val;
-        } else if (name.includes('delivery') || name.includes('door delivery') || name.includes('last mile')) {
-          deliveryAmt += val;
-        } else {
-          otherAmt += val;
-        }
+    for (const chg of additionalList) {
+      const name = (chg.name || chg.chargeName || chg.type || '').toLowerCase();
+      const val = typeof chg.amount === 'number' ? chg.amount : (parseFloat(chg.amount || chg.rate || chg.value) || 0);
+      if (name.includes('docket') || name.includes('lr') || name.includes('bilty') || name.includes('cn charge')) {
+        parsedDocket += val;
+      } else if (name.includes('pickup') || name.includes('first mile')) {
+        parsedPickup += val;
+      } else if (name.includes('delivery') || name.includes('door delivery') || name.includes('last mile')) {
+        parsedDelivery += val;
+      } else if (name.includes('packing') || name.includes('packaging')) {
+        parsedPacking += val;
+      } else if (name.includes('labor') || name.includes('labour') || name.includes('loading') || name.includes('unloading') || name.includes('handling')) {
+        parsedLabor += val;
+      } else if (name.includes('godown') || name.includes('storage') || name.includes('demurrage') || name.includes('warehouse')) {
+        parsedGodown += val;
+      } else {
+        parsedOther += val;
       }
     }
+
+    const docketAmt = typeof snap.docketCharges === 'number' && snap.docketCharges > 0 ? snap.docketCharges : parsedDocket;
+    const pickupAmt = typeof snap.pickupCharges === 'number' && snap.pickupCharges > 0 ? snap.pickupCharges : parsedPickup;
+    const deliveryAmt = typeof snap.deliveryCharges === 'number' && snap.deliveryCharges > 0 ? snap.deliveryCharges : parsedDelivery;
+    const packingAmt = typeof snap.packingCharges === 'number' && snap.packingCharges > 0 ? snap.packingCharges : parsedPacking;
+    const laborAmt = typeof snap.laborCharges === 'number' && snap.laborCharges > 0 ? snap.laborCharges : parsedLabor;
+    const godownAmt = typeof snap.godownCharges === 'number' && snap.godownCharges > 0 ? snap.godownCharges : parsedGodown;
+    const otherAmt = typeof snap.otherCharges === 'number' && snap.otherCharges > 0 ? snap.otherCharges : parsedOther;
 
     const taxConfig = snap.taxConfiguration || rule.taxConfiguration || { applicable: true, gstRate: 18 };
     const gstApplicable = taxConfig.applicable !== false;
@@ -280,6 +306,9 @@ export const ShipmentFormPage = () => {
       docketAmt,
       pickupAmt,
       deliveryAmt,
+      packingAmt,
+      laborAmt,
+      godownAmt,
       otherAmt,
       additionalList,
       taxConfig: { ...taxConfig, isRcm },
@@ -297,6 +326,14 @@ export const ShipmentFormPage = () => {
     }
     const currentOrigin = data.origin || data.consignor?.pickupDeliveryLocation || data.consignor?.city || '';
     const currentDest = data.destination || data.consignee?.pickupDeliveryLocation || data.consignee?.city || '';
+    const currentLaneKey = computeLaneKey(data);
+    const laneChanged = Boolean(lastLaneKeyRef.current && lastLaneKeyRef.current !== currentLaneKey);
+
+    // When Company, Origin, Destination, or Mode changes, clear manual field locks so the new rate card updates fields cleanly
+    if (laneChanged) {
+      manualEditedFieldsRef.current.clear();
+    }
+    lastLaneKeyRef.current = currentLaneKey;
 
     setValidatingPricing(true);
     try {
@@ -312,49 +349,91 @@ export const ShipmentFormPage = () => {
       });
       setPricingValidation(res);
 
-      // Requirement 4 & 5: Automatically populate pricing fields for newly created shipments when matched
-      // without overwriting historical saved shipment pricing in edit mode.
-      if (!isEditMode) {
-        if (res?.status === 'MATCHED') {
-          const ruleKey = `${res.source}:${res.quotationNumber || res.rateCardNumber}:v${res.agreementVersion || 1}:${res.origin}:${res.destination}:${res.freightMode}`;
-          if (lastAppliedPricingKeyRef.current !== ruleKey) {
-            lastAppliedPricingKeyRef.current = ruleKey;
-            const extracted = extractChargeAmounts(res);
-            setFormData((prev) => {
-              const rawActual = parseFloat(prev.actualWeight) || 0;
-              const nextChargeable = rawActual > 0 ? Math.max(rawActual, extracted.minWeight) : prev.chargeableWeight;
-              return {
-                ...prev,
-                baseFreightRate: extracted.baseFreight,
-                rateBasis: extracted.rateBasis,
-                minimumWeight: extracted.minWeight,
-                docketCharges: extracted.docketAmt,
-                pickupCharges: extracted.pickupAmt > 0 ? extracted.pickupAmt : '',
-                deliveryCharges: extracted.deliveryAmt > 0 ? extracted.deliveryAmt : '',
-                gstRate: extracted.gstRateVal,
-                isGstExempt: extracted.isGstExempt,
-                rcmApplicable: extracted.isRcm,
-                taxConfiguration: extracted.taxConfig,
-                chargeableWeight: nextChargeable
-              };
-            });
-          }
-        } else if ((res?.status === 'MISSING' || res?.status === 'PENDING_ROUTE') && lastAppliedPricingKeyRef.current !== null) {
-          lastAppliedPricingKeyRef.current = null;
-          setFormData((prev) => ({
+      if (res?.status === 'MATCHED') {
+        const extracted = extractChargeAmounts(res);
+        const ruleKey = [
+          res.source,
+          res.quotationNumber || res.rateCardNumber,
+          `v${res.agreementVersion || 1}`,
+          res.origin,
+          res.destination,
+          res.freightMode,
+          extracted.baseFreight,
+          extracted.minWeight,
+          extracted.docketAmt,
+          extracted.pickupAmt,
+          extracted.deliveryAmt,
+          extracted.packingAmt,
+          extracted.laborAmt,
+          extracted.godownAmt,
+          extracted.gstRateVal
+        ].join(':');
+
+        const ruleChanged = lastAppliedPricingKeyRef.current !== ruleKey;
+        if (ruleChanged || laneChanged) {
+          lastAppliedPricingKeyRef.current = ruleKey;
+          const edited = manualEditedFieldsRef.current;
+
+          setFormData((prev) => {
+            const rawActual = parseFloat(prev.actualWeight) || 0;
+            const prevChg = parseFloat(prev.chargeableWeight) || 0;
+            const nextChargeable = edited.has('chargeableWeight') && !laneChanged
+              ? prev.chargeableWeight
+              : (rawActual > 0
+                  ? Math.max(rawActual, extracted.minWeight)
+                  : (prevChg === 0 || laneChanged || !isEditMode) && extracted.minWeight > 0
+                    ? extracted.minWeight
+                    : prev.chargeableWeight);
+
+            const resolveField = (fieldName, rateCardVal) => {
+              if (edited.has(fieldName) && !laneChanged) {
+                return prev[fieldName];
+              }
+              return rateCardVal > 0 ? rateCardVal : 0;
+            };
+
+            return {
+              ...prev,
+              baseFreightRate: extracted.baseFreight,
+              rateBasis: extracted.rateBasis,
+              minimumWeight: extracted.minWeight,
+              docketCharges: extracted.docketAmt,
+              packingCharges: resolveField('packingCharges', extracted.packingAmt),
+              laborCharges: resolveField('laborCharges', extracted.laborAmt),
+              pickupCharges: resolveField('pickupCharges', extracted.pickupAmt),
+              deliveryCharges: resolveField('deliveryCharges', extracted.deliveryAmt),
+              godownCharges: resolveField('godownCharges', extracted.godownAmt),
+              gstRate: (edited.has('gst') && !laneChanged) ? prev.gstRate : extracted.gstRateVal,
+              isGstExempt: (edited.has('gst') && !laneChanged) ? prev.isGstExempt : extracted.isGstExempt,
+              rcmApplicable: extracted.isRcm,
+              taxConfiguration: extracted.taxConfig,
+              chargeableWeight: nextChargeable
+            };
+          });
+        }
+      } else if ((res?.status === 'MISSING' || res?.status === 'PENDING_ROUTE') && (lastAppliedPricingKeyRef.current !== null || laneChanged)) {
+        lastAppliedPricingKeyRef.current = null;
+        const edited = manualEditedFieldsRef.current;
+        setFormData((prev) => {
+          const rawActual = parseFloat(prev.actualWeight) || 0;
+          return {
             ...prev,
             baseFreightRate: 0,
             rateBasis: '',
             minimumWeight: 0,
             docketCharges: 0,
-            pickupCharges: '',
-            deliveryCharges: '',
-            gstRate: 18,
-            isGstExempt: false,
+            packingCharges: (!edited.has('packingCharges') || laneChanged) ? 0 : prev.packingCharges,
+            laborCharges: (!edited.has('laborCharges') || laneChanged) ? 0 : prev.laborCharges,
+            pickupCharges: (!edited.has('pickupCharges') || laneChanged) ? 0 : prev.pickupCharges,
+            deliveryCharges: (!edited.has('deliveryCharges') || laneChanged) ? 0 : prev.deliveryCharges,
+            godownCharges: (!edited.has('godownCharges') || laneChanged) ? 0 : prev.godownCharges,
+            gstRate: (!edited.has('gst') || laneChanged) ? 18 : prev.gstRate,
+            isGstExempt: (!edited.has('gst') || laneChanged) ? false : prev.isGstExempt,
             rcmApplicable: false,
-            taxConfiguration: null
-          }));
-        }
+            taxConfiguration: null,
+            chargeableWeight: (!edited.has('chargeableWeight') || laneChanged) ? (rawActual > 0 ? rawActual : 0) : prev.chargeableWeight
+          };
+        });
       }
 
       return res;
@@ -542,6 +621,21 @@ export const ShipmentFormPage = () => {
                   awbNumber: existing.awbNumber || ''
                 }
               ];
+          lastLaneKeyRef.current = computeLaneKey(existing);
+          const editedSet = new Set();
+          const hasOverride = Boolean(existing.pricingValidation?.pricingSnapshot?.shipmentChargesOverride);
+          if (hasOverride) {
+            ['packingCharges', 'laborCharges', 'pickupCharges', 'deliveryCharges', 'godownCharges', 'chargeableWeight', 'gst'].forEach((k) => editedSet.add(k));
+          } else {
+            if ((Number(existing.packingCharges) || 0) > 0) editedSet.add('packingCharges');
+            if ((Number(existing.laborCharges) || 0) > 0) editedSet.add('laborCharges');
+            if ((Number(existing.pickupCharges) || 0) > 0) editedSet.add('pickupCharges');
+            if ((Number(existing.deliveryCharges) || 0) > 0) editedSet.add('deliveryCharges');
+            if ((Number(existing.godownCharges) || 0) > 0) editedSet.add('godownCharges');
+            if ((Number(existing.chargeableWeight) || 0) > 0) editedSet.add('chargeableWeight');
+          }
+          manualEditedFieldsRef.current = editedSet;
+
           setFormData({
             ...existing,
             cnDate: toISODate(existing.cnDate || existing.bookingDate),
@@ -1020,12 +1114,11 @@ export const ShipmentFormPage = () => {
       const isAutoCN = !rawCN || rawCN.startsWith('Auto') || rawCN.toLowerCase() === 'auto';
       const checkCN = isEditMode ? (rawCN || id) : (isAutoCN ? undefined : rawCN);
 
-      // 1. Strict duplicate validation before save
+      // 1. Strict duplicate validation before save (AWB duplicate check skipped — AWB may stay same/shared)
       const dupCheck = await shipmentService.validateDuplicates({
         currentShipmentId: id,
         currentCnNumber: isEditMode ? (formData.cnNumber || id) : undefined,
         cnNumber: checkCN,
-        awbNumber: formData.awbNumber,
         commercialInvoices: formData.commercialInvoices
       });
 
@@ -1033,10 +1126,7 @@ export const ShipmentFormPage = () => {
         if (dupCheck.cnNumberError) {
           setCnDuplicateError(dupCheck.cnNumberError);
         }
-        if (dupCheck.awbNumberError) {
-          setAwbDuplicateError(dupCheck.awbNumberError);
-        }
-        const errorMsg = dupCheck.cnNumberError || dupCheck.awbNumberError || dupCheck.commercialInvoiceErrors?.[0]?.error || 'Duplicate detected.';
+        const errorMsg = dupCheck.cnNumberError || dupCheck.commercialInvoiceErrors?.[0]?.error || 'Duplicate detected.';
         alert(`Cannot save shipment: ${errorMsg}`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         setSaving(false);
@@ -1135,6 +1225,14 @@ export const ShipmentFormPage = () => {
         pickupCharges: formData.pickupCharges === '' ? 0 : (parseFloat(formData.pickupCharges) || 0),
         deliveryCharges: formData.deliveryCharges === '' ? 0 : (parseFloat(formData.deliveryCharges) || 0),
         godownCharges: formData.godownCharges === '' ? 0 : (parseFloat(formData.godownCharges) || 0),
+        shipmentChargesOverride: Boolean(
+          isEditMode ||
+          formData.packingCharges !== '' ||
+          formData.laborCharges !== '' ||
+          formData.pickupCharges !== '' ||
+          formData.deliveryCharges !== '' ||
+          formData.godownCharges !== ''
+        ),
         godownMonths: formData.godownMonths === '' ? 0 : (parseFloat(formData.godownMonths) || 0),
         godownRatePerMonth: formData.godownRatePerMonth === '' ? 0 : (parseFloat(formData.godownRatePerMonth) || 0),
         isGodownOnlyBilling: Boolean(formData.isGodownOnlyBilling),
@@ -2343,7 +2441,9 @@ export const ShipmentFormPage = () => {
                   setFormData((prev) => ({
                     ...prev,
                     actualWeight: val,
-                    chargeableWeight: val > 0 ? Math.max(val, minWt) : 0
+                    chargeableWeight: manualEditedFieldsRef.current.has('chargeableWeight')
+                      ? prev.chargeableWeight
+                      : (val > 0 ? Math.max(val, minWt) : (minWt > 0 ? minWt : 0))
                   }));
                 }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono font-bold text-slate-900"
@@ -2358,7 +2458,10 @@ export const ShipmentFormPage = () => {
                 type="number"
                 step="0.1"
                 value={formData.chargeableWeight}
-                onChange={(e) => setFormData((prev) => ({ ...prev, chargeableWeight: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('chargeableWeight');
+                  setFormData((prev) => ({ ...prev, chargeableWeight: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono font-bold text-setu-700"
               />
             </div>
@@ -2385,7 +2488,10 @@ export const ShipmentFormPage = () => {
                 min="0"
                 step="1"
                 value={formData.packingCharges !== undefined && formData.packingCharges !== null ? formData.packingCharges : ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, packingCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('packingCharges');
+                  setFormData((prev) => ({ ...prev, packingCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 placeholder="0 (Leave blank if N/A)"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono text-slate-900 font-bold"
               />
@@ -2400,7 +2506,10 @@ export const ShipmentFormPage = () => {
                 min="0"
                 step="1"
                 value={formData.laborCharges !== undefined && formData.laborCharges !== null ? formData.laborCharges : ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, laborCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('laborCharges');
+                  setFormData((prev) => ({ ...prev, laborCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 placeholder="0 (Leave blank if N/A)"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono text-slate-900 font-bold"
               />
@@ -2415,7 +2524,10 @@ export const ShipmentFormPage = () => {
                 min="0"
                 step="1"
                 value={formData.pickupCharges !== undefined && formData.pickupCharges !== null ? formData.pickupCharges : ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, pickupCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('pickupCharges');
+                  setFormData((prev) => ({ ...prev, pickupCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 placeholder="Leave blank for Rate Card"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono text-slate-900 font-bold"
               />
@@ -2430,7 +2542,10 @@ export const ShipmentFormPage = () => {
                 min="0"
                 step="1"
                 value={formData.deliveryCharges !== undefined && formData.deliveryCharges !== null ? formData.deliveryCharges : ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, deliveryCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('deliveryCharges');
+                  setFormData((prev) => ({ ...prev, deliveryCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 placeholder="Leave blank for Rate Card"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md font-mono text-slate-900 font-bold"
               />
@@ -2445,7 +2560,10 @@ export const ShipmentFormPage = () => {
                 min="0"
                 step="1"
                 value={formData.godownCharges !== undefined && formData.godownCharges !== null ? formData.godownCharges : ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, godownCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }))}
+                onChange={(e) => {
+                  manualEditedFieldsRef.current.add('godownCharges');
+                  setFormData((prev) => ({ ...prev, godownCharges: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0) }));
+                }}
                 placeholder="0 (e.g. 5000 storage fee)"
                 className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-md font-mono text-amber-900 font-bold"
               />
@@ -2700,7 +2818,14 @@ export const ShipmentFormPage = () => {
                   type="radio"
                   name="gstExemptOption"
                   checked={!formData.isGstExempt && formData.gstRate !== 0}
-                  onChange={() => setFormData((prev) => ({ ...prev, isGstExempt: false, gstRate: prev.taxConfiguration?.gstRate || 18 }))}
+                  onChange={() => {
+                    manualEditedFieldsRef.current.add('gst');
+                    setFormData((prev) => ({
+                      ...prev,
+                      isGstExempt: false,
+                      gstRate: (prev.taxConfiguration?.gstRate && prev.taxConfiguration.gstRate > 0) ? prev.taxConfiguration.gstRate : 18
+                    }));
+                  }}
                   className="text-setu-600 focus:ring-0"
                 />
                 <div>
@@ -2722,7 +2847,10 @@ export const ShipmentFormPage = () => {
                   type="radio"
                   name="gstExemptOption"
                   checked={formData.isGstExempt || formData.gstRate === 0}
-                  onChange={() => setFormData((prev) => ({ ...prev, isGstExempt: true, gstRate: 0 }))}
+                  onChange={() => {
+                    manualEditedFieldsRef.current.add('gst');
+                    setFormData((prev) => ({ ...prev, isGstExempt: true, gstRate: 0 }));
+                  }}
                   className="text-emerald-600 focus:ring-0"
                 />
                 <div>

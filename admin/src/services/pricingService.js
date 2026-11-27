@@ -323,9 +323,10 @@ export const pricingService = {
 
       if (updatedValidation.status === 'MATCHED' && updatedValidation.pricingSnapshot) {
         const snap = updatedValidation.pricingSnapshot;
-        if (snap.pickupCharges > 0 && !(shipment.pickupCharges > 0)) updateBody.pickupCharges = snap.pickupCharges;
-        if (snap.deliveryCharges > 0 && !(shipment.deliveryCharges > 0)) updateBody.deliveryCharges = snap.deliveryCharges;
-        if (snap.gstPercentage !== undefined) {
+        const chargesOverridden = Boolean(shipment.pricingValidation?.pricingSnapshot?.shipmentChargesOverride);
+        if (!chargesOverridden && snap.pickupCharges > 0 && !(shipment.pickupCharges > 0)) updateBody.pickupCharges = snap.pickupCharges;
+        if (!chargesOverridden && snap.deliveryCharges > 0 && !(shipment.deliveryCharges > 0)) updateBody.deliveryCharges = snap.deliveryCharges;
+        if (snap.gstPercentage !== undefined && !chargesOverridden) {
           updateBody.gstRate = snap.gstPercentage;
           updateBody.isGstExempt = snap.gstPercentage === 0;
         }

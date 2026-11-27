@@ -114,7 +114,12 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     ? matchedRule.minimumChargeableWeight
     : (parseFloat(matchedRule.minimumChargeableWeight || matchedRule.minWeight) || 50);
 
-  const rawAdditional = matchedRule.additionalCharges || doc.additionalCharges || [];
+  const rawAdditional =
+    (Array.isArray(matchedRule.additionalCharges) && matchedRule.additionalCharges.length > 0)
+      ? matchedRule.additionalCharges
+      : (matchedRule.additionalCharges && !Array.isArray(matchedRule.additionalCharges) && Object.keys(matchedRule.additionalCharges).length > 0)
+        ? matchedRule.additionalCharges
+        : (doc.additionalCharges || []);
   const additionalList = Array.isArray(rawAdditional)
     ? rawAdditional
     : (typeof rawAdditional === 'object' && rawAdditional !== null ? Object.entries(rawAdditional).map(([k, v]) => ({ name: k, amount: v })) : []);
@@ -122,6 +127,9 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
   let docketAmt = 0;
   let pickupAmt = 0;
   let deliveryAmt = 0;
+  let packingAmt = 0;
+  let laborAmt = 0;
+  let godownAmt = 0;
   let otherAmt = 0;
 
   for (const chg of additionalList) {
@@ -133,6 +141,12 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
       pickupAmt += val;
     } else if (name.includes('delivery') || name.includes('door delivery') || name.includes('last mile')) {
       deliveryAmt += val;
+    } else if (name.includes('packing') || name.includes('packaging')) {
+      packingAmt += val;
+    } else if (name.includes('labor') || name.includes('labour') || name.includes('loading') || name.includes('unloading') || name.includes('handling')) {
+      laborAmt += val;
+    } else if (name.includes('godown') || name.includes('storage') || name.includes('demurrage') || name.includes('warehouse')) {
+      godownAmt += val;
     } else {
       otherAmt += val;
     }
@@ -158,7 +172,7 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
 
   const effectiveWeight = freightCalc.effectiveWeight;
   const freightAmount = freightCalc.freightAmount;
-  const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
+  const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + packingAmt + laborAmt + godownAmt + otherAmt;
   const gstAmount = Math.round(taxableAmount * (gstRate / 100));
   const grandTotal = taxableAmount + gstAmount;
 
@@ -184,6 +198,9 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
     docketCharges: docketAmt,
     pickupCharges: pickupAmt,
     deliveryCharges: deliveryAmt,
+    packingCharges: packingAmt,
+    laborCharges: laborAmt,
+    godownCharges: godownAmt,
     otherCharges: otherAmt,
     additionalCharges: additionalList,
     gstPercentage: gstRate,
@@ -194,6 +211,9 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
       docketCharges: docketAmt,
       pickupCharges: pickupAmt,
       deliveryCharges: deliveryAmt,
+      packingCharges: packingAmt,
+      laborCharges: laborAmt,
+      godownCharges: godownAmt,
       otherCharges: otherAmt,
       taxableAmount,
       gstRate,
@@ -218,7 +238,10 @@ function buildPricingSnapshot({ source, doc, matchedRule, origin, destination, m
         },
         ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
         ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
-        ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])
+        ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : []),
+        ...(packingAmt > 0 ? [{ name: 'Packing Charge', amount: packingAmt }] : []),
+        ...(laborAmt > 0 ? [{ name: 'Labor Charge', amount: laborAmt }] : []),
+        ...(godownAmt > 0 ? [{ name: 'Godown Charge', amount: godownAmt }] : [])
       ]
     },
     effectiveDate: date,

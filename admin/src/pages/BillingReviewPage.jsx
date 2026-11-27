@@ -188,12 +188,15 @@ export const BillingReviewPage = () => {
       const rateBasisLabel = freightItem?.rateBasis || calculation.rateBasis || 'Per KG';
       const rateUnitLabel = freightItem?.unit || calculation.rateUnit || getRateBasisMeta(rateBasisLabel).unit;
       const shipmentMode = resolveShipmentFreightMode(calculation.shipment) || calculation.freightMode || '';
+      const ship = calculation.shipment || {};
+      const shipOverride = Boolean(ship.pricingValidation?.pricingSnapshot?.shipmentChargesOverride || ship.shipmentChargesOverride);
+      const hasShipNum = (val) => typeof val === 'number' && !isNaN(val) && (shipOverride || val > 0);
       const docketAmt = isGstExempt ? 0 : (docketItem ? docketItem.amount : 0);
-      const pickupAmt = ((typeof calculation.shipment?.pickupCharges === 'number' && !isNaN(calculation.shipment.pickupCharges) && calculation.shipment.pickupCharges > 0) ? calculation.shipment.pickupCharges : (pickupItem ? pickupItem.amount : 0)) + addedPickupAdj;
-      const deliveryAmt = ((typeof calculation.shipment?.deliveryCharges === 'number' && !isNaN(calculation.shipment.deliveryCharges) && calculation.shipment.deliveryCharges > 0) ? calculation.shipment.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0)) + addedDeliveryAdj;
-      const packingAmt = (packingItem ? packingItem.amount : (calculation.shipment?.packingCharges || 0)) + addedPackingAdj;
-      const laborAmt = (laborItem ? laborItem.amount : (calculation.shipment?.laborCharges || 0)) + addedLaborAdj;
-      const godownAmt = godownItem ? godownItem.amount : (calculation.shipment?.godownCharges || 0);
+      const pickupAmt = (hasShipNum(ship.pickupCharges) ? ship.pickupCharges : (pickupItem ? pickupItem.amount : 0)) + addedPickupAdj;
+      const deliveryAmt = (hasShipNum(ship.deliveryCharges) ? ship.deliveryCharges : (deliveryItem ? deliveryItem.amount : 0)) + addedDeliveryAdj;
+      const packingAmt = (hasShipNum(ship.packingCharges) ? ship.packingCharges : (packingItem ? packingItem.amount : (ship.packingCharges || 0))) + addedPackingAdj;
+      const laborAmt = (hasShipNum(ship.laborCharges) ? ship.laborCharges : (laborItem ? laborItem.amount : (ship.laborCharges || 0))) + addedLaborAdj;
+      const godownAmt = hasShipNum(ship.godownCharges) ? ship.godownCharges : (godownItem ? godownItem.amount : (ship.godownCharges || 0));
 
       const dockets = [
         {

@@ -287,22 +287,35 @@ export const billingService = {
         if (dItem) docketCharge = typeof dItem.amount === 'number' ? dItem.amount : (parseFloat(dItem.amount) || 0);
       }
 
-      if (typeof shipment.pickupCharges === 'number' && shipment.pickupCharges > 0) {
+      const chargesOverridden = Boolean(snap.shipmentChargesOverride || shipment.shipmentChargesOverride);
+
+      if (chargesOverridden) {
+        pickupCharge = Number(shipment.pickupCharges) || 0;
+      } else if (typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
         pickupCharge = shipment.pickupCharges;
       } else if (snap.pickupCharges) {
         pickupCharge = snap.pickupCharges;
       }
 
-      if (typeof shipment.deliveryCharges === 'number' && shipment.deliveryCharges > 0) {
+      if (chargesOverridden) {
+        deliveryCharge = Number(shipment.deliveryCharges) || 0;
+      } else if (typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
         deliveryCharge = shipment.deliveryCharges;
       } else if (snap.deliveryCharges) {
         deliveryCharge = snap.deliveryCharges;
       }
 
-      const packingCharge = shipment.packingCharges || 0;
-      const laborCharge = shipment.laborCharges || 0;
+      const packingCharge = Number(shipment.packingCharges) || 0;
+      const laborCharge = Number(shipment.laborCharges) || 0;
+      const godownAmt = Number(shipment.godownCharges) || 0;
 
-      const gstRateVal = (shipment.isGstExempt || snap.gstPercentage === 0) ? 0 : (snap.gstPercentage || 18);
+      const gstRateVal = shipment.isGstExempt
+        ? 0
+        : (chargesOverridden && typeof shipment.gstRate === 'number' && !isNaN(shipment.gstRate))
+          ? shipment.gstRate
+          : (snap.gstPercentage === 0)
+            ? 0
+            : (snap.gstPercentage || shipment.gstRate || 18);
 
       const lineItems = [
         {
@@ -382,6 +395,18 @@ export const billingService = {
           quantity: 1,
           rate: laborCharge,
           amount: laborCharge
+        });
+      }
+
+      if (godownAmt > 0) {
+        lineItems.push({
+          name: 'Godown / Storage Charges',
+          description: 'Warehouse & Godown Storage Charges',
+          cnNumber: shipment.cnNumber,
+          weight: 0,
+          quantity: 1,
+          rate: godownAmt,
+          amount: godownAmt
         });
       }
 
@@ -738,12 +763,18 @@ export const billingService = {
 
     const hasRateCard = !!matchedRuleInfo || !!activeQuotation;
 
-    // Override with custom pickup/delivery charges ONLY if explicitly entered as positive values on the shipment (> 0) and no rate card exists
-    if (!hasRateCard && typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
-      pickupCharge = shipment.pickupCharges;
-    }
-    if (!hasRateCard && typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
-      deliveryCharge = shipment.deliveryCharges;
+    // Shipment-level entered pickup/delivery charges ALWAYS hold higher priority than quotation/rate-card rates
+    const shipChargesOverridden = Boolean(shipment.shipmentChargesOverride || shipment.pricingValidation?.pricingSnapshot?.shipmentChargesOverride);
+    if (shipChargesOverridden) {
+      pickupCharge = Number(shipment.pickupCharges) || 0;
+      deliveryCharge = Number(shipment.deliveryCharges) || 0;
+    } else {
+      if (typeof shipment.pickupCharges === 'number' && !isNaN(shipment.pickupCharges) && shipment.pickupCharges > 0) {
+        pickupCharge = shipment.pickupCharges;
+      }
+      if (typeof shipment.deliveryCharges === 'number' && !isNaN(shipment.deliveryCharges) && shipment.deliveryCharges > 0) {
+        deliveryCharge = shipment.deliveryCharges;
+      }
     }
 
     if (gstRate === 0 || shipment.isGstExempt) {

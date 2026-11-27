@@ -6,7 +6,7 @@ const Counter = require('../models/Counter');
 const { getNextCnNumber, previewNextCnNumber } = require('../services/sequenceService');
 const { autoResolveShipmentParties } = require('../services/consignorConsigneeService');
 const { validateShipmentPricing } = require('../services/pricingValidationService');
-const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreightMode } = require('../services/freightCalculationService');
+const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreightMode, syncPricingValidationWithShipment } = require('../services/freightCalculationService');
 const { protect } = require('../middleware/auth');
 const CnTemplate = require('../models/CnTemplate');
 const { DEFAULT_CN_TEMPLATE_CONFIG } = require('../config/defaultCnTemplate');
@@ -971,12 +971,24 @@ router.post('/', async (req, res) => {
       const effectiveWeight = freightCalc.normalizedBasis === 'PER_KG' ? freightCalc.effectiveWeight : (rawChargeable || minWeight);
       const freightAmount = freightCalc.freightAmount;
 
+      const chargesOverridden = Boolean(req.body.shipmentChargesOverride);
       const docketAmt = snapshot.docketCharges || 0;
-      const pickupAmt = (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (snapshot.pickupCharges || 0);
-      const deliveryAmt = (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (snapshot.deliveryCharges || 0);
+      const pickupAmt = chargesOverridden
+        ? (Number(req.body.pickupCharges) || 0)
+        : (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (snapshot.pickupCharges || 0);
+      const deliveryAmt = chargesOverridden
+        ? (Number(req.body.deliveryCharges) || 0)
+        : (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (snapshot.deliveryCharges || 0);
+      const packingAmt = Number(req.body.packingCharges) || 0;
+      const laborAmt = Number(req.body.laborCharges) || 0;
+      const godownAmt = Number(req.body.godownCharges) || 0;
       const otherAmt = snapshot.otherCharges || 0;
-      const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + otherAmt;
-      const gstRate = req.body.isGstExempt ? 0 : (snapshot.gstPercentage !== undefined ? snapshot.gstPercentage : 18);
+      const taxableAmount = freightAmount + docketAmt + pickupAmt + deliveryAmt + packingAmt + laborAmt + godownAmt + otherAmt;
+      const gstRate = req.body.isGstExempt
+        ? 0
+        : (chargesOverridden && typeof req.body.gstRate === 'number' && !isNaN(req.body.gstRate))
+          ? req.body.gstRate
+          : (snapshot.gstPercentage !== undefined ? snapshot.gstPercentage : 18);
       const gstAmount = Math.round(taxableAmount * (gstRate / 100));
       const grandTotal = taxableAmount + gstAmount;
 
@@ -986,6 +998,7 @@ router.post('/', async (req, res) => {
       finalPricingValidation.rateUnit = freightCalc.unit;
       finalPricingValidation.pricingSnapshot = {
         ...snapshot,
+        shipmentChargesOverride: chargesOverridden,
         rateBasis: freightCalc.rateBasisLabel,
         rateBasisNormalized: freightCalc.normalizedBasis,
         rateUnit: freightCalc.unit,
@@ -995,12 +1008,19 @@ router.post('/', async (req, res) => {
         docketCharges: docketAmt,
         pickupCharges: pickupAmt,
         deliveryCharges: deliveryAmt,
+        packingCharges: packingAmt,
+        laborCharges: laborAmt,
+        godownCharges: godownAmt,
         otherCharges: otherAmt,
+        gstPercentage: gstRate,
         calculatedCharges: {
           freightAmount,
           docketCharges: docketAmt,
           pickupCharges: pickupAmt,
           deliveryCharges: deliveryAmt,
+          packingCharges: packingAmt,
+          laborCharges: laborAmt,
+          godownCharges: godownAmt,
           otherCharges: otherAmt,
           taxableAmount,
           gstRate,
@@ -1025,7 +1045,10 @@ router.post('/', async (req, res) => {
             },
             ...(docketAmt > 0 ? [{ name: 'Docket Charge', amount: docketAmt }] : []),
             ...(pickupAmt > 0 ? [{ name: 'Pickup Charge', amount: pickupAmt }] : []),
-            ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : [])
+            ...(deliveryAmt > 0 ? [{ name: 'Delivery Charge', amount: deliveryAmt }] : []),
+            ...(packingAmt > 0 ? [{ name: 'Packing Charge', amount: packingAmt }] : []),
+            ...(laborAmt > 0 ? [{ name: 'Labor Charge', amount: laborAmt }] : []),
+            ...(godownAmt > 0 ? [{ name: 'Godown Charge', amount: godownAmt }] : [])
           ]
         },
         isImmutable: true,
@@ -1096,8 +1119,12 @@ router.post('/', async (req, res) => {
           consignorSnapshot,
           consigneeSnapshot,
           pricingValidation: finalPricingValidation,
-          pickupCharges: (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (finalPricingValidation.pricingSnapshot?.pickupCharges || 0),
-          deliveryCharges: (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (finalPricingValidation.pricingSnapshot?.deliveryCharges || 0),
+          pickupCharges: req.body.shipmentChargesOverride
+            ? (Number(req.body.pickupCharges) || 0)
+            : (typeof req.body.pickupCharges === 'number' && req.body.pickupCharges > 0) ? req.body.pickupCharges : (finalPricingValidation.pricingSnapshot?.pickupCharges || 0),
+          deliveryCharges: req.body.shipmentChargesOverride
+            ? (Number(req.body.deliveryCharges) || 0)
+            : (typeof req.body.deliveryCharges === 'number' && req.body.deliveryCharges > 0) ? req.body.deliveryCharges : (finalPricingValidation.pricingSnapshot?.deliveryCharges || 0),
           gstRate: req.body.isGstExempt ? 0 : (finalPricingValidation.pricingSnapshot?.gstPercentage ?? req.body.gstRate ?? 18),
           billingSnapshot: {
             mode: resolveShipmentFreightMode({ mode, freightMode, pricingValidation: finalPricingValidation }),
@@ -1285,19 +1312,7 @@ router.post('/validate-duplicates', async (req, res) => {
       }
     }
 
-    // 2. AWB Number Uniqueness Check (if provided)
-    const trimmedAWB = (awbNumber || '').trim();
-    if (trimmedAWB) {
-      const query = {
-        awbNumber: new RegExp(`^${escapeRegExp(trimmedAWB)}$`, 'i')
-      };
-      if (excludeId) query._id = { $ne: excludeId };
-
-      const conflictAWB = await Shipment.findOne(query);
-      if (conflictAWB) {
-        awbNumberError = `AWB Number "${trimmedAWB}" already exists in shipment ${conflictAWB.cnNumber}.`;
-      }
-    }
+    // 2. AWB Number Uniqueness Check intentionally skipped (multiple CNs/edits can share the same AWB number)
 
     // 3. Internal Commercial Invoice Duplicates Check
     if (Array.isArray(commercialInvoices) && commercialInvoices.length > 1) {
@@ -1456,22 +1471,7 @@ router.put('/:idOrCN', async (req, res) => {
       });
     }
 
-    // 2. Strict Duplicate AWB Number Check (if provided, exclude current shipment)
-    const targetAWB = (req.body.awbNumber || '').trim();
-    if (targetAWB) {
-      const conflictingAWB = await Shipment.findOne({
-        awbNumber: new RegExp(`^${escapeRegExp(targetAWB)}$`, 'i'),
-        _id: { $ne: existing._id }
-      });
-      if (conflictingAWB) {
-        return res.status(409).json({
-          error: 'Duplicate AWB Number',
-          message: `AWB Number "${targetAWB}" is already assigned to shipment ${conflictingAWB.cnNumber}. Please enter a unique AWB Number.`,
-          field: 'awbNumber',
-          conflictingCN: conflictingAWB.cnNumber
-        });
-      }
-    }
+    // 2. AWB Number uniqueness check intentionally skipped (AWB may stay same on edit or be shared across CNs)
 
     // 3. Commercial Invoices Duplicate Check within this shipment
     if (Array.isArray(req.body.commercialInvoices) && req.body.commercialInvoices.length > 1) {
@@ -1506,19 +1506,28 @@ router.put('/:idOrCN', async (req, res) => {
     updatePayload.cnDate = req.body.cnDate || req.body.bookingDate || existing.cnDate || existing.bookingDate;
     updatePayload.bookingDate = req.body.bookingDate || updatePayload.cnDate;
 
-    // Numeric charge parsing
-    updatePayload.actualWeight = typeof req.body.actualWeight === 'number' ? req.body.actualWeight : (parseFloat(req.body.actualWeight) || 0);
-    updatePayload.chargeableWeight = typeof req.body.chargeableWeight === 'number' ? req.body.chargeableWeight : (parseFloat(req.body.chargeableWeight) || updatePayload.actualWeight || 0);
-    updatePayload.packingCharges = typeof req.body.packingCharges === 'number' ? req.body.packingCharges : (parseFloat(req.body.packingCharges) || 0);
-    updatePayload.laborCharges = typeof req.body.laborCharges === 'number' ? req.body.laborCharges : (parseFloat(req.body.laborCharges) || 0);
-    updatePayload.pickupCharges = typeof req.body.pickupCharges === 'number' ? req.body.pickupCharges : (parseFloat(req.body.pickupCharges) || 0);
-    updatePayload.deliveryCharges = typeof req.body.deliveryCharges === 'number' ? req.body.deliveryCharges : (parseFloat(req.body.deliveryCharges) || 0);
-    updatePayload.godownCharges = typeof req.body.godownCharges === 'number' ? req.body.godownCharges : (parseFloat(req.body.godownCharges) || 0);
-    updatePayload.godownMonths = typeof req.body.godownMonths === 'number' ? req.body.godownMonths : (parseFloat(req.body.godownMonths) || 0);
-    updatePayload.godownRatePerMonth = typeof req.body.godownRatePerMonth === 'number' ? req.body.godownRatePerMonth : (parseFloat(req.body.godownRatePerMonth) || 0);
-    updatePayload.isGodownOnlyBilling = Boolean(req.body.isGodownOnlyBilling);
-    updatePayload.isGstExempt = Boolean(req.body.isGstExempt);
-    updatePayload.gstRate = updatePayload.isGstExempt ? 0 : (Number(req.body.gstRate) || 18);
+    const parseNumField = (key, fallback = 0) => {
+      if (req.body[key] === undefined) return existing[key] ?? fallback;
+      return typeof req.body[key] === 'number' ? req.body[key] : (parseFloat(req.body[key]) || 0);
+    };
+
+    // Numeric charge parsing (preserve existing values on partial PUT requests)
+    updatePayload.actualWeight = parseNumField('actualWeight', 0);
+    updatePayload.chargeableWeight = req.body.chargeableWeight === undefined
+      ? (existing.chargeableWeight ?? updatePayload.actualWeight ?? 0)
+      : (typeof req.body.chargeableWeight === 'number' ? req.body.chargeableWeight : (parseFloat(req.body.chargeableWeight) || updatePayload.actualWeight || 0));
+    updatePayload.packingCharges = parseNumField('packingCharges', 0);
+    updatePayload.laborCharges = parseNumField('laborCharges', 0);
+    updatePayload.pickupCharges = parseNumField('pickupCharges', 0);
+    updatePayload.deliveryCharges = parseNumField('deliveryCharges', 0);
+    updatePayload.godownCharges = parseNumField('godownCharges', 0);
+    updatePayload.godownMonths = parseNumField('godownMonths', 0);
+    updatePayload.godownRatePerMonth = parseNumField('godownRatePerMonth', 0);
+    updatePayload.isGodownOnlyBilling = req.body.isGodownOnlyBilling === undefined ? Boolean(existing.isGodownOnlyBilling) : Boolean(req.body.isGodownOnlyBilling);
+    updatePayload.isGstExempt = req.body.isGstExempt === undefined ? Boolean(existing.isGstExempt) : Boolean(req.body.isGstExempt);
+    updatePayload.gstRate = updatePayload.isGstExempt
+      ? 0
+      : (req.body.gstRate === undefined ? (existing.gstRate ?? 18) : (Number(req.body.gstRate) || 18));
 
     // Merge operational
     updatePayload.operational = {
@@ -1616,6 +1625,24 @@ router.put('/:idOrCN', async (req, res) => {
         ...(existing.pricingValidation || {}),
         ...req.body.pricingValidation
       };
+    }
+
+    // Keep matched pricingSnapshot & calculatedCharges aligned with explicit shipment changes (shipment overrides quotation)
+    const activePv = updatePayload.pricingValidation || existing.pricingValidation;
+    if (activePv && activePv.status === 'MATCHED') {
+      const existingObj = typeof existing.toObject === 'function' ? existing.toObject() : existing;
+      const hasExplicitChargeFields = ['packingCharges', 'laborCharges', 'pickupCharges', 'deliveryCharges', 'godownCharges']
+        .some((k) => req.body[k] !== undefined);
+      const mergedForSync = {
+        ...existingObj,
+        ...updatePayload,
+        shipmentChargesOverride: Boolean(
+          req.body.shipmentChargesOverride ||
+          hasExplicitChargeFields ||
+          activePv.pricingSnapshot?.shipmentChargesOverride
+        )
+      };
+      updatePayload.pricingValidation = syncPricingValidationWithShipment(mergedForSync, activePv);
     }
 
     // Track status history if CN changed or status changed
