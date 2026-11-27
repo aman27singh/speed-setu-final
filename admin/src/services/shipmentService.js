@@ -175,6 +175,37 @@ export function matchRoute(origin, destination, routeFilter) {
 }
 
 /**
+ * Matcher for billing status (matches table Billing column, defaulting empty to 'Not Ready')
+ */
+export function matchBillingStatus(shipment, billingFilter) {
+  if (!billingFilter || billingFilter === 'All') return true;
+  const target = billingFilter.trim().toLowerCase();
+  const actual = String(shipment?.billingStatus || 'Not Ready').trim().toLowerCase();
+  if (target === 'billed' || target === 'invoiced') {
+    return ['invoiced', 'billed', 'generated', 'sent'].includes(actual);
+  }
+  return actual === target;
+}
+
+/**
+ * Matcher for payment status (matches table Payment Status column and 'Billed' umbrella)
+ */
+export function matchPaymentStatus(shipment, paymentFilter) {
+  if (!paymentFilter || paymentFilter === 'All') return true;
+  const target = paymentFilter.trim().toLowerCase();
+  const actual = String(shipment?.paymentStatus || 'Unbilled').trim().toLowerCase();
+  const billingActual = String(shipment?.billingStatus || '').trim().toLowerCase();
+
+  if (target === 'billed') {
+    return (
+      ['paid', 'partially paid', 'unpaid', 'billed'].includes(actual) ||
+      ['invoiced', 'billed', 'generated', 'sent'].includes(billingActual)
+    );
+  }
+  return actual === target;
+}
+
+/**
  * Ensures all shipment fields are primitive strings/numbers and unwraps any nested { value } objects.
  */
 export function sanitizeShipment(s) {
@@ -406,8 +437,8 @@ export const shipmentService = {
           if (weight !== 'All' && !matchWeight(s.actualWeight, s.chargeableWeight, weight)) return false;
           if (mode !== 'All' && s.mode?.toLowerCase() !== mode.toLowerCase()) return false;
           if (podStatus !== 'All' && s.podStatus?.toLowerCase() !== podStatus.toLowerCase()) return false;
-          if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
-          if (paymentStatus !== 'All' && s.paymentStatus?.toLowerCase() !== paymentStatus.toLowerCase()) return false;
+          if (!matchBillingStatus(s, billingStatus)) return false;
+          if (!matchPaymentStatus(s, paymentStatus)) return false;
 
           // Date Filter (createdAt in Asia/Kolkata)
           if (date) {
@@ -479,8 +510,8 @@ export const shipmentService = {
       if (weight !== 'All' && !matchWeight(s.actualWeight, s.chargeableWeight, weight)) return false;
       if (mode !== 'All' && s.mode?.toLowerCase() !== mode.toLowerCase()) return false;
       if (podStatus !== 'All' && s.podStatus?.toLowerCase() !== podStatus.toLowerCase()) return false;
-      if (billingStatus !== 'All' && s.billingStatus?.toLowerCase() !== billingStatus.toLowerCase()) return false;
-      if (paymentStatus !== 'All' && s.paymentStatus?.toLowerCase() !== paymentStatus.toLowerCase()) return false;
+      if (!matchBillingStatus(s, billingStatus)) return false;
+      if (!matchPaymentStatus(s, paymentStatus)) return false;
 
       // Date Filter (createdAt in Asia/Kolkata)
       if (date) {
@@ -977,6 +1008,8 @@ export const shipmentService = {
     packageCount = 'All',
     weight = 'All',
     pricingStatus = 'All',
+    billingStatus = 'All',
+    paymentStatus = 'All',
     status = 'All',
     date = '',
     startDate = '',
@@ -995,6 +1028,8 @@ export const shipmentService = {
         if (packageCount && packageCount !== 'All') params.append('package', packageCount);
         if (weight && weight !== 'All') params.append('weight', weight);
         if (pricingStatus && pricingStatus !== 'All') params.append('pricingStatus', pricingStatus);
+        if (billingStatus && billingStatus !== 'All') params.append('billingStatus', billingStatus);
+        if (paymentStatus && paymentStatus !== 'All') params.append('paymentStatus', paymentStatus);
         if (status && status !== 'All') params.append('status', status);
         if (date) params.append('date', date);
         if (startDate) params.append('startDate', startDate);

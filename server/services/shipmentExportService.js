@@ -239,9 +239,130 @@ async function buildShipmentsExportBuffer(shipmentSource) {
 }
 
 /**
+ * Build MongoDB filter condition for billingStatus & paymentStatus (read-only).
+ * Matches shipmentService.js & ShipmentsPage table logic without duplicating status logic.
+ */
+async function buildBillingAndPaymentConditions(queryParams = {}, InvoiceModel = null) {
+  const conditions = [];
+  const { billingStatus, paymentStatus } = queryParams;
+
+  // Billing Status filter ('Ready', 'Not Ready', 'Invoiced')
+  if (billingStatus && billingStatus !== 'All') {
+    const bTrim = String(billingStatus).trim();
+    if (/^not\s*ready$/i.test(bTrim)) {
+      conditions.push({
+        $or: [
+          { billingStatus: { $regex: /^not\s*ready$/i } },
+          { billingStatus: null },
+          { billingStatus: '' },
+          { billingStatus: { $exists: false } }
+        ]
+      });
+    } else {
+      const esc = bTrim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      conditions.push({ billingStatus: { $regex: new RegExp(`^${esc}$`, 'i') } });
+    }
+  }
+
+  // Payment Status filter ('Billed', 'Unbilled', 'Unpaid', 'Partially Paid', 'Paid')
+  if (paymentStatus && paymentStatus !== 'All') {
+    const pNorm = String(paymentStatus).trim().toLowerCase();
+    const Invoice = InvoiceModel || require('../models/Invoice');
+    const invoices = await Invoice.find(
+      {},
+      { status: 1, paidAmount: 1, grandTotal: 1, totalAmount: 1, cns: 1, shipmentIds: 1, cnNumber: 1 }
+    ).lean();
+
+    const invoiceMap = new Map();
+    for (const inv of invoices) {
+      const refs = [
+        ...(Array.isArray(inv.cns) ? inv.cns : []),
+        ...(Array.isArray(inv.shipmentIds) ? inv.shipmentIds : []),
+        ...(inv.cnNumber ? [inv.cnNumber] : [])
+      ];
+      for (const ref of refs) {
+        const tok = String(ref || '').trim();
+        if (tok) invoiceMap.set(tok, inv);
+      }
+    }
+
+    const paidCNs = [];
+    const partialCNs = [];
+    const unpaidInvoiceCNs = [];
+    for (const [cn, inv] of invoiceMap.entries()) {
+      const invStatus = String(inv.status || '').toLowerCase();
+      const paid = Number(inv.paidAmount) || 0;
+      const grand = Number(inv.grandTotal || inv.totalAmount) || 0;
+      if (invStatus === 'paid' || (grand > 0 && paid >= grand)) {
+        paidCNs.push(cn);
+      } else if (invStatus === 'partially paid' || paid > 0) {
+        partialCNs.push(cn);
+      } else {
+        unpaidInvoiceCNs.push(cn);
+      }
+    }
+    const allInvoicedCNs = [...paidCNs, ...partialCNs, ...unpaidInvoiceCNs];
+    const billedBillingRegex = /^(invoiced|billed|generated|sent)$/i;
+
+    if (pNorm === 'paid') {
+      conditions.push({
+        $or: [
+          ...(paidCNs.length > 0 ? [{ cnNumber: { $in: paidCNs } }, { id: { $in: paidCNs } }] : []),
+          { paymentStatus: { $regex: /^paid$/i } }
+        ]
+      });
+    } else if (pNorm === 'partially paid') {
+      conditions.push({
+        $and: [
+          {
+            $or: [
+              ...(partialCNs.length > 0 ? [{ cnNumber: { $in: partialCNs } }, { id: { $in: partialCNs } }] : []),
+              { paymentStatus: { $regex: /^partially\s*paid$/i } }
+            ]
+          },
+          ...(paidCNs.length > 0 ? [{ cnNumber: { $nin: paidCNs } }, { id: { $nin: paidCNs } }] : [])
+        ]
+      });
+    } else if (pNorm === 'unpaid') {
+      const settledCNs = [...paidCNs, ...partialCNs];
+      conditions.push({
+        $and: [
+          {
+            $or: [
+              ...(unpaidInvoiceCNs.length > 0 ? [{ cnNumber: { $in: unpaidInvoiceCNs } }, { id: { $in: unpaidInvoiceCNs } }] : []),
+              { billingStatus: { $regex: billedBillingRegex } },
+              { paymentStatus: { $regex: /^unpaid$/i } }
+            ]
+          },
+          ...(settledCNs.length > 0 ? [{ cnNumber: { $nin: settledCNs } }, { id: { $nin: settledCNs } }] : [])
+        ]
+      });
+    } else if (pNorm === 'billed') {
+      conditions.push({
+        $or: [
+          ...(allInvoicedCNs.length > 0 ? [{ cnNumber: { $in: allInvoicedCNs } }, { id: { $in: allInvoicedCNs } }] : []),
+          { billingStatus: { $regex: billedBillingRegex } },
+          { paymentStatus: { $regex: /^(paid|partially\s*paid|unpaid|billed)$/i } }
+        ]
+      });
+    } else if (pNorm === 'unbilled') {
+      conditions.push({
+        $and: [
+          ...(allInvoicedCNs.length > 0 ? [{ cnNumber: { $nin: allInvoicedCNs } }, { id: { $nin: allInvoicedCNs } }] : []),
+          { billingStatus: { $not: billedBillingRegex } },
+          { paymentStatus: { $not: /^(paid|partially\s*paid|unpaid|billed)$/i } }
+        ]
+      });
+    }
+  }
+
+  return conditions;
+}
+
+/**
  * Build MongoDB aggregation pipeline matching listing filters and DB sort order.
  */
-function buildShipmentExportPipeline(queryParams = {}, driverUser = null) {
+async function buildShipmentExportPipeline(queryParams = {}, driverUser = null, InvoiceModel = null) {
   const {
     scope = 'all',
     search,
@@ -472,6 +593,11 @@ function buildShipmentExportPipeline(queryParams = {}, driverUser = null) {
       const startDateParam = String(startDate || '').trim();
       const endDateParam = String(endDate || '').trim();
 
+      const bpConditions = await buildBillingAndPaymentConditions(queryParams, InvoiceModel);
+      if (bpConditions.length > 0) {
+        andConditions.push(...bpConditions);
+      }
+
       if (dateParam) {
         const startUtc = new Date(`${dateParam}T00:00:00.000+05:30`);
         const endUtc = new Date(`${dateParam}T23:59:59.999+05:30`);
@@ -571,5 +697,6 @@ module.exports = {
   createExportWorkbook,
   appendShipmentRow,
   buildShipmentsExportBuffer,
+  buildBillingAndPaymentConditions,
   buildShipmentExportPipeline
 };

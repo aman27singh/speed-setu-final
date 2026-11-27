@@ -10,7 +10,7 @@ const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreight
 const { protect } = require('../middleware/auth');
 const CnTemplate = require('../models/CnTemplate');
 const { DEFAULT_CN_TEMPLATE_CONFIG } = require('../config/defaultCnTemplate');
-const { buildShipmentsExportBuffer, buildShipmentExportPipeline } = require('../services/shipmentExportService');
+const { buildShipmentsExportBuffer, buildBillingAndPaymentConditions, buildShipmentExportPipeline } = require('../services/shipmentExportService');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -28,10 +28,18 @@ router.get('/', async (req, res) => {
       date,
       startDate,
       endDate,
-      pricingStatus
+      pricingStatus,
+      billingStatus,
+      paymentStatus
     } = req.query;
 
     const andConditions = [];
+
+    // Billing & Payment Status Filters (simultaneous AND)
+    const bpConditions = await buildBillingAndPaymentConditions({ billingStatus, paymentStatus });
+    if (bpConditions.length > 0) {
+      andConditions.push(...bpConditions);
+    }
 
     // Pricing Status Filter
     if (pricingStatus && pricingStatus !== 'All') {
@@ -281,7 +289,7 @@ router.get('/', async (req, res) => {
 // GET /api/shipments/export — Export raw stored DB shipments as SPEEDSETU_MIS_<YYYY-MM-DD>.xlsx
 router.get('/export', protect, async (req, res) => {
   try {
-    const pipeline = buildShipmentExportPipeline(req.query, req.user);
+    const pipeline = await buildShipmentExportPipeline(req.query, req.user);
     const cursor = Shipment.aggregate(pipeline).cursor({ batchSize: 200 });
     const buffer = await buildShipmentsExportBuffer(cursor);
 

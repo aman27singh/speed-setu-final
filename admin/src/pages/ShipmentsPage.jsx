@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
-import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
+import { shipmentService, sortShipments, matchRoute, matchPackage, matchWeight, matchBillingStatus, matchPaymentStatus, getKolkataDateString, formatKolkataDateDisplay } from '../services/shipmentService';
 import { companyService } from '../services/companyService';
 import { quotationService } from '../services/quotationService';
 import { pricingService } from '../services/pricingService';
@@ -527,6 +527,8 @@ export const ShipmentsPage = () => {
   const [packageFilter, setPackageFilter] = useState('All');
   const [weightFilter, setWeightFilter] = useState('All');
   const [pricingFilter, setPricingFilter] = useState('All');
+  const [billingFilter, setBillingFilter] = useState('All');
+  const [paymentFilter, setPaymentFilter] = useState('All');
   const [autoFetchQuotation, setAutoFetchQuotation] = useState(false);
   const [companyQuotations, setCompanyQuotations] = useState([]);
   const [fetchingQuotations, setFetchingQuotations] = useState(false);
@@ -619,6 +621,8 @@ export const ShipmentsPage = () => {
     setPackageFilter('All');
     setWeightFilter('All');
     setPricingFilter('All');
+    setBillingFilter('All');
+    setPaymentFilter('All');
     setStatusFilter('All');
     setDateFilter({
       mode: 'particular',
@@ -692,6 +696,8 @@ export const ShipmentsPage = () => {
           packageCount: packageFilter,
           weight: weightFilter,
           pricingStatus: pricingFilter,
+          billingStatus: billingFilter,
+          paymentStatus: paymentFilter,
           status: statusFilter,
           ...dateParams
         };
@@ -724,6 +730,8 @@ export const ShipmentsPage = () => {
         route: routeFilter,
         packageCount: packageFilter,
         weight: weightFilter,
+        billingStatus: billingFilter,
+        paymentStatus: paymentFilter,
         ...dateParams
       });
 
@@ -761,8 +769,17 @@ export const ShipmentsPage = () => {
       const sorted = sortShipments(finalShipments);
       setBaseShipments(sorted);
 
-      // Keep master copy of shipments on initial fetch or when no company filter is applied
-      if (allShipmentsMaster.length === 0 || companyFilter === 'All') {
+      // Keep master copy of shipments on initial fetch or when no server-side filter is applied
+      if (
+        allShipmentsMaster.length === 0 ||
+        (companyFilter === 'All' &&
+          routeFilter === 'All' &&
+          packageFilter === 'All' &&
+          weightFilter === 'All' &&
+          billingFilter === 'All' &&
+          paymentFilter === 'All' &&
+          !dateFilter.applied)
+      ) {
         setAllShipmentsMaster(sorted);
       }
     } catch (err) {
@@ -775,7 +792,7 @@ export const ShipmentsPage = () => {
   // Fetch shipments when non-status filters change (status toggling is purely client-side)
   useEffect(() => {
     fetchData();
-  }, [companyFilter, routeFilter, packageFilter, weightFilter, dateFilter]);
+  }, [companyFilter, routeFilter, packageFilter, weightFilter, billingFilter, paymentFilter, dateFilter]);
 
   // Fetch backend dynamic filter options aggregation for exact database verification
   useEffect(() => {
@@ -1310,7 +1327,17 @@ export const ShipmentsPage = () => {
       });
     }
 
-    // 7. Date Filter (AND)
+    // 7. Billing Status Filter (AND)
+    if (billingFilter && billingFilter !== 'All') {
+      list = list.filter((s) => matchBillingStatus(s, billingFilter));
+    }
+
+    // 8. Payment Status Filter (AND)
+    if (paymentFilter && paymentFilter !== 'All') {
+      list = list.filter((s) => matchPaymentStatus(s, paymentFilter));
+    }
+
+    // 9. Date Filter (AND)
     if (dateFilter.applied) {
       if (dateFilter.mode === 'particular' && dateFilter.date) {
         list = list.filter((s) => {
@@ -1326,7 +1353,7 @@ export const ShipmentsPage = () => {
     }
 
     return list;
-  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, pricingFilter, dateFilter, isAutoFetchActive, autoMatchedQuotationMap]);
+  }, [baseShipments, search, searchQuery, companyFilter, routeFilter, packageFilter, weightFilter, pricingFilter, billingFilter, paymentFilter, dateFilter, isAutoFetchActive, autoMatchedQuotationMap]);
 
   // Step 2: Calculate All, Booked, and Delivered counts from baseFilteredShipments (BEFORE status filter is applied)
   const statusCounts = React.useMemo(() => {
@@ -2102,7 +2129,51 @@ export const ShipmentsPage = () => {
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
-            {/* 6. Date Filter */}
+            {/* 6. Billing Status Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.95_1_130px] xl:flex-[0.9_1_118px] min-w-0 max-w-full relative box-border">
+              <select
+                value={billingFilter}
+                onChange={(e) => setBillingFilter(e.target.value)}
+                aria-label="Billing Status Filter"
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  billingFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Billing Status"
+              >
+                <option value="All">All Billing Statuses</option>
+                <option value="Ready">Ready</option>
+                <option value="Not Ready">Not Ready</option>
+                <option value="Invoiced">Invoiced</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 7. Payment Status Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.95_1_135px] xl:flex-[0.9_1_122px] min-w-0 max-w-full relative box-border">
+              <select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+                aria-label="Payment Status Filter"
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  paymentFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Payment Status"
+              >
+                <option value="All">All Payment Statuses</option>
+                <option value="Billed">Billed</option>
+                <option value="Unbilled">Unbilled</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Partially Paid">Partially Paid</option>
+                <option value="Paid">Paid</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 8. Date Filter */}
             <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.8_1_95px] xl:flex-[0.75_1_85px] min-w-0 max-w-full box-border">
               <DateFilterPopover
                 dateFilter={dateFilter}
@@ -2285,7 +2356,7 @@ export const ShipmentsPage = () => {
           )}
 
           {/* Active Filter Chips with Individual Dismiss (x) and Clear All */}
-          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || pricingFilter !== 'All' || dateFilter.applied || search) && (
+          {(companyFilter !== 'All' || routeFilter !== 'All' || packageFilter !== 'All' || weightFilter !== 'All' || pricingFilter !== 'All' || billingFilter !== 'All' || paymentFilter !== 'All' || dateFilter.applied || search) && (
             <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100/80 text-xs">
               <span className="text-[11px] font-semibold text-slate-400 mr-1">Active Filters:</span>
               {companyFilter !== 'All' && (
@@ -2354,6 +2425,30 @@ export const ShipmentsPage = () => {
                     onClick={() => setPricingFilter('All')}
                     className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
                     title="Clear Pricing filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {billingFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                  <span>Billing: {billingFilter}</span>
+                  <button
+                    onClick={() => setBillingFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Billing Status filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {paymentFilter !== 'All' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                  <span>Payment: {paymentFilter}</span>
+                  <button
+                    onClick={() => setPaymentFilter('All')}
+                    className="hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded cursor-pointer"
+                    title="Clear Payment Status filter"
                   >
                     <X className="w-3 h-3" />
                   </button>
