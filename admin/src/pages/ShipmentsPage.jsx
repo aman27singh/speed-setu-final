@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Plus,
   Upload,
+  Download,
   Eye,
   Edit,
   Trash2,
@@ -473,14 +474,14 @@ const DateFilterPopover = ({ dateFilter, onApply, onClear }) => {
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full h-9 inline-flex items-center justify-between gap-1.5 px-2.5 text-xs rounded-lg font-medium border transition-all cursor-pointer ${
+        className={`w-full min-w-0 max-w-full box-border h-9 inline-flex items-center justify-between gap-1.5 px-2.5 text-xs rounded-lg font-medium border transition-all cursor-pointer ${
           dateFilter.applied
             ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
             : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
         }`}
         title="Filter by Date or Date Range"
       >
-        <div className="flex items-center gap-1.5 truncate">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
           <Calendar className={`w-3.5 h-3.5 shrink-0 ${dateFilter.applied ? 'text-blue-600' : 'text-slate-400'}`} />
           <span className="truncate">{getButtonLabel()}</span>
         </div>
@@ -553,6 +554,9 @@ export const ShipmentsPage = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const exportMenuRef = useRef(null);
 
   // Multi-selection state
   const [selectedIds, setSelectedIds] = useState([]);
@@ -644,6 +648,66 @@ export const ShipmentsPage = () => {
   useEffect(() => {
     companyService.getCompanies().then(setCompanies).catch(() => {});
   }, []);
+
+  // Dismiss Export Excel dropdown on outside click
+  useEffect(() => {
+    if (!showExportMenu) return undefined;
+    const handleOutsideClick = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showExportMenu]);
+
+  const handleExportExcel = async (scope) => {
+    if (exportingExcel) return;
+    setShowExportMenu(false);
+    setExportingExcel(true);
+    try {
+      let exportParams = { scope: 'all' };
+      if (scope !== 'all') {
+        const tickedIds = selectedIds.length > 0
+          ? shipments
+              .filter((s) => selectedIds.includes(s.id || s.cnNumber || s._id))
+              .map((s) => s._id || s.cnNumber || s.id)
+              .filter(Boolean)
+          : [];
+
+        const dateParams = dateFilter.applied
+          ? {
+              date: dateFilter.mode === 'particular' ? dateFilter.date : '',
+              startDate: dateFilter.mode === 'range' ? dateFilter.startDate : '',
+              endDate: dateFilter.mode === 'range' ? dateFilter.endDate : ''
+            }
+          : {};
+
+        exportParams = {
+          scope: 'filtered',
+          ids: tickedIds,
+          search: search || searchQuery || '',
+          companyId: companyFilter,
+          route: routeFilter,
+          packageCount: packageFilter,
+          weight: weightFilter,
+          pricingStatus: pricingFilter,
+          status: statusFilter,
+          ...dateParams
+        };
+      }
+
+      const { filename } = await shipmentService.exportShipments(exportParams);
+      setToastMessage(`✓ Exported ${filename} successfully.`);
+      setTimeout(() => setToastMessage(''), 5000);
+    } catch (err) {
+      console.error('Failed to export shipments Excel:', err);
+      setToastMessage(`✗ Export failed: ${err.message || 'Unable to generate Excel file.'}`);
+      setTimeout(() => setToastMessage(''), 6000);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -1715,7 +1779,7 @@ export const ShipmentsPage = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full box-border">
       {/* Header */}
       <PageHeader
         title={isDriverAccount ? 'My Created Shipments' : 'Shipments Management'}
@@ -1736,6 +1800,54 @@ export const ShipmentsPage = () => {
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                 <span>Import Excel / CSV</span>
               </button>
+
+              <div className="relative flex-1 sm:flex-initial" ref={exportMenuRef}>
+                <button
+                  type="button"
+                  disabled={exportingExcel}
+                  onClick={() => setShowExportMenu((prev) => !prev)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-blue-800 bg-blue-50 border border-blue-300 hover:bg-blue-100 disabled:opacity-60 rounded-md shadow-2xs transition-colors cursor-pointer"
+                  title="Export shipments to MIS Excel (.xlsx)"
+                  data-testid="export-excel-button"
+                >
+                  {exportingExcel ? (
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 text-blue-600" />
+                  )}
+                  <span>{exportingExcel ? 'Exporting...' : 'Export Excel'}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                </button>
+
+                {showExportMenu && !exportingExcel && (
+                  <div
+                    className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-lg shadow-xl py-1 z-50"
+                    role="menu"
+                    data-testid="export-excel-menu"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('all')}
+                      className="w-full px-3.5 py-2 text-left text-xs hover:bg-slate-50 flex items-center justify-between gap-2 text-slate-800 font-semibold cursor-pointer"
+                      role="menuitem"
+                    >
+                      <span>Export all</span>
+                      <span className="text-[10px] text-slate-400 font-normal">All DB records</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('filtered')}
+                      className="w-full px-3.5 py-2 text-left text-xs hover:bg-slate-50 flex items-center justify-between gap-2 text-slate-800 font-semibold border-t border-slate-100 cursor-pointer"
+                      role="menuitem"
+                    >
+                      <span>Export filtered / selected</span>
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
+                        {selectedIds.length > 0 ? `${selectedIds.length} sel` : shipments.length}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={() => setShowUploadModal(true)}
@@ -1769,18 +1881,21 @@ export const ShipmentsPage = () => {
 
       {/* Search & Multi-Filter Controls Bar (Admin Only) */}
       {!isDriverAccount && (
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-4 shadow-xs space-y-3">
-          {/* First Row – Search (approx 30%) and 5 Filters + Reset aligned in one horizontal row */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 w-full">
-            {/* 1. Search Bar – Approx 30% width */}
-            <div className="w-full lg:w-[28%] xl:w-[30%] min-w-[200px] shrink-0 relative flex items-center">
+        <div
+          className="bg-white border border-slate-200/90 rounded-xl p-3 sm:p-4 shadow-xs space-y-3 w-full max-w-full min-w-0 box-border"
+          data-testid="shipments-filter-bar"
+        >
+          {/* Responsive Wrapping Filter Row – single row on wide desktop, balanced 2-row wrap on medium, neat stack/pairs on mobile */}
+          <div className="flex flex-wrap items-center gap-2 w-full min-w-0 box-border">
+            {/* 1. Search Bar */}
+            <div className="w-full sm:flex-[1.5_1_180px] xl:flex-[1.5_1_165px] min-w-0 max-w-full relative flex items-center box-border">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search CN, company, consignor, consignee, code..."
-                className="w-full h-9 pl-9 pr-7 text-xs bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 text-slate-800 font-medium"
+                className="w-full min-w-0 max-w-full h-9 pl-9 pr-7 text-xs bg-slate-50/60 hover:bg-white focus:bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 text-slate-800 font-medium box-border"
               />
               {search && (
                 <button
@@ -1797,232 +1912,229 @@ export const ShipmentsPage = () => {
               )}
             </div>
 
-            {/* Flexible Filter Controls Container (utilizes full remaining width) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-1 lg:items-center gap-2 w-full">
-              {/* 2. Company Filter */}
-              <div className="lg:flex-1 lg:min-w-[120px] relative">
-                <select
-                  value={companyFilter}
-                  onChange={(e) => {
-                    const nextVal = e.target.value;
-                    quotationFetchSeqRef.current += 1;
-                    persistSeqRef.current += 1;
-                    lastQuotationFetchKeyRef.current = '';
-                    persistedFetchKeyRef.current = '';
-                    setCompanyQuotations([]);
-                    setQuotationFetchError(null);
-                    setFetchingQuotations(false);
-                    setPersistingQuotations(false);
-                    setQuotationPersistError(null);
-                    setLastPersistedCount(0);
-                    if (nextVal === 'All') {
-                      setAutoFetchQuotation(false);
-                    }
-                    setCompanyFilter(nextVal);
-                  }}
-                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
-                    companyFilter !== 'All'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
-                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Filter by Company"
-                >
-                  <option value="All">
-                    All Companies {availableCompanies.length > 0 ? `(${availableCompanies.reduce((acc, c) => acc + (c.count || 0), 0)})` : ''}
-                  </option>
-                  {availableCompanies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label || `${c.name} (${c.count})`}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* 2b. Auto-Fetch Quotation Toggle */}
-              <div
-                className="shrink-0 flex items-center"
-                title={
-                  companyFilter === 'All'
-                    ? 'Select a company to automatically fetch its quotations.'
-                    : autoFetchQuotation
-                      ? 'Auto-Fetch Quotation is ON (matching quotations are applied to unpriced CNs). Click to disable.'
-                      : 'Automatically fetch and apply quotations for the selected company'
-                }
-              >
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={autoFetchQuotation}
-                  disabled={companyFilter === 'All'}
-                  onClick={() => {
-                    if (companyFilter === 'All') return;
-                    setAutoFetchQuotation((prev) => !prev);
-                  }}
-                  className={`w-full lg:w-auto h-9 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center justify-between lg:justify-start gap-2 transition-all whitespace-nowrap ${
-                    companyFilter === 'All'
-                      ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
-                      : autoFetchQuotation
-                        ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-500/20 cursor-pointer hover:bg-emerald-100/70'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    {fetchingQuotations || persistingQuotations ? (
-                      <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
-                    ) : (
-                      <Sparkles
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          companyFilter === 'All'
-                            ? 'text-slate-400'
-                            : autoFetchQuotation
-                              ? 'text-emerald-600'
-                              : 'text-slate-400'
-                        }`}
-                      />
-                    )}
-                    <span>Auto-Fetch Quotation</span>
-                  </span>
-                  <span
-                    className={`w-7 h-4 rounded-full p-0.5 transition-colors inline-flex items-center shrink-0 ${
-                      companyFilter === 'All'
-                        ? 'bg-slate-200'
-                        : autoFetchQuotation
-                          ? 'bg-emerald-500 justify-end'
-                          : 'bg-slate-300 justify-start'
-                    }`}
-                  >
-                    <span className="w-3 h-3 rounded-full bg-white shadow-2xs block" />
-                  </span>
-                </button>
-              </div>
-
-              {/* 3. Origin – Destination (Route) Filter */}
-              <div className="lg:flex-1 lg:min-w-[130px] relative">
-                <select
-                  value={routeFilter}
-                  onChange={(e) => setRouteFilter(e.target.value)}
-                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
-                    routeFilter !== 'All'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
-                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Filter by Route (Origin – Destination)"
-                >
-                  <option value="All">
-                    {companyFilter === 'All' ? 'Origin – Destination' : 'All Routes for Company'} {availableRoutes.length > 0 ? `(${availableRoutes.reduce((acc, r) => acc + (r.count || 0), 0)})` : ''}
-                  </option>
-                  {availableRoutes.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* 4. Packages Filter */}
-              <div className="lg:flex-[0.8] lg:min-w-[95px] relative">
-                <select
-                  value={packageFilter}
-                  onChange={(e) => setPackageFilter(e.target.value)}
-                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
-                    packageFilter !== 'All'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
-                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Filter by Package Count"
-                >
-                  <option value="All">
-                    Packages {availablePackages.length > 0 ? `(${availablePackages.reduce((acc, p) => acc + (p.count || 0), 0)})` : ''}
-                  </option>
-                  {availablePackages.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* 5. Weight Filter */}
-              <div className="lg:flex-[0.8] lg:min-w-[95px] relative">
-                <select
-                  value={weightFilter}
-                  onChange={(e) => setWeightFilter(e.target.value)}
-                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
-                    weightFilter !== 'All'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
-                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Filter by Weight"
-                >
-                  <option value="All">
-                    Weights {availableWeights.length > 0 ? `(${availableWeights.reduce((acc, w) => acc + (w.count || 0), 0)})` : ''}
-                  </option>
-                  {availableWeights.map((w) => (
-                    <option key={w.value} value={w.value}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* Pricing Agreement Status Filter */}
-              <div className="lg:flex-[1.1] lg:min-w-[125px] relative">
-                <select
-                  value={pricingFilter}
-                  onChange={(e) => setPricingFilter(e.target.value)}
-                  className={`w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none ${
-                    pricingFilter !== 'All'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
-                      : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Filter by Pricing Agreement Coverage"
-                >
-                  <option value="All">All Pricing Statuses</option>
-                  <option value="Quotation">Quotation Applied</option>
-                  <option value="RateCard">Rate Card Applied</option>
-                  <option value="NoQuotation">No Quotation</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* 6. Date Filter */}
-              <div className="lg:flex-[1.1] lg:min-w-[115px]">
-                <DateFilterPopover
-                  dateFilter={dateFilter}
-                  onApply={(newFilter) => setDateFilter(newFilter)}
-                  onClear={() =>
-                    setDateFilter({
-                      mode: 'particular',
-                      date: '',
-                      startDate: '',
-                      endDate: '',
-                      applied: false
-                    })
+            {/* 2. Company Filter */}
+            <div className="w-full sm:w-auto sm:flex-[1_1_130px] xl:flex-[1_1_110px] min-w-0 max-w-full relative box-border">
+              <select
+                value={companyFilter}
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  quotationFetchSeqRef.current += 1;
+                  persistSeqRef.current += 1;
+                  lastQuotationFetchKeyRef.current = '';
+                  persistedFetchKeyRef.current = '';
+                  setCompanyQuotations([]);
+                  setQuotationFetchError(null);
+                  setFetchingQuotations(false);
+                  setPersistingQuotations(false);
+                  setQuotationPersistError(null);
+                  setLastPersistedCount(0);
+                  if (nextVal === 'All') {
+                    setAutoFetchQuotation(false);
                   }
-                />
-              </div>
+                  setCompanyFilter(nextVal);
+                }}
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  companyFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Company"
+              >
+                <option value="All">
+                  All Companies {availableCompanies.length > 0 ? `(${availableCompanies.reduce((acc, c) => acc + (c.count || 0), 0)})` : ''}
+                </option>
+                {availableCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label || `${c.name} (${c.count})`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
 
-              {/* 7. Reset Button */}
+            {/* 2b. Auto-Fetch Quotation Toggle */}
+            <div
+              className="w-full sm:w-auto shrink-0 max-w-full flex items-center box-border"
+              title={
+                companyFilter === 'All'
+                  ? 'Select a company to automatically fetch its quotations.'
+                  : autoFetchQuotation
+                    ? 'Auto-Fetch Quotation is ON (matching quotations are applied to unpriced CNs). Click to disable.'
+                    : 'Automatically fetch and apply quotations for the selected company'
+              }
+            >
               <button
                 type="button"
-                onClick={handleResetFilters}
-                className="col-span-2 sm:col-span-1 h-9 px-3 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200/80 rounded-lg transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
-                title="Reset all filters to default"
+                role="switch"
+                aria-checked={autoFetchQuotation}
+                disabled={companyFilter === 'All'}
+                onClick={() => {
+                  if (companyFilter === 'All') return;
+                  setAutoFetchQuotation((prev) => !prev);
+                }}
+                className={`w-full sm:w-auto max-w-full h-9 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center justify-between sm:justify-start gap-2 transition-all whitespace-nowrap box-border ${
+                  companyFilter === 'All'
+                    ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                    : autoFetchQuotation
+                      ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-500/20 cursor-pointer hover:bg-emerald-100/70'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 cursor-pointer'
+                }`}
               >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Reset</span>
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  {fetchingQuotations || persistingQuotations ? (
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+                  ) : (
+                    <Sparkles
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        companyFilter === 'All'
+                          ? 'text-slate-400'
+                          : autoFetchQuotation
+                            ? 'text-emerald-600'
+                            : 'text-slate-400'
+                      }`}
+                    />
+                  )}
+                  <span>Auto-Fetch Quotation</span>
+                </span>
+                <span
+                  className={`w-7 h-4 rounded-full p-0.5 transition-colors inline-flex items-center shrink-0 ${
+                    companyFilter === 'All'
+                      ? 'bg-slate-200'
+                      : autoFetchQuotation
+                        ? 'bg-emerald-500 justify-end'
+                        : 'bg-slate-300 justify-start'
+                  }`}
+                >
+                  <span className="w-3 h-3 rounded-full bg-white shadow-2xs block" />
+                </span>
               </button>
             </div>
+
+            {/* 3. Origin – Destination (Route) Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[1_1_130px] xl:flex-[1_1_110px] min-w-0 max-w-full relative box-border">
+              <select
+                value={routeFilter}
+                onChange={(e) => setRouteFilter(e.target.value)}
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  routeFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Route (Origin – Destination)"
+              >
+                <option value="All">
+                  {companyFilter === 'All' ? 'Origin – Destination' : 'All Routes for Company'} {availableRoutes.length > 0 ? `(${availableRoutes.reduce((acc, r) => acc + (r.count || 0), 0)})` : ''}
+                </option>
+                {availableRoutes.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 4. Packages Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.75_1_95px] xl:flex-[0.7_1_85px] min-w-0 max-w-full relative box-border">
+              <select
+                value={packageFilter}
+                onChange={(e) => setPackageFilter(e.target.value)}
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  packageFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Package Count"
+              >
+                <option value="All">
+                  Packages {availablePackages.length > 0 ? `(${availablePackages.reduce((acc, p) => acc + (p.count || 0), 0)})` : ''}
+                </option>
+                {availablePackages.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 5. Weight Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.75_1_95px] xl:flex-[0.7_1_85px] min-w-0 max-w-full relative box-border">
+              <select
+                value={weightFilter}
+                onChange={(e) => setWeightFilter(e.target.value)}
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  weightFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Weight"
+              >
+                <option value="All">
+                  Weights {availableWeights.length > 0 ? `(${availableWeights.reduce((acc, w) => acc + (w.count || 0), 0)})` : ''}
+                </option>
+                {availableWeights.map((w) => (
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Pricing Agreement Status Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.95_1_120px] xl:flex-[0.9_1_110px] min-w-0 max-w-full relative box-border">
+              <select
+                value={pricingFilter}
+                onChange={(e) => setPricingFilter(e.target.value)}
+                className={`w-full min-w-0 max-w-full h-9 pl-2.5 pr-7 text-xs border rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate transition-all cursor-pointer appearance-none box-border ${
+                  pricingFilter !== 'All'
+                    ? 'border-blue-500 text-blue-700 bg-blue-50/40 font-semibold ring-1 ring-blue-500/20'
+                    : 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+                }`}
+                title="Filter by Pricing Agreement Coverage"
+              >
+                <option value="All">All Pricing Statuses</option>
+                <option value="Quotation">Quotation Applied</option>
+                <option value="RateCard">Rate Card Applied</option>
+                <option value="NoQuotation">No Quotation</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 6. Date Filter */}
+            <div className="w-[calc(50%-4px)] sm:w-auto sm:flex-[0.8_1_95px] xl:flex-[0.75_1_85px] min-w-0 max-w-full box-border">
+              <DateFilterPopover
+                dateFilter={dateFilter}
+                onApply={(newFilter) => setDateFilter(newFilter)}
+                onClear={() =>
+                  setDateFilter({
+                    mode: 'particular',
+                    date: '',
+                    startDate: '',
+                    endDate: '',
+                    applied: false
+                  })
+                }
+              />
+            </div>
+
+            {/* 7. Reset Button */}
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="w-[calc(50%-4px)] sm:w-auto h-9 px-3 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200/80 rounded-lg transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer box-border"
+              title="Reset all filters to default"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span>Reset</span>
+            </button>
           </div>
 
           {/* Second Row – Compact Segmented Status Buttons (Left) & Total Matching Count (Right) */}
-          <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs w-full min-w-0 box-border">
             {/* Left: Segmented Filter Buttons */}
-            <div className="flex items-center bg-slate-100/90 p-0.5 rounded-lg border border-slate-200/60 shadow-2xs">
+            <div className="flex flex-wrap items-center bg-slate-100/90 p-0.5 rounded-lg border border-slate-200/60 shadow-2xs max-w-full box-border">
               <button
                 type="button"
                 onClick={() => setStatusFilter('All')}

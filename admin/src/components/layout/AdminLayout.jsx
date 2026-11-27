@@ -24,7 +24,7 @@ export const AdminLayout = () => {
         <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Main Content Area */}
-        <main className={`flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto ${isDriver ? 'pb-20 lg:pb-8' : ''}`}>
+        <main className={`flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full min-w-0 mx-auto box-border ${isDriver ? 'pb-20 lg:pb-8' : ''}`}>
           <Outlet />
         </main>
       </div>

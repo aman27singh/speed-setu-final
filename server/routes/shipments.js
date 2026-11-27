@@ -10,6 +10,7 @@ const { calculateFreightAmount, formatFreightDescription, resolveShipmentFreight
 const { protect } = require('../middleware/auth');
 const CnTemplate = require('../models/CnTemplate');
 const { DEFAULT_CN_TEMPLATE_CONFIG } = require('../config/defaultCnTemplate');
+const { buildShipmentsExportBuffer, buildShipmentExportPipeline } = require('../services/shipmentExportService');
 
 // GET /api/shipments — List all shipments
 router.get('/', async (req, res) => {
@@ -274,6 +275,27 @@ router.get('/', async (req, res) => {
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/shipments/export — Export raw stored DB shipments as SPEEDSETU_MIS_<YYYY-MM-DD>.xlsx
+router.get('/export', protect, async (req, res) => {
+  try {
+    const pipeline = buildShipmentExportPipeline(req.query, req.user);
+    const cursor = Shipment.aggregate(pipeline).cursor({ batchSize: 200 });
+    const buffer = await buildShipmentsExportBuffer(cursor);
+
+    const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const filename = `SPEEDSETU_MIS_${todayIst}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('[Shipments Export Error]:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message || 'Failed to export shipments.' });
+    }
   }
 });
 

@@ -1,4 +1,4 @@
-import { simulateDelay, apiRequest } from './apiClient';
+import { simulateDelay, apiRequest, BASE_URL, getStoredToken } from './apiClient';
 import { payableService } from './payableService';
 import { expenseService } from './expenseService';
 
@@ -962,5 +962,94 @@ export const shipmentService = {
       }
     }
     return { success: true, count: successCount };
+  },
+
+  /**
+   * Export shipments to SPEEDSETU_MIS_<YYYY-MM-DD>.xlsx directly from backend DB.
+   * Rejects cleanly on HTTP error without triggering a partial download.
+   */
+  async exportShipments({
+    scope = 'all',
+    ids = [],
+    search = '',
+    companyId = 'All',
+    route = 'All',
+    packageCount = 'All',
+    weight = 'All',
+    pricingStatus = 'All',
+    status = 'All',
+    date = '',
+    startDate = '',
+    endDate = ''
+  } = {}) {
+    const params = new URLSearchParams();
+    params.append('scope', scope);
+
+    if (scope !== 'all') {
+      if (Array.isArray(ids) && ids.length > 0) {
+        params.append('ids', ids.join(','));
+      } else {
+        if (search && search.trim()) params.append('search', search.trim());
+        if (companyId && companyId !== 'All') params.append('companyId', companyId);
+        if (route && route !== 'All') params.append('route', route);
+        if (packageCount && packageCount !== 'All') params.append('package', packageCount);
+        if (weight && weight !== 'All') params.append('weight', weight);
+        if (pricingStatus && pricingStatus !== 'All') params.append('pricingStatus', pricingStatus);
+        if (status && status !== 'All') params.append('status', status);
+        if (date) params.append('date', date);
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
+    }
+
+    const token = getStoredToken();
+    const url = `${BASE_URL}/shipments/export?${params.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+
+    if (!response.ok) {
+      let errMsg = `Export failed (HTTP ${response.status})`;
+      try {
+        const errJson = await response.json();
+        if (errJson?.error || errJson?.message) {
+          errMsg = errJson.error || errJson.message;
+        }
+      } catch {
+        // ignore JSON parse failure
+      }
+      throw new Error(errMsg);
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('Server returned an empty Excel file.');
+    }
+
+    const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    let filename = `SPEEDSETU_MIS_${todayIst}.xlsx`;
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+    if (match && match[1]) {
+      filename = decodeURIComponent(match[1].trim());
+    }
+
+    const objectUrl = window.URL.createObjectURL(blob);
+    try {
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      window.URL.revokeObjectURL(objectUrl);
+    }
+
+    return { filename };
   }
 };
